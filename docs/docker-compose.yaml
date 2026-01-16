@@ -8,7 +8,8 @@ services:
     ports:
       - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: PaiSmart2025
+      # 【修改点1】这里必须改成和你 Java 代码一致的密码
+      MYSQL_ROOT_PASSWORD: qQ980789582!
     volumes:
       - mysql-data:/var/lib/mysql
       - /data/docker/mysql/conf:/etc/mysql/conf.d
@@ -30,8 +31,9 @@ services:
       - minio-data:/data
       - /data/docker/minio/config:/root/.minio
     environment:
-      MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: PaiSmart2025
+      # 【修改点2】Java 代码里默认是 minioadmin，这里需要对应修改
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
     command: server /data --console-address ":19001" -address ":19000"
 
   redis:
@@ -49,11 +51,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    command: redis-server --bind 0.0.0.0 --port 6379 --requirepass PaiSmart2025 --appendonly yes
+    # 【修改点3】Redis 启动命令里的密码也要改
+    command: redis-server --bind 0.0.0.0 --port 6379 --requirepass qQ980789582! --appendonly yes
 
   kafka:
     image: bitnamilegacy/kafka:latest
-    container_name: kafka       # 如果需要按照新的命名规则，请改为 pai_smart_kafka
+    container_name: kafka
     restart: always
     ports:
       - "9092:9092"
@@ -63,50 +66,27 @@ services:
       - KAFKA_CFG_PROCESS_ROLES=controller,broker
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@localhost:9093
-
-      # 监听器配置
       - KAFKA_CFG_LISTENERS=CONTROLLER://:9093,PLAINTEXT://:9092
       - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-
     volumes:
       - kafka-data:/bitnami/kafka
     command:
       - sh
       - -c
       - |
-        # 启动 Kafka（使用 bitnami 完整初始化流程）
         /opt/bitnami/scripts/kafka/run.sh &
-
-        # 等待 Kafka 完全启动（更可靠的检测方式）
         echo "Waiting for Kafka to start..."
         while ! kafka-topics.sh --bootstrap-server localhost:9092 --list 2>/dev/null; do
           sleep 2
         done
-
-        # 创建第一个主题（忽略已存在的错误）
         echo "Creating topic: file-processing"
-        kafka-topics.sh --create \
-          --bootstrap-server localhost:9092 \
-          --replication-factor 1 \
-          --partitions 1 \
-          --topic file-processing 2>/dev/null || true
-
-        # 创建第二个主题 vectorization
+        kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 1 --topic file-processing 2>/dev/null || true
         echo "Creating topic: vectorization"
-        kafka-topics.sh --create \
-          --bootstrap-server localhost:9092 \
-          --replication-factor 1 \
-          --partitions 1 \
-          --topic vectorization 2>/dev/null || true
-        # 保持容器运行
+        kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 1 --topic vectorization 2>/dev/null || true
         tail -f /dev/null
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1",
-        ]
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -121,7 +101,8 @@ services:
     volumes:
       - es-data:/usr/share/elasticsearch/data
     environment:
-      - ELASTIC_PASSWORD=PaiSmart2025
+      # 【修改点4】为了统一，建议把 ES 密码也改成一样的，或者你直接在 Java 里把 ES 密码注释去掉并改成这个
+      - ELASTIC_PASSWORD=qQ980789582!
       - node.name=pai-smart-es01
       - discovery.type=single-node
       - xpack.license.self_generated.type=basic
@@ -129,8 +110,6 @@ services:
       - xpack.security.enrollment.enabled=false
       - xpack.security.http.ssl.enabled=false
       - cluster.name=pai-smart-es-cluster
-
-      # 内存配置 (根据可用RAM调整)
       - ES_JAVA_OPTS=-Xms2g -Xmx2g
     deploy:
       resources:
