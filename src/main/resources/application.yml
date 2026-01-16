@@ -81,6 +81,8 @@ elasticsearch:
   scheme: http         # 协议（http/https）
   #username: elastic     # 安装后生成的默认用户
   #password: REDACTED
+  username: elastic  # 取消注释
+  password: REDACTED # 取消注释，并确保这里也是这个密码
 
 
 logging:
