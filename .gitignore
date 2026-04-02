@@ -76,3 +76,12 @@ frontend/src/typings/auto-imports.d.ts
 frontend/public/languages
 frontend/public/themes
 src/main/resources/application.yml~
+
+# Windows reserved device names
+nul
+
+# Eclipse/VSCode project files
+.classpath
+.factorypath
+.project
+.settings/

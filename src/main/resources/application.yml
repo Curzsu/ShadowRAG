@@ -54,11 +54,11 @@ spring:
 
 
 minio:
-  endpoint: http://localhost:9000
+  endpoint: http://localhost:19000
   accessKey: REDACTED
   secretKey: REDACTED
   bucketName: uploads
-  publicUrl: http://localhost:9000
+  publicUrl: http://localhost:19000
 jwt:
   secret-key: "UkVEQUNURUQtRVhBTVBMRS1LRVktRE8tTk9ULVVTRSE="
 
@@ -107,11 +107,11 @@ deepseek:
 
 embedding:
   api:
-    url: https://dashscope.aliyuncs.com/compatible-mode/v1
-    key: ***REMOVED***
-    model: text-embedding-v4
-    batch-size: 10  # 单次请求最大行数（DashScope限制为10）
-    dimension: 2048  # 指定向量维度
+    url: http://localhost:11434/v1  # Ollama 本地服务（OpenAI 兼容格式）
+    key: ollama  # Ollama 不需要认证，但 WebClientConfig 需要 Bearer 头，填任意值即可
+    model: bge-m3  # BAAI/bge-m3: 多语言 embedding 模型，1024维
+    batch-size: 10  # 单次请求最大行数
+    dimension: 1024  # bge-m3 输出向量维度
 
 ai:
   prompt:

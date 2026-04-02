@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(java -version)",
+      "Bash(pnpm:*)",
+      "Bash(mvn:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker compose:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(docker port:*)",
+      "Bash(docker inspect:*)",
+      "Bash(docker stop:*)",
+      "Bash(docker rm:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker:*)",
+      "Bash(mysql:*)",
+      "Bash(curl:*)",
+      "Bash(cat:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd:*)",
+      "Bash(ollama:*)",
+      "Bash(python:*)",
+      "Bash(dir:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
