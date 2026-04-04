@@ -22,7 +22,12 @@
       "Bash(cmd:*)",
       "Bash(ollama:*)",
       "Bash(python:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "WebSearch",
+      "Bash(systeminfo:*)",
+      "Bash(nvidia-smi:*)",
+      "Bash(wmic:*)",
+      "Bash(powershell:*)"
     ],
     "deny": [],
     "ask": []
