@@ -10,13 +10,16 @@ import org.springframework.web.reactive.function.client.ExchangeStrategies;
 
 @Configuration
 public class WebClientConfig {
-    
+
     @Value("${embedding.api.url}")
     private String apiUrl;
-    
+
     @Value("${embedding.api.key}")
     private String apiKey;
-    
+
+    @Value("${mineru.api.url:http://localhost:8000}")
+    private String mineruApiUrl;
+
     @Bean
     public WebClient embeddingWebClient() {
         ExchangeStrategies strategies = ExchangeStrategies.builder()
@@ -32,4 +35,18 @@ public class WebClientConfig {
             .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
             .build();
     }
-} 
+
+    @Bean
+    public WebClient mineruWebClient() {
+        ExchangeStrategies strategies = ExchangeStrategies.builder()
+            .codecs(configurer -> configurer
+                .defaultCodecs()
+                .maxInMemorySize(50 * 1024 * 1024)) // 50MB，MinerU返回的markdown可能很大
+            .build();
+
+        return WebClient.builder()
+            .baseUrl(mineruApiUrl)
+            .exchangeStrategies(strategies)
+            .build();
+    }
+}

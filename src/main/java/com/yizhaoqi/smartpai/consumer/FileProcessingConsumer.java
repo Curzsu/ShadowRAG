@@ -52,10 +52,16 @@ public class FileProcessingConsumer {
                 fileStream = new BufferedInputStream(fileStream);
             }
 
-            // 解析文件
-            parseService.parseAndSave(task.getFileMd5(), fileStream, 
-                    task.getUserId(), task.getOrgTag(), task.isPublic());
-            log.info("文件解析完成，fileMd5: {}", task.getFileMd5());
+            // 解析文件：MinerU 优先，不可用时回退到 Tika
+            if (parseService.shouldUseMinerU()) {
+                parseService.parseAndSaveByMinerU(task.getFileMd5(), fileStream,
+                        task.getFileName(), task.getUserId(), task.getOrgTag(), task.isPublic());
+                log.info("MinerU 文件解析完成，fileMd5: {}", task.getFileMd5());
+            } else {
+                parseService.parseAndSave(task.getFileMd5(), fileStream,
+                        task.getUserId(), task.getOrgTag(), task.isPublic());
+                log.info("Tika 文件解析完成，fileMd5: {}", task.getFileMd5());
+            }
 
             // 向量化处理
             vectorizationService.vectorize(task.getFileMd5(), 

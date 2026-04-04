@@ -1,5 +1,6 @@
 package com.yizhaoqi.smartpai.service;
 
+import com.yizhaoqi.smartpai.client.MinerUClient;
 import com.yizhaoqi.smartpai.model.DocumentVector;
 import com.yizhaoqi.smartpai.repository.DocumentVectorRepository;
 import org.apache.tika.exception.TikaException;
@@ -28,8 +29,14 @@ public class ParseService {
     @Autowired
     private DocumentVectorRepository documentVectorRepository;
 
+    @Autowired
+    private MinerUClient minerUClient;
+
     @Value("${file.parsing.chunk-size}")
     private int chunkSize;
+
+    @Value("${mineru.api.enabled:false}")
+    private boolean mineruEnabled;
 
     @Value("${file.parsing.parent-chunk-size:1048576}")
     private int parentChunkSize;
@@ -88,6 +95,48 @@ public class ParseService {
     public void parseAndSave(String fileMd5, InputStream fileStream) throws IOException, TikaException {
         // 使用默认值调用新方法
         parseAndSave(fileMd5, fileStream, "unknown", "DEFAULT", false);
+    }
+
+    /**
+     * 使用 MinerU 解析文件并保存分块。
+     * MinerU 将文件转换为 Markdown，再复用现有的语义切块逻辑。
+     *
+     * @param fileMd5    文件的 MD5 哈希值
+     * @param fileStream 文件输入流
+     * @param fileName   原始文件名
+     * @param userId     上传用户ID
+     * @param orgTag     组织标签
+     * @param isPublic   是否公开
+     */
+    public void parseAndSaveByMinerU(String fileMd5, InputStream fileStream,
+            String fileName, String userId, String orgTag, boolean isPublic) {
+        logger.info("使用 MinerU 解析文件，fileMd5: {}, fileName: {}", fileMd5, fileName);
+
+        // 1. 调用 MinerU API 获取 Markdown
+        String markdown = minerUClient.parseToMarkdown(fileStream, fileName);
+
+        // 2. 复用现有的语义切块逻辑
+        List<String> chunks = splitTextIntoChunksWithSemantics(markdown, chunkSize);
+
+        // 3. 复用现有的入库逻辑
+        saveChildChunks(fileMd5, chunks, userId, orgTag, isPublic, 0);
+
+        logger.info("MinerU 解析入库完成，fileMd5: {}, 分块数: {}", fileMd5, chunks.size());
+    }
+
+    /**
+     * 判断是否应使用 MinerU 解析。
+     * 配置开关打开 且 MinerU 服务可用时返回 true。
+     */
+    public boolean shouldUseMinerU() {
+        if (!mineruEnabled) {
+            return false;
+        }
+        boolean available = minerUClient.isAvailable();
+        if (!available) {
+            logger.warn("MinerU 已启用但服务不可用，将回退到 Tika");
+        }
+        return available;
     }
 
     private void checkMemoryThreshold() {

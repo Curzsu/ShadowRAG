@@ -8,8 +8,7 @@ services:
     ports:
       - "3306:3306"
     environment:
-      # 【修改点1】这里必须改成和你 Java 代码一致的密码
-      MYSQL_ROOT_PASSWORD: qQ980789582!
+      MYSQL_ROOT_PASSWORD: qQ980789582\!
     volumes:
       - mysql-data:/var/lib/mysql
       - /data/docker/mysql/conf:/etc/mysql/conf.d
@@ -31,7 +30,6 @@ services:
       - minio-data:/data
       - /data/docker/minio/config:/root/.minio
     environment:
-      # 【修改点2】Java 代码里默认是 minioadmin，这里需要对应修改
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     command: server /data --console-address ":19001" -address ":19000"
@@ -51,8 +49,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    # 【修改点3】Redis 启动命令里的密码也要改
-    command: redis-server --bind 0.0.0.0 --port 6379 --requirepass qQ980789582! --appendonly yes
+    command: redis-server --bind 0.0.0.0 --port 6379 --requirepass qQ980789582\! --appendonly yes
 
   kafka:
     image: bitnamilegacy/kafka:latest
@@ -77,7 +74,7 @@ services:
       - |
         /opt/bitnami/scripts/kafka/run.sh &
         echo "Waiting for Kafka to start..."
-        while ! kafka-topics.sh --bootstrap-server localhost:9092 --list 2>/dev/null; do
+        while \! kafka-topics.sh --bootstrap-server localhost:9092 --list 2>/dev/null; do
           sleep 2
         done
         echo "Creating topic: file-processing"
@@ -92,6 +89,32 @@ services:
       retries: 5
       start_period: 60s
 
+  mineru:
+    container_name: mineru-api
+    image: mineru:latest
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      MINERU_MODEL_SOURCE: local
+    entrypoint: mineru-api
+    command:
+      --host 0.0.0.0
+      --port 8000
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    ipc: host
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+
   es:
     image: elasticsearch:8.10.4
     container_name: es
@@ -101,8 +124,7 @@ services:
     volumes:
       - es-data:/usr/share/elasticsearch/data
     environment:
-      # 【修改点4】为了统一，建议把 ES 密码也改成一样的，或者你直接在 Java 里把 ES 密码注释去掉并改成这个
-      - ELASTIC_PASSWORD=qQ980789582!
+      - ELASTIC_PASSWORD=qQ980789582\!
       - node.name=pai-smart-es01
       - discovery.type=single-node
       - xpack.license.self_generated.type=basic
@@ -117,7 +139,7 @@ services:
           memory: 2g
     command: >
       bash -c "
-      if ! elasticsearch-plugin list | grep -q 'analysis-ik'; then
+      if \! elasticsearch-plugin list | grep -q 'analysis-ik'; then
         echo 'Installing analysis-ik plugin...';
         elasticsearch-plugin install --batch https://release.infinilabs.com/analysis-ik/stable/elasticsearch-analysis-ik-8.10.4.zip;
       else
