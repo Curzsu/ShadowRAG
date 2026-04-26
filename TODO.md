@@ -17,8 +17,8 @@
 >     → 用 RAGAS 跑评估
 >     → 不影响项目代码
 
+- [ ] 基于 Ghostscript 的 PDF 上传损坏修复兜底机制
 
-
-
+> ragflow源码，上传PDF文件后，若PDF是损坏的或者无法正常读取，会先调用 Ghostscript 尝试修复，修复失败再返回报错
 
 - [ ] 
