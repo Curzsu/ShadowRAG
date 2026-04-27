@@ -30,7 +30,9 @@
       "Bash(powershell:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Skill(superpowers:brainstorming)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []
