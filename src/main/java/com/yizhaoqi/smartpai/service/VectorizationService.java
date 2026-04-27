@@ -8,6 +8,7 @@ import com.yizhaoqi.smartpai.repository.DocumentVectorRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -19,6 +20,9 @@ import java.util.stream.IntStream;
 public class VectorizationService {
 
     private static final Logger logger = LoggerFactory.getLogger(VectorizationService.class);
+
+    @Value("${embedding.model:bge-m3}")
+    private String embeddingModelName;
 
     @Autowired
     private EmbeddingClient embeddingClient;
@@ -64,7 +68,7 @@ public class VectorizationService {
                             chunks.get(i).getChunkId(),
                             chunks.get(i).getContent(),
                             vectors.get(i),
-                            "deepseek-embed", // 更新为 DeepSeek 的模型版本
+                            embeddingModelName,
                             userId,
                             orgTag,
                             isPublic
