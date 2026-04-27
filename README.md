@@ -19,7 +19,7 @@ ShadowRAG 是一个企业级 AI 知识管理系统，基于 RAG（检索增强�
 
 | 类别 | 技术 |
 |------|------|
-| 框架 | Spring Boot 3.4.2 (Java 17) |
+| 框架 | Spring Boot 3.4.2 (Java 17+) |
 | 数据库 | MySQL 8.0 + Spring Data JPA |
 | 缓存 | Redis 7.0.11 |
 | 搜索引擎 | Elasticsearch 8.10.0 |
@@ -96,7 +96,7 @@ ShadowRAG/
 
 ### 前置条件
 
-- Java 17
+- Java 17+（推荐 Java 21）
 - Maven 3.8.6+
 - Node.js 18.20.0+
 - pnpm 8.7.0+
@@ -113,11 +113,11 @@ cd docs && docker-compose up -d
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
-| MySQL | 3306 | 主数据库 |
+| MySQL | 3307（容器内 3306） | 主数据库，密码 `123456` |
 | Redis | 6379 | 缓存 |
 | Elasticsearch | 9200 | 搜索与向量存储 |
 | Kafka | 9092 | 消息队列 |
-| MinIO | 19000 / 19001 | 文件存储 |
+| MinIO | 19000 / 19001 | 文件存储（API / 控制台） |
 | MinerU | 8000 | 文档解析（需 GPU） |
 
 ### 2. 启动本地 Embedding 服务
