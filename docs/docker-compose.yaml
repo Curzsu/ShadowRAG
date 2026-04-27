@@ -6,9 +6,9 @@ services:
     image: mysql:8
     restart: always
     ports:
-      - "3306:3306"
+      - "3307:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: REDACTED
+      MYSQL_ROOT_PASSWORD: "REDACTED"
     volumes:
       - mysql-data:/var/lib/mysql
       - /data/docker/mysql/conf:/etc/mysql/conf.d
