@@ -20,7 +20,7 @@
         </NButton>
       </div>
     </div>
-    
+
     <!-- 预览内容 -->
     <div class="preview-content">
       <template v-if="loading">
@@ -36,7 +36,10 @@
       </template>
       <template v-else>
         <div class="content-wrapper">
-          <pre class="preview-text">{{ content }}</pre>
+          <VueMarkdownItProvider v-if="contentType === 'markdown'">
+            <VueMarkdownIt :content="content" />
+          </VueMarkdownItProvider>
+          <pre v-else class="preview-text">{{ content }}</pre>
         </div>
       </template>
     </div>
@@ -47,6 +50,7 @@
 import { ref, watch } from 'vue';
 import { NButton, NSpin } from 'naive-ui';
 import SvgIcon from '@/components/custom/svg-icon.vue';
+import { VueMarkdownIt, VueMarkdownItProvider } from 'vue-markdown-shiki';
 import { request } from '@/service/request';
 import { getFileExt } from '@/utils/common';
 
@@ -65,6 +69,7 @@ const emit = defineEmits<Emits>();
 const loading = ref(false);
 const downloading = ref(false);
 const content = ref('');
+const contentType = ref<'markdown' | 'text' | 'info'>('text');
 const error = ref('');
 
 // 获取文件图标
@@ -94,16 +99,18 @@ watch(() => props.visible, async (visible) => {
 // 加载预览内容
 async function loadPreviewContent() {
   if (!props.fileName) return;
-  
+
   loading.value = true;
   error.value = '';
   content.value = '';
-  
+  contentType.value = 'text';
+
   try {
     const token = localStorage.getItem('token');
     const { error: requestError, data } = await request<{
       fileName: string;
       content: string;
+      contentType: string;
       fileSize: number;
     }>({
       url: '/documents/preview',
@@ -112,11 +119,12 @@ async function loadPreviewContent() {
         token: token || undefined
       }
     });
-    
+
     if (requestError) {
       error.value = '预览失败：' + (requestError.message || '未知错误');
     } else if (data) {
       content.value = data.content;
+      contentType.value = (data.contentType as 'markdown' | 'text' | 'info') || 'text';
     }
   } catch (err: any) {
     error.value = '预览失败：' + (err.message || '网络错误');
@@ -128,9 +136,9 @@ async function loadPreviewContent() {
 // 下载文件
 async function downloadFile() {
   if (!props.fileName) return;
-  
+
   downloading.value = true;
-  
+
   try {
     const token = localStorage.getItem('token');
     const { error: requestError, data } = await request<{
@@ -144,7 +152,7 @@ async function downloadFile() {
         token: token || undefined
       }
     });
-    
+
     if (requestError) {
       window.$message?.error('下载失败：' + (requestError.message || '未知错误'));
     } else if (data) {
@@ -173,18 +181,18 @@ function closePreview() {
 <style scoped lang="scss">
 .file-preview-container {
   @apply h-full flex flex-col bg-white border-l border-gray-200;
-  
+
   .preview-header {
     @apply flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50;
   }
-  
+
   .preview-content {
     @apply flex-1 overflow-hidden;
-    
+
     .content-wrapper {
       @apply h-full overflow-auto p-4;
     }
-    
+
     .preview-text {
       @apply text-sm font-mono whitespace-pre-wrap break-words;
       font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;

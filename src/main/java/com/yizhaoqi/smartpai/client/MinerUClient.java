@@ -102,10 +102,27 @@ public class MinerUClient {
     private String extractMarkdown(String response) throws IOException {
         JsonNode root = objectMapper.readTree(response);
 
-        // 尝试从 data 字段中提取
+        // MinerU 3.0 格式: { "results": { "文件名": { "md_content": "..." } } }
+        JsonNode resultsNode = root.get("results");
+        if (resultsNode != null && !resultsNode.isEmpty()) {
+            String firstKey = resultsNode.fieldNames().next();
+            JsonNode fileNode = resultsNode.get(firstKey);
+
+            // 优先取 md_content（MinerU 3.0+）
+            JsonNode mdNode = fileNode.get("md_content");
+            if (mdNode != null && !mdNode.isMissingNode() && !mdNode.isNull()) {
+                return mdNode.asText();
+            }
+            // 兼容旧字段名 markdown
+            mdNode = fileNode.get("markdown");
+            if (mdNode != null && !mdNode.isMissingNode() && !mdNode.isNull()) {
+                return mdNode.asText();
+            }
+        }
+
+        // 旧版格式: { "data": { "文件名": { "markdown": "..." } } }
         JsonNode dataNode = root.get("data");
         if (dataNode != null && !dataNode.isEmpty()) {
-            // data 是一个 map，key 是文件名，取第一个 value
             String firstKey = dataNode.fieldNames().next();
             JsonNode fileNode = dataNode.get(firstKey);
 

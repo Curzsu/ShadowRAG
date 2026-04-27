@@ -3,6 +3,8 @@ package com.yizhaoqi.smartpai.service;
 import com.yizhaoqi.smartpai.client.MinerUClient;
 import com.yizhaoqi.smartpai.model.DocumentVector;
 import com.yizhaoqi.smartpai.repository.DocumentVectorRepository;
+import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.ParseContext;
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.xml.sax.SAXException;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import com.hankcs.hanlp.seg.common.Term;
@@ -31,6 +34,9 @@ public class ParseService {
 
     @Autowired
     private MinerUClient minerUClient;
+
+    @Autowired
+    private MinioClient minioClient;
 
     @Value("${file.parsing.chunk-size}")
     private int chunkSize;
@@ -115,10 +121,13 @@ public class ParseService {
         // 1. 调用 MinerU API 获取 Markdown
         String markdown = minerUClient.parseToMarkdown(fileStream, fileName);
 
-        // 2. 复用现有的语义切块逻辑
+        // 2. 保存解析全文到 MinIO，供预览使用
+        saveParsedContent(fileMd5, markdown);
+
+        // 3. 复用现有的语义切块逻辑
         List<String> chunks = splitTextIntoChunksWithSemantics(markdown, chunkSize);
 
-        // 3. 复用现有的入库逻辑
+        // 4. 复用现有的入库逻辑
         saveChildChunks(fileMd5, chunks, userId, orgTag, isPublic, 0);
 
         logger.info("MinerU 解析入库完成，fileMd5: {}, 分块数: {}", fileMd5, chunks.size());
@@ -170,6 +179,7 @@ public class ParseService {
      */
     private class StreamingContentHandler extends BodyContentHandler {
         private final StringBuilder buffer = new StringBuilder();
+        private final StringBuilder fullText = new StringBuilder();
         private final String fileMd5;
         private final String userId;
         private final String orgTag;
@@ -187,6 +197,7 @@ public class ParseService {
         @Override
         public void characters(char[] ch, int start, int length) {
             buffer.append(ch, start, length);
+            fullText.append(ch, start, length);
             if (buffer.length() >= parentChunkSize) {
                 processParentChunk();
             }
@@ -197,6 +208,10 @@ public class ParseService {
             // 处理文档末尾剩余的最后一部分内容
             if (buffer.length() > 0) {
                 processParentChunk();
+            }
+            // 保存 Tika 解析全文到 MinIO，供预览使用
+            if (fullText.length() > 0) {
+                saveParsedContent(fileMd5, fullText.toString());
             }
         }
 
@@ -391,5 +406,26 @@ public class ParseService {
         }
 
         return chunks;
+    }
+
+    /**
+     * 将解析后的全文内容保存到 MinIO，供文件预览使用。
+     * 存储路径: uploads 桶下的 parsed/<fileMd5>.md
+     */
+    private void saveParsedContent(String fileMd5, String content) {
+        try {
+            byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+            minioClient.putObject(
+                PutObjectArgs.builder()
+                    .bucket("uploads")
+                    .object("parsed/" + fileMd5 + ".md")
+                    .stream(new ByteArrayInputStream(bytes), bytes.length, -1)
+                    .contentType("text/markdown; charset=utf-8")
+                    .build()
+            );
+            logger.info("解析全文已保存到 MinIO: parsed/{}.md, 大小: {} bytes", fileMd5, bytes.length);
+        } catch (Exception e) {
+            logger.warn("保存解析全文到 MinIO 失败（不影响分块入库）: fileMd5={}", fileMd5, e);
+        }
     }
 }
