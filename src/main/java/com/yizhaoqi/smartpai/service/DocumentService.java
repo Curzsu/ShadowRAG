@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -91,6 +92,19 @@ public class DocumentService {
             } catch (Exception e) {
                 logger.error("从MinIO删除文件时出错: {}", fileMd5, e);
                 // 继续删除其他数据
+            }
+
+            // 2.1 删除MinIO中的解析预览文件
+            try {
+                minioClient.removeObject(
+                        RemoveObjectArgs.builder()
+                                .bucket("uploads")
+                                .object("parsed/" + fileMd5 + ".md")
+                                .build()
+                );
+                logger.info("成功从MinIO删除解析预览文件: parsed/{}.md", fileMd5);
+            } catch (Exception e) {
+                logger.error("从MinIO删除解析预览文件时出错: {}", fileMd5, e);
             }
             
             // 3. 删除DocumentVector记录
@@ -209,74 +223,110 @@ public class DocumentService {
     
     /**
      * 获取文件预览内容
-     * 
+     *
      * @param fileMd5 文件MD5
      * @param fileName 文件名
-     * @return 文件预览内容，对于文本文件返回前几KB内容，非文本文件返回文件信息
+     * @return 包含 content 和 contentType 的预览结果
      */
-    public String getFilePreviewContent(String fileMd5, String fileName) {
+    public java.util.Map<String, String> getFilePreviewContent(String fileMd5, String fileName) {
         logger.info("获取文件预览内容: fileMd5={}, fileName={}", fileMd5, fileName);
-        
+
         try {
-            // MinIO中的对象路径格式: merged/文件名
-            String objectName = "merged/" + fileName;
-            
-            // 判断文件类型
             String fileExtension = getFileExtension(fileName).toLowerCase();
-            boolean isTextFile = isTextFile(fileExtension);
-            
-            if (isTextFile) {
-                // 对于文本文件，读取前10KB内容
+
+            // 1. 对于二进制文档格式（PDF/DOC/DOCX等），优先读取解析后的内容
+            if (isParsedDocument(fileExtension)) {
+                String parsedContent = readParsedContent(fileMd5);
+                if (parsedContent != null) {
+                    logger.info("返回解析后的预览内容: fileMd5={}, contentLength={}", fileMd5, parsedContent.length());
+                    return java.util.Map.of("content", parsedContent, "contentType", "markdown");
+                }
+                // 没有解析内容（旧文件），返回文件信息
+                FileUpload fileUpload = fileUploadRepository.findByFileMd5(fileMd5)
+                        .orElseThrow(() -> new RuntimeException("文件不存在: " + fileMd5));
+                String fileInfo = String.format(
+                    "文件名: %s\n文件大小: %s\n文件类型: %s\n上传时间: %s\n\n此文件暂无解析内容，请下载后查看。",
+                    fileName, formatFileSize(fileUpload.getTotalSize()), fileExtension.toUpperCase(), fileUpload.getCreatedAt()
+                );
+                return java.util.Map.of("content", fileInfo, "contentType", "info");
+            }
+
+            // 2. 对于真正的文本文件，读取原始内容
+            if (isTextFile(fileExtension)) {
+                String objectName = "merged/" + fileName;
                 try (InputStream inputStream = minioClient.getObject(
                         GetObjectArgs.builder()
                                 .bucket("uploads")
                                 .object(objectName)
                                 .build())) {
-                    
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
+
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
                     StringBuilder content = new StringBuilder();
                     String line;
                     int bytesRead = 0;
                     int maxBytes = 10240; // 10KB
-                    
+
                     while ((line = reader.readLine()) != null && bytesRead < maxBytes) {
                         content.append(line).append("\n");
-                        bytesRead += line.getBytes("UTF-8").length + 1;
+                        bytesRead += line.getBytes(StandardCharsets.UTF_8).length + 1;
                     }
-                    
+
                     String result = content.toString();
                     if (bytesRead >= maxBytes) {
                         result += "\n... (内容已截断，仅显示前10KB)";
                     }
-                    
+
+                    // .md 文件用 markdown 渲染，其他纯文本文件用 pre 展示
+                    String contentType = "md".equalsIgnoreCase(fileExtension) ? "markdown" : "text";
                     logger.info("成功获取文本文件预览内容: fileMd5={}, contentLength={}", fileMd5, result.length());
-                    return result;
+                    return java.util.Map.of("content", result, "contentType", contentType);
                 }
-            } else {
-                // 对于非文本文件，返回文件信息
-                FileUpload fileUpload = fileUploadRepository.findByFileMd5(fileMd5)
-                        .orElseThrow(() -> new RuntimeException("文件不存在: " + fileMd5));
-                
-                String fileInfo = String.format(
-                    "文件名: %s\n" +
-                    "文件大小: %s\n" +
-                    "文件类型: %s\n" +
-                    "上传时间: %s\n\n" +
-                    "此文件类型不支持预览，请下载后查看。",
-                    fileName,
-                    formatFileSize(fileUpload.getTotalSize()),
-                    fileExtension.toUpperCase(),
-                    fileUpload.getCreatedAt()
-                );
-                
-                logger.info("返回非文本文件信息: fileMd5={}", fileMd5);
-                return fileInfo;
             }
-            
+
+            // 3. 其他非文本文件
+            FileUpload fileUpload = fileUploadRepository.findByFileMd5(fileMd5)
+                    .orElseThrow(() -> new RuntimeException("文件不存在: " + fileMd5));
+            String fileInfo = String.format(
+                "文件名: %s\n文件大小: %s\n文件类型: %s\n上传时间: %s\n\n此文件类型不支持预览，请下载后查看。",
+                fileName, formatFileSize(fileUpload.getTotalSize()), fileExtension.toUpperCase(), fileUpload.getCreatedAt()
+            );
+            return java.util.Map.of("content", fileInfo, "contentType", "info");
+
         } catch (Exception e) {
             logger.error("获取文件预览内容失败: fileMd5={}, fileName={}", fileMd5, fileName, e);
-            return "预览失败: " + e.getMessage();
+            return java.util.Map.of("content", "预览失败: " + e.getMessage(), "contentType", "info");
         }
+    }
+
+    /**
+     * 从 MinIO 读取解析后的预览内容
+     */
+    private String readParsedContent(String fileMd5) {
+        try (InputStream inputStream = minioClient.getObject(
+                GetObjectArgs.builder()
+                        .bucket("uploads")
+                        .object("parsed/" + fileMd5 + ".md")
+                        .build())) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+            StringBuilder content = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                content.append(line).append("\n");
+            }
+            return content.toString();
+        } catch (Exception e) {
+            logger.debug("未找到解析预览内容: parsed/{}.md", fileMd5);
+            return null;
+        }
+    }
+
+    /**
+     * 判断是否为需要解析预览的二进制文档格式
+     */
+    private boolean isParsedDocument(String extension) {
+        String[] parsedExtensions = {"pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx"};
+        return Arrays.stream(parsedExtensions)
+                .anyMatch(ext -> ext.equalsIgnoreCase(extension));
     }
     
     /**
@@ -295,8 +345,8 @@ public class DocumentService {
      */
     private boolean isTextFile(String extension) {
         String[] textExtensions = {
-            "txt", "md", "doc", "docx", "pdf", "html", "htm", "xml", "json", 
-            "csv", "log", "java", "js", "ts", "py", "cpp", "c", "h", "css", 
+            "txt", "md", "html", "htm", "xml", "json",
+            "csv", "log", "java", "js", "ts", "py", "cpp", "c", "h", "css",
             "scss", "less", "sql", "yml", "yaml", "properties", "conf", "config"
         };
         
