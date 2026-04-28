@@ -40,13 +40,28 @@ function processSourceLinks(text: string): string {
   });
 }
 
+/**
+ * 将裸 URL 包装为 markdown 链接，防止 linkify 插件误将中文标点后的文本纳入链接范围
+ * 例：（https://www.cnki.net/）的文本 → （[https://www.cnki.net/](https://www.cnki.net/)）的文本
+ */
+function wrapBareUrls(text: string): string {
+  return text.replace(
+    /(?<![!\[(])(https?:\/\/[^\s<>"'（）【】《》「」""''、，。；：！？…·\u3000]+)/g,
+    (_match, url: string) => {
+      // 去掉末尾可能是句子标点而非 URL 组成部分的 ASCII 标点
+      const cleaned = url.replace(/[.,;:!?)\]]+$/, '');
+      return `[${cleaned}](${cleaned})`;
+    }
+  );
+}
+
 const content = computed(() => {
   chatStore.scrollToBottom?.();
   const rawContent = props.msg.content ?? '';
 
   // 只对助手消息处理来源链接
   if (props.msg.role === 'assistant') {
-    return processSourceLinks(rawContent);
+    return processSourceLinks(wrapBareUrls(rawContent));
   }
 
   return rawContent;
