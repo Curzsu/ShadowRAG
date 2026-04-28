@@ -50,9 +50,6 @@ public class ChatHandler {
         this.objectMapper = new ObjectMapper();
     }
 
-    /** 搜索结果最低分数阈值，低于此值视为不相关，不作为 RAG 上下文 */
-    private static final double MIN_SEARCH_SCORE = 0.5;
-
     public void processMessage(String userId, String userMessage, WebSocketSession session) {
         logger.info("开始处理消息，用户ID: {}, 会话ID: {}", userId, session.getId());
         try {
@@ -67,13 +64,9 @@ public class ChatHandler {
             List<Map<String, String>> history = getConversationHistory(conversationId);
             logger.debug("获取到 {} 条历史对话", history.size());
 
-            // 3. 执行带权限过滤的混合搜索
-            List<SearchResult> searchResults = searchService.searchWithPermission(userMessage, userId, 5);
-            // 过滤低分结果：KNN 可能绕过 BM25 must 返回不相关文档
-            searchResults = searchResults.stream()
-                    .filter(r -> r.getScore() != null && r.getScore() >= MIN_SEARCH_SCORE)
-                    .toList();
-            logger.debug("过滤后搜索结果数量: {}", searchResults.size());
+            // 3. 执行带权限过滤的混合搜索（RRF 融合排序）
+            List<SearchResult> searchResults = searchService.searchWithPermission(userMessage, userId, 10);
+            logger.debug("搜索结果数量: {}", searchResults.size());
 
             // 4. 构建上下文
             String context = buildContext(searchResults);

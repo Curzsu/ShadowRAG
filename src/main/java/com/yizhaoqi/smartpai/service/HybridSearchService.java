@@ -15,8 +15,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.ArrayList;
@@ -117,20 +115,11 @@ public class HybridSearchService {
                                 ))
                         ));
 
-                        // 第二阶段 BM25 rescore
-                        s.rescore(r -> r
-                                .windowSize(recallK)
-                                .query(rq -> rq
-                                        .queryWeight(0.2d)               // 保留部分 KNN 分
-                                        .rescoreQueryWeight(1.0d)        // BM25 主导
-                                        .query(rqq -> rqq.match(m -> m
-                                                .field("textContent")
-                                                .query(query)
-                                                .operator(Operator.And)
-                                        ))
-                                )
-                        );
-                        s.minScore(0.5d); // 过滤 KNN 绕过 BM25 must 的低相关结果
+                        // RRF 融合：基于排名倒数融合 KNN 和 BM25 分数，天然消除量纲差异
+                        s.rank(r -> r.rrf(rrf -> rrf
+                                .windowSize((long) recallK)
+                                .rankConstant(60L)
+                        ));
                         s.size(topK);
                         return s;
                     }, EsDocument.class);
@@ -299,19 +288,11 @@ public class HybridSearchService {
                         // 过滤仅保留包含关键词的文本
                         s.query(q -> q.match(m -> m.field("textContent").query(query)));
 
-                        // rescore BM25
-                        s.rescore(r -> r
-                                .windowSize(recallK)
-                                .query(rq -> rq
-                                        .queryWeight(0.2d)
-                                        .rescoreQueryWeight(1.0d)
-                                        .query(rqq -> rqq.match(m -> m
-                                                .field("textContent")
-                                                .query(query)
-                                                .operator(Operator.And)
-                                        ))
-                                )
-                        );
+                        // RRF 融合
+                        s.rank(r -> r.rrf(rrf -> rrf
+                                .windowSize((long) recallK)
+                                .rankConstant(60L)
+                        ));
                         s.size(topK);
                         return s;
                     }, EsDocument.class);
