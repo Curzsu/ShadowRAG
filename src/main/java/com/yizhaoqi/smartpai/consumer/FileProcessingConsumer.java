@@ -2,6 +2,8 @@ package com.yizhaoqi.smartpai.consumer;
 
 import com.yizhaoqi.smartpai.config.KafkaConfig;
 import com.yizhaoqi.smartpai.model.FileProcessingTask;
+import com.yizhaoqi.smartpai.model.FileUpload;
+import com.yizhaoqi.smartpai.repository.FileUploadRepository;
 import com.yizhaoqi.smartpai.service.ParseService;
 import com.yizhaoqi.smartpai.service.VectorizationService;
 import io.minio.MinioClient;
@@ -23,21 +25,27 @@ public class FileProcessingConsumer {
 
     private final ParseService parseService;
     private final VectorizationService vectorizationService;
+    private final FileUploadRepository fileUploadRepository;
     @Autowired
     private KafkaConfig kafkaConfig;
 
 
-    public FileProcessingConsumer(ParseService parseService, VectorizationService vectorizationService) {
+    public FileProcessingConsumer(ParseService parseService, VectorizationService vectorizationService,
+                                  FileUploadRepository fileUploadRepository) {
         this.parseService = parseService;
         this.vectorizationService = vectorizationService;
+        this.fileUploadRepository = fileUploadRepository;
     }
 
     @KafkaListener(topics = "#{kafkaConfig.getFileProcessingTopic()}", groupId = "#{kafkaConfig.getFileProcessingGroupId()}")
     public void processTask(FileProcessingTask task) {
         log.info("Received task: {}", task);
-        log.info("文件权限信息: userId={}, orgTag={}, isPublic={}", 
+        log.info("文件权限信息: userId={}, orgTag={}, isPublic={}",
                 task.getUserId(), task.getOrgTag(), task.isPublic());
-                
+
+        // 更新解析状态为：解析中
+        updateParseStatus(task.getFileMd5(), 1);
+
         InputStream fileStream = null;
         try {
             // 下载文件
@@ -64,11 +72,16 @@ public class FileProcessingConsumer {
             }
 
             // 向量化处理
-            vectorizationService.vectorize(task.getFileMd5(), 
+            vectorizationService.vectorize(task.getFileMd5(),
                     task.getUserId(), task.getOrgTag(), task.isPublic());
             log.info("向量化完成，fileMd5: {}", task.getFileMd5());
+
+            // 更新解析状态为：解析完成
+            updateParseStatus(task.getFileMd5(), 2);
         } catch (Exception e) {
             log.error("Error processing task: {}", task, e);
+            // 更新解析状态为：解析失败
+            updateParseStatus(task.getFileMd5(), 3);
             // 抛出异常让 Kafka 的 DefaultErrorHandler 捕获并触发重试 / 死信
             throw new RuntimeException("Error processing task", e);
         } finally {
@@ -130,6 +143,23 @@ public class FileProcessingConsumer {
         } catch (Exception e) {
             log.error("Error downloading file from storage: {}", filePath, e);
             return null; // 或者抛出异常
+        }
+    }
+
+    /**
+     * 更新文件解析状态
+     * @param fileMd5 文件MD5
+     * @param status 0=待解析, 1=解析中, 2=解析完成, 3=解析失败
+     */
+    private void updateParseStatus(String fileMd5, int status) {
+        try {
+            fileUploadRepository.findByFileMd5(fileMd5).ifPresent(file -> {
+                file.setParseStatus(status);
+                fileUploadRepository.save(file);
+                log.info("更新文件解析状态: fileMd5={}, parseStatus={}", fileMd5, status);
+            });
+        } catch (Exception e) {
+            log.warn("更新解析状态失败: fileMd5={}, status={}", fileMd5, status, e);
         }
     }
 }

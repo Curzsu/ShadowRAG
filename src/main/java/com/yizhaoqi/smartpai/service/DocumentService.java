@@ -241,13 +241,30 @@ public class DocumentService {
                     logger.info("返回解析后的预览内容: fileMd5={}, contentLength={}", fileMd5, parsedContent.length());
                     return java.util.Map.of("content", parsedContent, "contentType", "markdown");
                 }
-                // 没有解析内容（旧文件），返回文件信息
+                // 没有解析内容，根据解析状态返回不同提示
                 FileUpload fileUpload = fileUploadRepository.findByFileMd5(fileMd5)
                         .orElseThrow(() -> new RuntimeException("文件不存在: " + fileMd5));
-                String fileInfo = String.format(
-                    "文件名: %s\n文件大小: %s\n文件类型: %s\n上传时间: %s\n\n此文件暂无解析内容，请下载后查看。",
-                    fileName, formatFileSize(fileUpload.getTotalSize()), fileExtension.toUpperCase(), fileUpload.getCreatedAt()
-                );
+                String fileInfo;
+                int parseStatus = fileUpload.getParseStatus() != null ? fileUpload.getParseStatus() : 0;
+                if (parseStatus == 1) {
+                    // 正在解析中
+                    fileInfo = String.format(
+                        "文件名: %s\n文件大小: %s\n文件类型: %s\n上传时间: %s\n\n⏳ 文件正在解析中，请稍后再试...",
+                        fileName, formatFileSize(fileUpload.getTotalSize()), fileExtension.toUpperCase(), fileUpload.getCreatedAt()
+                    );
+                } else if (parseStatus == 3) {
+                    // 解析失败
+                    fileInfo = String.format(
+                        "文件名: %s\n文件大小: %s\n文件类型: %s\n上传时间: %s\n\n❌ 文件解析失败，请重新上传或下载后查看。",
+                        fileName, formatFileSize(fileUpload.getTotalSize()), fileExtension.toUpperCase(), fileUpload.getCreatedAt()
+                    );
+                } else {
+                    // 待解析（0）或其他
+                    fileInfo = String.format(
+                        "文件名: %s\n文件大小: %s\n文件类型: %s\n上传时间: %s\n\n⏳ 文件正在排队等待解析，请稍后再试...",
+                        fileName, formatFileSize(fileUpload.getTotalSize()), fileExtension.toUpperCase(), fileUpload.getCreatedAt()
+                    );
+                }
                 return java.util.Map.of("content", fileInfo, "contentType", "info");
             }
 
