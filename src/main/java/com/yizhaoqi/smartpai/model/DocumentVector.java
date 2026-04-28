@@ -11,7 +11,11 @@ import java.sql.Blob;
  */
 @Data
 @Entity
-@Table(name = "document_vectors")
+@Table(name = "document_vectors", indexes = {
+    @Index(name = "idx_dv_file_md5", columnList = "file_md5"),
+    @Index(name = "idx_dv_user_id", columnList = "user_id"),
+    @Index(name = "idx_dv_org_tag", columnList = "org_tag")
+})
 public class DocumentVector {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
