@@ -45,6 +45,9 @@ const handleSend = async () => {
     return;
   }
 
+  // 输入为空或 WebSocket 未连接时不发送
+  if (!input.value.message || ['CLOSED', 'CONNECTING'].includes(wsStatus.value)) return;
+
   // 确保有活跃会话
   await chatStore.ensureConversation();
 
