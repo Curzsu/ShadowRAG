@@ -181,18 +181,13 @@ public class ChatHandler {
 
     private String buildContext(List<SearchResult> searchResults) {
         if (searchResults == null || searchResults.isEmpty()) {
-            // 返回空字符串，让 DeepSeekClient 按"无检索结果"逻辑处理
             return "";
         }
 
-        final int MAX_SNIPPET_LEN = 300; // 单段最长字符数，超出截断
         StringBuilder context = new StringBuilder();
         for (int i = 0; i < searchResults.size(); i++) {
             SearchResult result = searchResults.get(i);
             String snippet = result.getTextContent();
-            if (snippet.length() > MAX_SNIPPET_LEN) {
-                snippet = snippet.substring(0, MAX_SNIPPET_LEN) + "…";
-            }
             String fileLabel = result.getFileName() != null ? result.getFileName() : "unknown";
             context.append(String.format("[%d] (%s) %s\n", i + 1, fileLabel, snippet));
         }
