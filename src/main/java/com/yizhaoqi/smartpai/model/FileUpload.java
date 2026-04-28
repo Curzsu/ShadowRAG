@@ -13,7 +13,11 @@ import java.time.LocalDateTime;
  */
 @Data
 @Entity
-@Table(name = "file_upload")
+@Table(name = "file_upload", indexes = {
+    @Index(name = "idx_file_md5", columnList = "file_md5"),
+    @Index(name = "idx_user_id", columnList = "user_id"),
+    @Index(name = "idx_org_tag", columnList = "org_tag")
+})
 public class FileUpload {
     /**
      * 文件的唯一标识符
