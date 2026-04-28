@@ -1,6 +1,8 @@
 package com.yizhaoqi.smartpai.service;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
+import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import com.yizhaoqi.smartpai.client.EmbeddingClient;
 import com.yizhaoqi.smartpai.entity.EsDocument;
@@ -81,38 +83,24 @@ public class HybridSearchService {
 
             logger.debug("向量生成成功，开始执行混合搜索 KNN");
 
+            // 构建权限过滤 Query（KNN 和 BM25 共用）
+            Query permissionFilter = buildPermissionFilter(userDbId, userEffectiveTags);
+
             SearchResponse<EsDocument> response = esClient.search(s -> {
                         s.index("knowledge_base");
-                        // KNN 召回
+                        // KNN 召回（带权限过滤，防止召回无权访问的文档）
                         int recallK = topK * 30; // KNN 召回窗口
                         s.knn(kn -> kn
                                 .field("vector")
                                 .queryVector(queryVector)
                                 .k(recallK)
                                 .numCandidates(recallK)
+                                .filter(permissionFilter)
                         );
                         // 必须命中关键词 + 权限过滤
                         s.query(q -> q.bool(b -> b
                                 .must(mst -> mst.match(m -> m.field("textContent").query(query)))
-                                .filter(f -> f.bool(bf -> bf
-                                        // 条件1: 用户可访问自己的文档
-                                        .should(s1 -> s1.term(t -> t.field("userId").value(userDbId)))
-                                        // 条件2: 公开文档
-                                        .should(s2 -> s2.term(t -> t.field("public").value(true)))
-                                        // 条件3: 组织标签
-                                        .should(s3 -> {
-                                            if (userEffectiveTags.isEmpty()) {
-                                                return s3.matchNone(mn -> mn);
-                                            } else if (userEffectiveTags.size() == 1) {
-                                                return s3.term(t -> t.field("orgTag").value(userEffectiveTags.get(0)));
-                                            } else {
-                                                return s3.bool(inner -> {
-                                                    userEffectiveTags.forEach(tag -> inner.should(sh2 -> sh2.term(t -> t.field("orgTag").value(tag))));
-                                                    return inner;
-                                                });
-                                            }
-                                        })
-                                ))
+                                .filter(permissionFilter)
                         ));
 
                         // RRF 融合：基于排名倒数融合 KNN 和 BM25 分数，天然消除量纲差异
@@ -431,6 +419,32 @@ public class HybridSearchService {
             logger.error("获取用户数据库ID失败: {}", e.getMessage(), e);
             throw new RuntimeException("获取用户数据库ID失败", e);
         }
+    }
+
+    /**
+     * 构建权限过滤 Query：用户自己的文档 OR 公开文档 OR 所属组织的文档
+     * KNN filter 和 BM25 filter 共用此方法
+     */
+    private Query buildPermissionFilter(String userDbId, List<String> userEffectiveTags) {
+        BoolQuery.Builder boolBuilder = new BoolQuery.Builder();
+        // 条件1: 用户可访问自己的文档
+        boolBuilder.should(s1 -> s1.term(t -> t.field("userId").value(userDbId)));
+        // 条件2: 公开文档
+        boolBuilder.should(s2 -> s2.term(t -> t.field("public").value(true)));
+        // 条件3: 组织标签
+        boolBuilder.should(s3 -> {
+            if (userEffectiveTags.isEmpty()) {
+                return s3.matchNone(mn -> mn);
+            } else if (userEffectiveTags.size() == 1) {
+                return s3.term(t -> t.field("orgTag").value(userEffectiveTags.get(0)));
+            } else {
+                return s3.bool(inner -> {
+                    userEffectiveTags.forEach(tag -> inner.should(sh2 -> sh2.term(t -> t.field("orgTag").value(tag))));
+                    return inner;
+                });
+            }
+        });
+        return Query.of(q -> q.bool(boolBuilder.build()));
     }
 
     private void attachFileNames(List<SearchResult> results) {
