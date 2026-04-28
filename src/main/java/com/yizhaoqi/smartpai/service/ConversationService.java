@@ -37,7 +37,8 @@ public class ConversationService {
     @Autowired
     private RedisTemplate<String, String> redisTemplate;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    @Autowired
+    private ObjectMapper objectMapper;
 
     /**
      * 新建对话

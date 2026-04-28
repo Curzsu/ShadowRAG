@@ -22,23 +22,26 @@ public class DeepSeekClient {
     private final String apiKey;
     private final String model;
     private final AiProperties aiProperties;
+    private final ObjectMapper objectMapper;
     private static final Logger logger = LoggerFactory.getLogger(DeepSeekClient.class);
-    
+
     public DeepSeekClient(@Value("${deepseek.api.url}") String apiUrl,
                          @Value("${deepseek.api.key}") String apiKey,
                          @Value("${deepseek.api.model}") String model,
-                         AiProperties aiProperties) {
+                         AiProperties aiProperties,
+                         ObjectMapper objectMapper) {
         WebClient.Builder builder = WebClient.builder().baseUrl(apiUrl);
-        
+
         // 只有当 API key 不为空时才添加 Authorization header
         if (apiKey != null && !apiKey.trim().isEmpty()) {
             builder.defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey);
         }
-        
+
         this.webClient = builder.build();
         this.apiKey = apiKey;
         this.model = model;
         this.aiProperties = aiProperties;
+        this.objectMapper = objectMapper;
     }
     
     public void streamResponse(String userMessage,
@@ -146,8 +149,7 @@ public class DeepSeekClient {
             }
             
             // 直接解析 JSON
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode node = mapper.readTree(chunk);
+            JsonNode node = objectMapper.readTree(chunk);
             String content = node.path("choices")
                                .path(0)
                                .path("delta")
