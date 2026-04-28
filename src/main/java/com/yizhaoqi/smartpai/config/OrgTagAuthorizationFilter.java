@@ -57,10 +57,11 @@ public class OrgTagAuthorizationFilter extends OncePerRequestFilter {
             // 需要用户ID但不需要资源权限检查的API路径
             // 这些API只需要用户身份验证，不需要对特定资源进行权限检查
             // 控制器方法通过@RequestAttribute("userId")获取用户ID
-            if (path.matches(".*/upload/chunk.*") || 
-                path.matches(".*/upload/merge.*") || 
+            if (path.matches(".*/upload/chunk.*") ||
+                path.matches(".*/upload/merge.*") ||
                 path.matches(".*/documents/uploads.*") ||
                 path.matches(".*/search/hybrid.*") ||
+                path.matches(".*/chat/conversation.*") ||
                 (path.matches(".*/documents/[a-fA-F0-9]{32}.*") && "DELETE".equals(request.getMethod()))) {
                 
                 String operation = "未知操作";
@@ -72,6 +73,8 @@ public class OrgTagAuthorizationFilter extends OncePerRequestFilter {
                     operation = "获取用户文档";
                 } else if (path.contains("/search/hybrid")) {
                     operation = "混合检索";
+                } else if (path.contains("/chat/conversation")) {
+                    operation = "会话管理";
                 } else if ("DELETE".equals(request.getMethod()) && path.matches(".*/documents/[a-fA-F0-9]{32}.*")) {
                     operation = "删除文档";
                 }

@@ -41,14 +41,15 @@ public class DeepSeekClient {
         this.aiProperties = aiProperties;
     }
     
-    public void streamResponse(String userMessage, 
+    public void streamResponse(String userMessage,
                              String context,
                              List<Map<String, String>> history,
                              Consumer<String> onChunk,
-                             Consumer<Throwable> onError) {
-        
+                             Consumer<Throwable> onError,
+                             Runnable onComplete) {
+
         Map<String, Object> request = buildRequest(userMessage, context, history);
-        
+
         webClient.post()
                 .uri("/chat/completions")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -57,7 +58,8 @@ public class DeepSeekClient {
                 .bodyToFlux(String.class)
                 .subscribe(
                     chunk -> processChunk(chunk, onChunk),
-                    onError
+                    onError,
+                    onComplete
                 );
     }
     

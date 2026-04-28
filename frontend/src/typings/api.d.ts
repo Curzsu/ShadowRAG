@@ -179,6 +179,9 @@ declare namespace Api {
 
     interface Conversation {
       conversationId: string;
+      title: string;
+      updatedAt?: string;
+      createdAt?: string;
     }
 
     interface Message {
