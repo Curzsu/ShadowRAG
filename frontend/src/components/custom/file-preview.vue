@@ -180,21 +180,21 @@ function closePreview() {
 
 <style scoped lang="scss">
 .file-preview-container {
-  @apply h-full flex flex-col bg-white border-l border-gray-200;
+  @apply h-full flex flex-col bg-white border-l border-gray-200 dark:bg-#1c1c1c dark:border-gray-700;
 
   .preview-header {
-    @apply flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50;
+    @apply flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-#e0e0e0;
   }
 
   .preview-content {
-    @apply flex-1 overflow-hidden;
+    @apply flex-1 overflow-hidden text-gray-800 dark:text-#e0e0e0;
 
     .content-wrapper {
       @apply h-full overflow-auto p-4;
     }
 
     .preview-text {
-      @apply text-sm font-mono whitespace-pre-wrap break-words;
+      @apply text-sm font-mono whitespace-pre-wrap break-words text-gray-700 dark:text-#e0e0e0;
       font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
       line-height: 1.5;
       margin: 0;
