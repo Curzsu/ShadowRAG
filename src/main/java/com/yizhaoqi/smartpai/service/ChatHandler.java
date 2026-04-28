@@ -42,12 +42,13 @@ public class ChatHandler {
     public ChatHandler(RedisTemplate<String, String> redisTemplate,
                       HybridSearchService searchService,
                       DeepSeekClient deepSeekClient,
-                      ConversationService conversationService) {
+                      ConversationService conversationService,
+                      ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
         this.searchService = searchService;
         this.deepSeekClient = deepSeekClient;
         this.conversationService = conversationService;
-        this.objectMapper = new ObjectMapper();
+        this.objectMapper = objectMapper;
     }
 
     public void processMessage(String userId, String userMessage, WebSocketSession session) {
