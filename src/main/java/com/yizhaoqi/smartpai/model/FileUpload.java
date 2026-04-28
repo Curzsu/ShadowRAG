@@ -49,6 +49,13 @@ public class FileUpload {
     private int status; // 0-上传中 1-已完成
 
     /**
+     * 文件解析状态
+     * null/0=待解析, 1=解析中, 2=解析完成, 3=解析失败
+     */
+    @Column(name = "parse_status")
+    private Integer parseStatus;
+
+    /**
      * 上传文件的用户的标识符
      * 用于记录哪个用户上传了文件
      */
