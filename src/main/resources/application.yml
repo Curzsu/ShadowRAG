@@ -138,5 +138,5 @@ ai:
     no-result-text: "（本轮无检索结果）"
   generation:
     temperature: 0.3
-    max-tokens: 2000
+    max-tokens: 4096
     top-p: 0.9
