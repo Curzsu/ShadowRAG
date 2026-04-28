@@ -8,9 +8,8 @@ defineOptions({
 });
 
 const chatStore = useChatStore();
-const { list } = storeToRefs(chatStore);
+const { list, conversationId } = storeToRefs(chatStore);
 
-const loading = ref(false);
 const scrollbarRef = ref<InstanceType<typeof NScrollbar>>();
 
 watch(() => [...list.value], scrollToBottom);
@@ -24,53 +23,31 @@ function scrollToBottom() {
   }, 100);
 }
 
-const range = ref<[number, number]>([dayjs().subtract(7, 'day').valueOf(), dayjs().add(1, 'day').valueOf()]);
-
-const params = computed(() => {
-  return {
-    start_date: dayjs(range.value[0]).format('YYYY-MM-DD'),
-    end_date: dayjs(range.value[1]).format('YYYY-MM-DD')
-  };
-});
-
-watchEffect(() => {
-  getList();
-});
-
-async function getList() {
-  loading.value = true;
-  const { error, data } = await request<Api.Chat.Message[]>({
-    url: 'users/conversation',
-    params: params.value
-  });
-  if (!error) {
-    list.value = data;
-  }
-  loading.value = false;
-}
-
-onMounted(() => {
+// 页面加载时：如果有当前会话则加载历史，否则自动创建
+onMounted(async () => {
   chatStore.scrollToBottom = scrollToBottom;
+  if (conversationId.value) {
+    await chatStore.switchConversation(conversationId.value);
+  } else {
+    await chatStore.createConversation();
+  }
 });
 </script>
 
 <template>
   <Suspense>
     <NScrollbar ref="scrollbarRef" class="h-0 flex-auto">
-      <Teleport defer to="#header-extra">
-        <div class="px-10">
-          <NForm :model="params" label-placement="left" :show-feedback="false" inline>
-            <NFormItem label="时间">
-              <NDatePicker v-model:value="range" type="daterange" />
-            </NFormItem>
-          </NForm>
-        </div>
-      </Teleport>
-      <NSpin :show="loading">
+      <div class="p-4">
         <VueMarkdownItProvider>
           <ChatMessage v-for="(item, index) in list" :key="index" :msg="item" />
         </VueMarkdownItProvider>
-      </NSpin>
+
+        <!-- 空状态 -->
+        <div v-if="list.length === 0" class="flex flex-col items-center justify-center py-20 text-gray-400">
+          <icon-mdi-chat-outline class="text-48px mb-4" />
+          <p class="text-14px">开始新对话吧</p>
+        </div>
+      </div>
     </NScrollbar>
   </Suspense>
 </template>

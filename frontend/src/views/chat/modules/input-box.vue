@@ -20,8 +20,11 @@ watch(wsData, val => {
   const data = JSON.parse(val);
   const assistant = list.value[list.value.length - 1];
 
-  if (data.type === 'completion' && data.status === 'finished' && assistant.status !== 'error')
+  if (data.type === 'completion' && data.status === 'finished' && assistant.status !== 'error') {
     assistant.status = 'finished';
+    // 对话完成后刷新会话列表（更新标题和时间）
+    chatStore.fetchConversationList();
+  }
   if (data.error) assistant.status = 'error';
   else if (data.chunk) {
     assistant.status = 'loading';
@@ -41,6 +44,9 @@ const handleSend = async () => {
     if (!latestMessage.value.content) list.value.pop();
     return;
   }
+
+  // 确保有活跃会话
+  await chatStore.ensureConversation();
 
   list.value.push({
     content: input.value.message,

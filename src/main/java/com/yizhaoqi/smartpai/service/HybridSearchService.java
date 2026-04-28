@@ -130,6 +130,7 @@ public class HybridSearchService {
                                         ))
                                 )
                         );
+                        s.minScore(0.5d); // 过滤 KNN 绕过 BM25 must 的低相关结果
                         s.size(topK);
                         return s;
                     }, EsDocument.class);
