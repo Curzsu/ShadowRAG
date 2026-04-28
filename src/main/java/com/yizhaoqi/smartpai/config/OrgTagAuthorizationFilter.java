@@ -59,6 +59,7 @@ public class OrgTagAuthorizationFilter extends OncePerRequestFilter {
             // 控制器方法通过@RequestAttribute("userId")获取用户ID
             if (path.matches(".*/upload/chunk.*") ||
                 path.matches(".*/upload/merge.*") ||
+                path.matches(".*/upload/status.*") ||
                 path.matches(".*/documents/uploads.*") ||
                 path.matches(".*/search/hybrid.*") ||
                 path.matches(".*/chat/conversation.*") ||
@@ -69,6 +70,8 @@ public class OrgTagAuthorizationFilter extends OncePerRequestFilter {
                     operation = "分片上传";
                 } else if (path.contains("/merge")) {
                     operation = "合并分片";
+                } else if (path.contains("/status")) {
+                    operation = "查询上传状态";
                 } else if (path.contains("/uploads")) {
                     operation = "获取用户文档";
                 } else if (path.contains("/search/hybrid")) {
