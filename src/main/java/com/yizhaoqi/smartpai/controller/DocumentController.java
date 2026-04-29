@@ -208,18 +208,18 @@ public class DocumentController {
     @GetMapping("/download")
     public ResponseEntity<?> downloadFileByName(
             @RequestParam String fileName,
-            @RequestParam(required = false) String token) {
-        
+            @RequestParam(required = false) String token,
+            @RequestAttribute(value = "userId", required = false) String filterUserId,
+            @RequestAttribute(value = "role", required = false) String filterRole) {
+
         LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("DOWNLOAD_FILE_BY_NAME");
         try {
             // 验证token并获取用户信息
-            String userId = null;
+            String userId = filterUserId;  // 优先使用 OrgTagAuthorizationFilter 设置的数字ID
             String orgTags = null;
-            
-            if (token != null && !token.trim().isEmpty()) {
+
+            if (userId == null && token != null && !token.trim().isEmpty()) {
                 try {
-                    // 解析JWT token获取用户信息
-                    // 注意：JWT中的sub字段存储用户名，userId字段存储用户ID（但有时可能存储的是用户名）
                     userId = jwtUtils.extractUsernameFromToken(token);
                     orgTags = jwtUtils.extractOrgTagsFromToken(token);
                 } catch (Exception e) {
@@ -333,32 +333,35 @@ public class DocumentController {
     @GetMapping("/preview")
     public ResponseEntity<?> previewFileByName(
             @RequestParam String fileName,
-            @RequestParam(required = false) String token) {
-        
+            @RequestParam(required = false) String token,
+            @RequestAttribute(value = "userId", required = false) String filterUserId,
+            @RequestAttribute(value = "role", required = false) String filterRole) {
+
         LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("PREVIEW_FILE_BY_NAME");
         try {
             // 验证token并获取用户信息
-            String userId = null;
+            String userId = filterUserId;  // 优先使用 OrgTagAuthorizationFilter 设置的数字ID
             String orgTags = null;
-            
-            // 优先从Spring Security上下文获取已认证的用户信息
-            try {
-                var authentication = SecurityContextHolder.getContext().getAuthentication();
-                if (authentication != null && authentication.isAuthenticated() 
-                    && authentication.getPrincipal() instanceof UserDetails) {
-                    UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-                    userId = userDetails.getUsername();
-                    // 从userDetails中获取组织标签信息
-                    orgTags = userDetails.getAuthorities().stream()
-                        .map(auth -> auth.getAuthority().replace("ROLE_", ""))
-                        .findFirst()
-                        .orElse(null);
+
+            // 如果filter没有设置userId，回退到SecurityContext或URL token
+            if (userId == null) {
+                try {
+                    var authentication = SecurityContextHolder.getContext().getAuthentication();
+                    if (authentication != null && authentication.isAuthenticated()
+                        && authentication.getPrincipal() instanceof UserDetails) {
+                        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+                        userId = userDetails.getUsername();
+                        orgTags = userDetails.getAuthorities().stream()
+                            .map(auth -> auth.getAuthority().replace("ROLE_", ""))
+                            .findFirst()
+                            .orElse(null);
+                    }
+                } catch (Exception e) {
+                    LogUtils.logBusiness("PREVIEW_FILE_BY_NAME", "anonymous", "Security上下文获取失败: fileName=%s", fileName);
                 }
-            } catch (Exception e) {
-                LogUtils.logBusiness("PREVIEW_FILE_BY_NAME", "anonymous", "Security上下文获取失败: fileName=%s", fileName);
             }
-            
-            // 如果Security上下文中没有用户信息，尝试从URL参数token中获取
+
+            // 如果仍然没有userId，尝试从URL参数token中获取
             if (userId == null && token != null && !token.trim().isEmpty()) {
                 try {
                     userId = jwtUtils.extractUsernameFromToken(token);
