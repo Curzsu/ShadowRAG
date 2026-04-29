@@ -18,6 +18,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Set;
 
 @Service
 @Slf4j
@@ -60,11 +61,18 @@ public class FileProcessingConsumer {
                 fileStream = new BufferedInputStream(fileStream);
             }
 
-            // 解析文件：MinerU 优先，不可用时回退到 Tika
-            if (parseService.shouldUseMinerU()) {
+            // 解析文件：根据文件类型选择解析器
+            // 纯文本类文件（txt/md/csv/json等）直接读文本，不走 Tika/MinerU
+            // MinerU 只处理二进制文档（pdf/doc/docx/ppt/pptx/xls/xlsx等）
+            // Tika 处理 MinerU 不支持的非纯文本格式
+            if (parseService.shouldUseMinerU() && isMinerUSupportedFile(task.getFileName())) {
                 parseService.parseAndSaveByMinerU(task.getFileMd5(), fileStream,
                         task.getFileName(), task.getUserId(), task.getOrgTag(), task.isPublic());
                 log.info("MinerU 文件解析完成，fileMd5: {}", task.getFileMd5());
+            } else if (isPlainTextFile(task.getFileName())) {
+                parseService.parsePlainText(task.getFileMd5(), fileStream,
+                        task.getUserId(), task.getOrgTag(), task.isPublic());
+                log.info("纯文本直接解析完成，fileMd5: {}", task.getFileMd5());
             } else {
                 parseService.parseAndSave(task.getFileMd5(), fileStream,
                         task.getUserId(), task.getOrgTag(), task.isPublic());
@@ -144,6 +152,45 @@ public class FileProcessingConsumer {
             log.error("Error downloading file from storage: {}", filePath, e);
             return null; // 或者抛出异常
         }
+    }
+
+    /**
+     * MinerU 支持解析的文件扩展名（二进制文档格式）。
+     * 纯文本类文件（txt/md/csv/json/代码文件等）不需要 MinerU，直接读文本即可。
+     */
+    private static final Set<String> MINERU_SUPPORTED_EXTENSIONS = Set.of(
+            "pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "png", "jpg", "jpeg", "bmp", "tiff"
+    );
+
+    /**
+     * 纯文本文件扩展名，可以直接读取内容，不需要 Tika/MinerU 解析。
+     */
+    private static final Set<String> PLAIN_TEXT_EXTENSIONS = Set.of(
+            "txt", "md", "csv", "json", "xml", "html", "htm", "log",
+            "java", "js", "ts", "py", "cpp", "c", "h", "css", "scss", "less",
+            "sql", "yml", "yaml", "properties", "conf", "config", "sh", "bat"
+    );
+
+    /**
+     * 判断文件是否应使用 MinerU 解析。
+     */
+    private boolean isMinerUSupportedFile(String fileName) {
+        if (fileName == null || !fileName.contains(".")) {
+            return false;
+        }
+        String ext = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+        return MINERU_SUPPORTED_EXTENSIONS.contains(ext);
+    }
+
+    /**
+     * 判断文件是否为纯文本文件，可以直接读取内容。
+     */
+    private boolean isPlainTextFile(String fileName) {
+        if (fileName == null || !fileName.contains(".")) {
+            return true; // 无扩展名视为纯文本
+        }
+        String ext = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+        return PLAIN_TEXT_EXTENSIONS.contains(ext);
     }
 
     /**

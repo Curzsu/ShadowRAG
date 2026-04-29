@@ -96,6 +96,50 @@ public class ParseService {
     }
 
     /**
+     * 直接读取纯文本文件内容，切块入库。
+     * 不经过 Tika/MinerU，适用于 .txt/.md/.csv/.json 等纯文本格式。
+     *
+     * @param fileMd5    文件 MD5
+     * @param fileStream 文件输入流
+     * @param userId     上传用户 ID
+     * @param orgTag     组织标签
+     * @param isPublic   是否公开
+     */
+    public void parsePlainText(String fileMd5, InputStream fileStream,
+            String userId, String orgTag, boolean isPublic) throws IOException {
+        logger.info("直接读取纯文本文件，fileMd5: {}", fileMd5);
+
+        // 1. 读取全文
+        StringBuilder text = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(fileStream, StandardCharsets.UTF_8))) {
+            char[] buf = new char[8192];
+            int len;
+            while ((len = reader.read(buf)) != -1) {
+                text.append(buf, 0, len);
+            }
+        }
+
+        if (text.isEmpty()) {
+            logger.warn("文件内容为空，fileMd5: {}", fileMd5);
+            return;
+        }
+
+        String content = text.toString();
+
+        // 2. 保存全文到 MinIO（供预览使用）
+        saveParsedContent(fileMd5, content);
+
+        // 3. 切块
+        List<String> chunks = splitTextIntoChunksWithSemantics(content, chunkSize);
+
+        // 4. 入库
+        saveChildChunks(fileMd5, chunks, userId, orgTag, isPublic, 0);
+
+        logger.info("纯文本解析入库完成，fileMd5: {}, 分块数: {}", fileMd5, chunks.size());
+    }
+
+    /**
      * 兼容旧版本的解析方法
      */
     public void parseAndSave(String fileMd5, InputStream fileStream) throws IOException, TikaException {
