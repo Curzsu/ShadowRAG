@@ -12,7 +12,9 @@ import com.yizhaoqi.smartpai.service.UserService;
 import com.yizhaoqi.smartpai.utils.JwtUtils;
 import com.yizhaoqi.smartpai.utils.LogUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -452,10 +454,14 @@ public class AdminController {
                 }
             }
             
-            // 获取所有Redis键中以"user:"开头的键
-            Set<String> userKeys = redisTemplate.keys("user:*:current_conversation");
-            
-            if (userKeys != null && !userKeys.isEmpty()) {
+            // 使用 SCAN 游标迭代，避免 KEYS 阻塞 Redis
+            Set<String> userKeys = new HashSet<>();
+            try (Cursor<String> cursor = redisTemplate.scan(
+                    ScanOptions.scanOptions().match("user:*:current_conversation").count(100).build())) {
+                cursor.forEachRemaining(userKeys::add);
+            }
+
+            if (!userKeys.isEmpty()) {
                 for (String userKey : userKeys) {
                     String conversationId = redisTemplate.opsForValue().get(userKey);
                     if (conversationId != null) {
