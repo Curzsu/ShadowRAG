@@ -61,6 +61,8 @@ public class OrgTagAuthorizationFilter extends OncePerRequestFilter {
                 path.matches(".*/upload/merge.*") ||
                 path.matches(".*/upload/status.*") ||
                 path.matches(".*/documents/uploads.*") ||
+                path.matches(".*/documents/preview.*") ||
+                path.matches(".*/documents/download.*") ||
                 path.matches(".*/search/hybrid.*") ||
                 path.matches(".*/chat/conversation.*") ||
                 (path.matches(".*/documents/[a-fA-F0-9]{32}.*") && "DELETE".equals(request.getMethod()))) {
@@ -74,6 +76,10 @@ public class OrgTagAuthorizationFilter extends OncePerRequestFilter {
                     operation = "查询上传状态";
                 } else if (path.contains("/uploads")) {
                     operation = "获取用户文档";
+                } else if (path.contains("/preview")) {
+                    operation = "文件预览";
+                } else if (path.contains("/download")) {
+                    operation = "文件下载";
                 } else if (path.contains("/search/hybrid")) {
                     operation = "混合检索";
                 } else if (path.contains("/chat/conversation")) {

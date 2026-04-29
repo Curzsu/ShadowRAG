@@ -137,27 +137,37 @@ public class DocumentService {
      */
     public List<FileUpload> getAccessibleFiles(String userId, String orgTags) {
         logger.info("获取用户可访问文件列表: userId={}", userId);
-        
+
         try {
-            // 获取用户有效的组织标签（包含层级关系）
-            User user = userRepository.findByUsername(userId)
-                .orElseThrow(() -> new RuntimeException("用户不存在: " + userId));
-            
+            // 解析用户：userId 可能是用户名（如 "Lukesu"）或数字 ID（如 "2"）
+            User user;
+            try {
+                Long userIdLong = Long.parseLong(userId);
+                user = userRepository.findById(userIdLong)
+                    .orElseThrow(() -> new RuntimeException("用户不存在: " + userId));
+            } catch (NumberFormatException e) {
+                user = userRepository.findByUsername(userId)
+                    .orElseThrow(() -> new RuntimeException("用户不存在: " + userId));
+            }
+
+            // FileUpload.userId 存的是 JWT 中的数字 ID，用 user.getId() 查询
+            String numericUserId = user.getId().toString();
+
             List<String> userEffectiveTags = orgTagCacheService.getUserEffectiveOrgTags(user.getUsername());
             logger.debug("用户有效组织标签: {}", userEffectiveTags);
-            
+
             // 使用有效标签查询文件
             List<FileUpload> files;
             if (userEffectiveTags.isEmpty()) {
                 // 如果用户没有任何组织标签，只返回自己的文件和公开文件
-                files = fileUploadRepository.findByUserIdOrIsPublicTrue(userId);
+                files = fileUploadRepository.findByUserIdOrIsPublicTrue(numericUserId);
                 logger.debug("用户无组织标签，仅返回个人和公开文件");
             } else {
                 // 查询用户可访问的所有文件（考虑层级标签）
-                files = fileUploadRepository.findAccessibleFilesWithTags(userId, userEffectiveTags);
+                files = fileUploadRepository.findAccessibleFilesWithTags(numericUserId, userEffectiveTags);
                 logger.debug("使用有效组织标签查询文件");
             }
-            
+
             logger.info("成功获取用户可访问文件列表: userId={}, fileCount={}", userId, files.size());
             return files;
         } catch (Exception e) {
