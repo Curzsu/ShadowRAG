@@ -371,6 +371,8 @@ public class UploadService {
             }
             String redisKey = "upload:" + userId + ":" + fileMd5;
             redisTemplate.opsForValue().setBit(redisKey, chunkIndex, true);
+            // 首次写入时设置 24 小时过期，防止上传中断后 BITMAP 永驻 Redis
+            redisTemplate.expire(redisKey, 24, java.util.concurrent.TimeUnit.HOURS);
             logger.debug("分片已标记为已上传 => fileMd5: {}, chunkIndex: {}, userId: {}", fileMd5, chunkIndex, userId);
         } catch (Exception e) {
             logger.error("标记分片为已上传失败 => fileMd5: {}, chunkIndex: {}, userId: {}, 错误: {}", 
