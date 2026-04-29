@@ -3,7 +3,9 @@ package com.yizhaoqi.smartpai.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.stereotype.Service;
 
 import com.yizhaoqi.smartpai.model.OrganizationTag;
@@ -220,10 +222,14 @@ public class OrgTagCacheService {
      */
     public void invalidateAllEffectiveTagsCache() {
         try {
-            Set<String> keys = redisTemplate.keys(USER_EFFECTIVE_TAGS_KEY_PREFIX + "*");
-            if (keys != null && !keys.isEmpty()) {
+            Set<String> keys = new HashSet<>();
+            try (Cursor<String> cursor = redisTemplate.scan(
+                    ScanOptions.scanOptions().match(USER_EFFECTIVE_TAGS_KEY_PREFIX + "*").count(100).build())) {
+                cursor.forEachRemaining(keys::add);
+            }
+            if (!keys.isEmpty()) {
                 redisTemplate.delete(keys);
-                logger.info("Invalidated all effective organization tags cache");
+                logger.info("Invalidated all effective organization tags cache, count: {}", keys.size());
             }
         } catch (Exception e) {
             logger.error("Failed to invalidate effective organization tags cache", e);
