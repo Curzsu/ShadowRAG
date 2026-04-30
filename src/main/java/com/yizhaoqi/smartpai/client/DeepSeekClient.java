@@ -8,7 +8,9 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
@@ -74,7 +76,7 @@ public class DeepSeekClient {
                    context != null ? context.length() : 0, 
                    history != null ? history.size() : 0);
         
-        Map<String, Object> request = new java.util.HashMap<>();
+        Map<String, Object> request = new HashMap<>();
         request.put("model", model);
         request.put("messages", buildMessages(userMessage, context, history));
         request.put("stream", true);
@@ -147,7 +149,7 @@ public class DeepSeekClient {
                 logger.debug("对话结束");
                 return;
             }
-            
+
             // 直接解析 JSON
             JsonNode node = objectMapper.readTree(chunk);
             String content = node.path("choices")
@@ -155,7 +157,7 @@ public class DeepSeekClient {
                                .path("delta")
                                .path("content")
                                .asText("");
-            
+
             if (!content.isEmpty()) {
                 onChunk.accept(content);
             }
@@ -163,4 +165,110 @@ public class DeepSeekClient {
             logger.error("处理数据块时出错: {}", e.getMessage(), e);
         }
     }
-} 
+
+    public void streamWithTools(
+            List<Map<String, Object>> messages,
+            List<Map<String, Object>> tools,
+            Consumer<String> onContentDelta,
+            Consumer<String> onToolCallId,
+            Consumer<String> onToolCallArgs,
+            Consumer<Throwable> onError,
+            Runnable onComplete) {
+
+        Map<String, Object> request = buildToolsRequest(messages, tools);
+
+        webClient.post()
+                .uri("/chat/completions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .retrieve()
+                .bodyToFlux(String.class)
+                .subscribe(
+                    chunk -> processToolChunk(chunk, onContentDelta, onToolCallId, onToolCallArgs),
+                    onError,
+                    onComplete
+                );
+    }
+
+    public void streamResponse(List<Map<String, Object>> messages,
+                               Consumer<String> onChunk,
+                               Consumer<Throwable> onError,
+                               Runnable onComplete) {
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("model", model);
+        request.put("messages", messages);
+        request.put("stream", true);
+        AiProperties.Generation gen = aiProperties.getGeneration();
+        if (gen.getTemperature() != null) request.put("temperature", gen.getTemperature());
+        if (gen.getTopP() != null) request.put("top_p", gen.getTopP());
+        if (gen.getMaxTokens() != null) request.put("max_tokens", gen.getMaxTokens());
+
+        webClient.post()
+                .uri("/chat/completions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .retrieve()
+                .bodyToFlux(String.class)
+                .subscribe(
+                    chunk -> processChunk(chunk, onChunk),
+                    onError,
+                    onComplete
+                );
+    }
+
+    private Map<String, Object> buildToolsRequest(List<Map<String, Object>> messages,
+                                                   List<Map<String, Object>> tools) {
+        logger.info("构建工具请求，消息数: {}, 工具数: {}", messages.size(), tools.size());
+
+        Map<String, Object> request = new HashMap<>();
+        request.put("model", model);
+        request.put("messages", messages);
+        request.put("stream", true);
+        request.put("tools", tools);
+
+        AiProperties.Generation gen = aiProperties.getGeneration();
+        if (gen.getTemperature() != null) request.put("temperature", gen.getTemperature());
+        if (gen.getTopP() != null) request.put("top_p", gen.getTopP());
+        if (gen.getMaxTokens() != null) request.put("max_tokens", gen.getMaxTokens());
+        return request;
+    }
+
+    private void processToolChunk(String chunk, Consumer<String> onContentDelta,
+                                  Consumer<String> onToolCallId, Consumer<String> onToolCallArgs) {
+        try {
+            if ("[DONE]".equals(chunk)) {
+                logger.debug("工具流式对话结束");
+                return;
+            }
+
+            JsonNode node = objectMapper.readTree(chunk);
+            JsonNode delta = node.path("choices").path(0).path("delta");
+
+            // 1. Handle text content (LLM answering directly)
+            String content = delta.path("content").asText("");
+            if (!content.isEmpty()) {
+                onContentDelta.accept(content);
+            }
+
+            // 2. Handle tool calls (arguments arrive as fragments)
+            JsonNode toolCalls = delta.path("tool_calls");
+            if (toolCalls.isArray() && !toolCalls.isEmpty()) {
+                JsonNode tc = toolCalls.get(0);
+                JsonNode function = tc.path("function");
+
+                String id = tc.path("id").asText("");
+                if (!id.isEmpty()) {
+                    onToolCallId.accept(id);
+                }
+
+                String args = function.path("arguments").asText("");
+                if (!args.isEmpty()) {
+                    onToolCallArgs.accept(args);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("处理工具数据块时出错: {}", e.getMessage(), e);
+        }
+    }
+}
