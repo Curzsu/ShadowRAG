@@ -19,6 +19,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.LinkedHashMap;
+import com.yizhaoqi.smartpai.config.AiProperties;
+import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * 聊天处理服务
@@ -35,64 +40,107 @@ public class ChatHandler {
     private final DeepSeekClient deepSeekClient;
     private final ConversationService conversationService;
     private final ObjectMapper objectMapper;
+    private final AiProperties aiProperties;
 
     // 停止标志
     private final Map<String, Boolean> stopFlags = new ConcurrentHashMap<>();
+
+    /**
+     * 搜索知识库工具定义（OpenAI Function Calling 格式）
+     */
+    private static final List<Map<String, Object>> SEARCH_TOOL = List.of(
+        Map.of(
+            "type", "function",
+            "function", Map.of(
+                "name", "search_knowledge_base",
+                "description", "搜索知识库文档。当用户问题涉及已上传的文档、文件、知识库内容时调用此工具获取相关信息。对于通用知识、闲聊、数学计算等不需要搜索。",
+                "parameters", Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                        "query", Map.of(
+                            "type", "string",
+                            "description", "搜索查询语句，用于在知识库中检索相关文档内容"
+                        )
+                    ),
+                    "required", List.of("query")
+                )
+            )
+        )
+    );
 
     public ChatHandler(RedisTemplate<String, String> redisTemplate,
                       HybridSearchService searchService,
                       DeepSeekClient deepSeekClient,
                       ConversationService conversationService,
-                      ObjectMapper objectMapper) {
+                      ObjectMapper objectMapper,
+                      AiProperties aiProperties) {
         this.redisTemplate = redisTemplate;
         this.searchService = searchService;
         this.deepSeekClient = deepSeekClient;
         this.conversationService = conversationService;
         this.objectMapper = objectMapper;
+        this.aiProperties = aiProperties;
     }
 
     public void processMessage(String userId, String userMessage, WebSocketSession session) {
-        logger.info("开始处理消息，用户ID: {}, 会话ID: {}", userId, session.getId());
+        logger.info("开始处理消息（Agentic RAG），用户ID: {}, 会话ID: {}", userId, session.getId());
         try {
             // 1. 获取或创建会话 ID
             String conversationId = getOrCreateConversationId(userId);
-            logger.info("会话ID: {}, 用户ID: {}", conversationId, userId);
-
-            // 用于累积完整响应
-            StringBuilder responseBuilder = new StringBuilder();
 
             // 2. 获取对话历史
             List<Map<String, String>> history = getConversationHistory(conversationId);
             logger.debug("获取到 {} 条历史对话", history.size());
 
-            // 3. 执行带权限过滤的混合搜索（RRF 融合排序）
-            List<SearchResult> searchResults = searchService.searchWithPermission(userMessage, userId, 10);
-            logger.debug("搜索结果数量: {}", searchResults.size());
+            // 3. 构建 messages（不含 context，让 LLM 决定是否搜索）
+            List<Map<String, Object>> messages = buildMessagesForAgenticRAG(history, userMessage);
 
-            // 4. 构建上下文
-            String context = buildContext(searchResults);
+            // 4. 累积器
+            StringBuilder responseBuilder = new StringBuilder();
+            StringBuilder toolCallArgs = new StringBuilder();
+            AtomicReference<String> toolCallId = new AtomicReference<>(null);
+            AtomicBoolean toolCallDetected = new AtomicBoolean(false);
 
-            // 5. 调用 LLM API 并处理流式响应
-            logger.info("调用DeepSeek API生成回复");
-            deepSeekClient.streamResponse(userMessage, context, history,
-                // onChunk: 每个文本片段
+            // 5. 第一次 LLM 调用（流式，带 tools）
+            logger.info("发起第一次 LLM 调用（带搜索工具）");
+            deepSeekClient.streamWithTools(
+                messages,
+                SEARCH_TOOL,
+                // delta.content → 直接转发前端
                 chunk -> {
                     responseBuilder.append(chunk);
                     sendResponseChunk(session, chunk);
                 },
-                // onError: 流出错
+                // tool_call.id → 记录
+                id -> {
+                    toolCallId.set(id);
+                    logger.info("LLM 决定调用搜索工具, toolCallId: {}", id);
+                },
+                // delta.tool_calls.args → 累积
+                args -> {
+                    toolCallDetected.set(true);
+                    toolCallArgs.append(args);
+                },
+                // onError
                 error -> {
                     logger.error("LLM 流式响应错误: {}", error.getMessage(), error);
                     handleError(session, error);
                     sendCompletionNotification(session);
                 },
-                // onComplete: 流正常结束
+                // onComplete → 判断是否需要第二次调用
                 () -> {
-                    String completeResponse = responseBuilder.toString();
-                    logger.info("LLM 响应完成，长度: {}", completeResponse.length());
-                    sendCompletionNotification(session);
-                    updateConversationHistory(conversationId, userId, userMessage, completeResponse);
-                    logger.info("消息处理完成，用户ID: {}", userId);
+                    if (toolCallDetected.get()) {
+                        logger.info("LLM 调用了搜索工具，执行搜索并生成第二次调用");
+                        executeToolAndRespond(
+                            userId, messages, toolCallId.get(), toolCallArgs.toString(),
+                            session, conversationId, userMessage, responseBuilder
+                        );
+                    } else {
+                        // LLM 直接回答了（未调用搜索）
+                        logger.info("LLM 直接回答，未调用搜索工具");
+                        sendCompletionNotification(session);
+                        updateConversationHistory(conversationId, userId, userMessage, responseBuilder.toString());
+                    }
                 }
             );
 
@@ -100,6 +148,138 @@ public class ChatHandler {
             logger.error("处理消息错误: {}", e.getMessage(), e);
             handleError(session, e);
         }
+    }
+
+    /**
+     * 构建 Agentic RAG 的消息列表（不含搜索 context，让 LLM 通过工具获取）
+     */
+    private List<Map<String, Object>> buildMessagesForAgenticRAG(
+            List<Map<String, String>> history, String userMessage) {
+        List<Map<String, Object>> messages = new ArrayList<>();
+
+        // 1. System 消息（只含规则，不含 <<REF>> 参考信息）
+        AiProperties.Prompt promptCfg = aiProperties.getPrompt();
+        String systemContent = promptCfg.getRules() != null ? promptCfg.getRules() : "";
+        messages.add(Map.of("role", "system", "content", systemContent));
+
+        // 2. 历史消息（类型转换 String → Object）
+        if (history != null && !history.isEmpty()) {
+            List<Map<String, Object>> typedHistory = new ArrayList<>();
+            for (Map<String, String> msg : history) {
+                Map<String, Object> typedMsg = new LinkedHashMap<>();
+                typedMsg.put("role", msg.get("role"));
+                typedMsg.put("content", msg.get("content"));
+                typedHistory.add(typedMsg);
+            }
+            messages.addAll(typedHistory);
+        }
+
+        // 3. 当前用户问题
+        messages.add(Map.of("role", "user", "content", userMessage));
+
+        return messages;
+    }
+
+    /**
+     * 执行工具调用（搜索），然后发起第二次 LLM 调用生成最终回答。
+     */
+    private void executeToolAndRespond(
+            String userId,
+            List<Map<String, Object>> originalMessages,
+            String toolCallId,
+            String toolCallArgsJson,
+            WebSocketSession session,
+            String conversationId,
+            String userMessage,
+            StringBuilder responseBuilder) {
+
+        try {
+            // 1. 解析 LLM 构造的搜索 query
+            String searchQuery = parseSearchQuery(toolCallArgsJson);
+            if (searchQuery == null || searchQuery.isEmpty()) {
+                searchQuery = userMessage; // 回退到原始用户消息
+            }
+            logger.info("搜索 query: {}", searchQuery);
+
+            // 2. 执行混合搜索（复用现有 searchService）
+            List<SearchResult> searchResults = searchService.searchWithPermission(searchQuery, userId, 10);
+            logger.info("搜索完成，结果数: {}", searchResults.size());
+
+            // 3. 构建搜索结果文本
+            String searchContext = buildContext(searchResults);
+            if (searchContext.isEmpty()) {
+                searchContext = "（未找到相关文档）";
+            }
+
+            // 4. 构建第二次调用的 messages（追加 tool_call 和 tool result）
+            List<Map<String, Object>> messagesWithTool = new ArrayList<>(originalMessages);
+
+            // assistant 消息：记录 LLM 调用了哪个工具
+            Map<String, Object> assistantToolCall = new LinkedHashMap<>();
+            assistantToolCall.put("role", "assistant");
+            assistantToolCall.put("tool_calls", List.of(Map.of(
+                "id", toolCallId,
+                "type", "function",
+                "function", Map.of(
+                    "name", "search_knowledge_base",
+                    "arguments", toolCallArgsJson
+                )
+            )));
+            messagesWithTool.add(assistantToolCall);
+
+            // tool 消息：返回搜索结果
+            Map<String, Object> toolResult = new LinkedHashMap<>();
+            toolResult.put("role", "tool");
+            toolResult.put("tool_call_id", toolCallId);
+            toolResult.put("content", searchContext);
+            messagesWithTool.add(toolResult);
+
+            // 5. 第二次流式调用（不带 tools，LLM 基于搜索结果直接回答）
+            logger.info("发起第二次 LLM 调用（带搜索结果）");
+            deepSeekClient.streamResponse(
+                messagesWithTool,
+                // onChunk
+                chunk -> {
+                    responseBuilder.append(chunk);
+                    sendResponseChunk(session, chunk);
+                },
+                // onError
+                error -> {
+                    logger.error("第二次 LLM 调用错误: {}", error.getMessage(), error);
+                    handleError(session, error);
+                    sendCompletionNotification(session);
+                },
+                // onComplete
+                () -> {
+                    String completeResponse = responseBuilder.toString();
+                    logger.info("Agentic RAG 响应完成，长度: {}", completeResponse.length());
+                    sendCompletionNotification(session);
+                    updateConversationHistory(conversationId, userId, userMessage, completeResponse);
+                }
+            );
+
+        } catch (Exception e) {
+            logger.error("工具执行错误: {}", e.getMessage(), e);
+            handleError(session, e);
+            sendCompletionNotification(session);
+        }
+    }
+
+    /**
+     * 从 tool_call arguments JSON 中提取 query 字段。
+     * 如果解析失败，返回 null（调用方会回退到原始用户消息）。
+     */
+    private String parseSearchQuery(String argumentsJson) {
+        try {
+            JsonNode argsNode = objectMapper.readTree(argumentsJson);
+            String query = argsNode.path("query").asText("");
+            if (!query.isEmpty()) {
+                return query;
+            }
+        } catch (Exception e) {
+            logger.warn("解析 tool_call arguments 失败: {}", e.getMessage());
+        }
+        return null;
     }
 
     private String getOrCreateConversationId(String userId) {
