@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.*;
 import java.net.HttpURLConnection;
@@ -39,6 +40,7 @@ public class FileProcessingConsumer {
     }
 
     @KafkaListener(topics = "#{kafkaConfig.getFileProcessingTopic()}", groupId = "#{kafkaConfig.getFileProcessingGroupId()}")
+    @Transactional
     public void processTask(FileProcessingTask task) {
         log.info("Received task: {}", task);
         log.info("文件权限信息: userId={}, orgTag={}, isPublic={}",
@@ -195,16 +197,16 @@ public class FileProcessingConsumer {
 
     /**
      * 更新文件解析状态
+     * 使用 @Modifying @Query 只更新 parse_status 列，
+     * 避免 load→modify→save 全字段写入覆盖其他并发修改（如 status 字段）
+     *
      * @param fileMd5 文件MD5
      * @param status 0=待解析, 1=解析中, 2=解析完成, 3=解析失败
      */
     private void updateParseStatus(String fileMd5, int status) {
         try {
-            fileUploadRepository.findByFileMd5(fileMd5).ifPresent(file -> {
-                file.setParseStatus(status);
-                fileUploadRepository.save(file);
-                log.info("更新文件解析状态: fileMd5={}, parseStatus={}", fileMd5, status);
-            });
+            fileUploadRepository.updateParseStatusByFileMd5(fileMd5, status);
+            log.info("更新文件解析状态: fileMd5={}, parseStatus={}", fileMd5, status);
         } catch (Exception e) {
             log.warn("更新解析状态失败: fileMd5={}, status={}", fileMd5, status, e);
         }

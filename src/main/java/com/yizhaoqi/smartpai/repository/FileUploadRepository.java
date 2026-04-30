@@ -2,6 +2,7 @@ package com.yizhaoqi.smartpai.repository;
 
 import com.yizhaoqi.smartpai.model.FileUpload;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -61,4 +62,11 @@ public interface FileUploadRepository extends JpaRepository<FileUpload, Long> {
     List<FileUpload> findByUserId(String userId);
 
     List<FileUpload> findByFileMd5In(List<String> md5List);
+
+    /**
+     * 只更新 parse_status 列，避免全字段 save 覆盖其他并发修改（如 status）
+     */
+    @Modifying
+    @Query("UPDATE FileUpload f SET f.parseStatus = :parseStatus WHERE f.fileMd5 = :fileMd5")
+    void updateParseStatusByFileMd5(@Param("fileMd5") String fileMd5, @Param("parseStatus") int parseStatus);
 }

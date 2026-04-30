@@ -142,14 +142,17 @@ async function getList() {
   // 遍历获取到的数据，以处理每个项目
   data.value.forEach(item => {
     // 检查项目状态是否为已完成
-    if (item.status === UploadStatus.Completed) {
+    // 后端 status=1 表示已完成；status=0 但 mergedAt 不为空也表示已完成（并发竞态导致 status 未更新）
+    const isCompleted = item.status === UploadStatus.Completed || !!item.mergedAt;
+    if (isCompleted) {
       // 查找任务列表中是否有匹配的文件MD5
       const index = tasks.value.findIndex(task => task.fileMd5 === item.fileMd5);
       // 如果找到匹配项，则更新其状态
       if (index !== -1) {
         tasks.value[index].status = UploadStatus.Completed;
       } else {
-        // 如果没有找到匹配项，则将该项目添加到任务列表中
+        // 如果没有找到匹配项，确保 status 为 Completed 后添加到任务列表中
+        item.status = UploadStatus.Completed;
         tasks.value.push(item);
       }
     } else if (!tasks.value.some(task => task.fileMd5 === item.fileMd5)) {
