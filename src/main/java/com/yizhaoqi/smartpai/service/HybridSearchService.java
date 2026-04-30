@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.Map;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -81,59 +83,41 @@ public class HybridSearchService {
                 return textOnlySearchWithPermission(query, userDbId, userEffectiveTags, topK);
             }
 
-            logger.debug("向量生成成功，开始执行混合搜索 KNN");
+            logger.debug("向量生成成功，开始执行混合搜索（Java 端 RRF 融合）");
 
             // 构建权限过滤 Query（KNN 和 BM25 共用）
             Query permissionFilter = buildPermissionFilter(userDbId, userEffectiveTags);
+            int recallK = topK * 30;
 
-            SearchResponse<EsDocument> response = esClient.search(s -> {
-                        s.index("knowledge_base");
-                        // KNN 召回（带权限过滤，防止召回无权访问的文档）
-                        int recallK = topK * 30; // KNN 召回窗口
-                        s.knn(kn -> kn
-                                .field("vector")
-                                .queryVector(queryVector)
-                                .k(recallK)
-                                .numCandidates(recallK)
-                                .filter(permissionFilter)
-                        );
-                        // 必须命中关键词 + 权限过滤
-                        s.query(q -> q.bool(b -> b
-                                .must(mst -> mst.match(m -> m.field("textContent").query(query)))
-                                .filter(permissionFilter)
-                        ));
+            // 1. KNN 向量搜索
+            SearchResponse<EsDocument> knnResponse = esClient.search(s -> s
+                    .index("knowledge_base")
+                    .knn(kn -> kn
+                            .field("vector")
+                            .queryVector(queryVector)
+                            .k(recallK)
+                            .numCandidates(recallK)
+                            .filter(permissionFilter)
+                    )
+                    .size(recallK),
+                    EsDocument.class);
+            logger.debug("KNN 搜索完成，命中: {}", knnResponse.hits().hits().size());
 
-                        // RRF 融合：基于排名倒数融合 KNN 和 BM25 分数，天然消除量纲差异
-                        s.rank(r -> r.rrf(rrf -> rrf
-                                .windowSize((long) recallK)
-                                .rankConstant(60L)
-                        ));
-                        s.size(topK);
-                        return s;
-                    }, EsDocument.class);
+            // 2. BM25 文本搜索
+            SearchResponse<EsDocument> bm25Response = esClient.search(s -> s
+                    .index("knowledge_base")
+                    .query(q -> q.bool(b -> b
+                            .must(mst -> mst.match(m -> m.field("textContent").query(query)))
+                            .filter(permissionFilter)
+                    ))
+                    .size(recallK),
+                    EsDocument.class);
+            logger.debug("BM25 搜索完成，命中: {}", bm25Response.hits().hits().size());
 
-            logger.debug("Elasticsearch查询执行完成，命中数量: {}, 最大分数: {}", 
-                response.hits().total().value(), response.hits().maxScore());
-
-            List<SearchResult> results = response.hits().hits().stream()
-                    .map(hit -> {
-                        assert hit.source() != null;
-                        logger.debug("搜索结果 - 文件: {}, 块: {}, 分数: {}, 内容: {}", 
-                            hit.source().getFileMd5(), hit.source().getChunkId(), hit.score(), 
-                            hit.source().getTextContent().substring(0, Math.min(50, hit.source().getTextContent().length())));
-                        return new SearchResult(
-                                hit.source().getFileMd5(),
-                                hit.source().getChunkId(),
-                                hit.source().getTextContent(),
-                                hit.score(),
-                                hit.source().getUserId(),
-                                hit.source().getOrgTag(),
-                                hit.source().isPublic()
-                        );
-                    })
-                    .toList();
-
-            logger.debug("返回搜索结果数量: {}", results.size());
+            // 3. Java 端 RRF 融合
+            List<SearchResult> results = fuseWithRRF(
+                    knnResponse.hits().hits(), bm25Response.hits().hits(), topK);
+            logger.debug("RRF 融合后返回搜索结果数量: {}", results.size());
             attachFileNames(results);
             return results;
         } catch (Exception e) {
@@ -263,39 +247,29 @@ public class HybridSearchService {
                 return textOnlySearch(query, topK);
             }
 
-            SearchResponse<EsDocument> response = esClient.search(s -> {
-                        s.index("knowledge_base");
-                        int recallK = topK * 30;
-                        s.knn(kn -> kn
-                                .field("vector")
-                                .queryVector(queryVector)
-                                .k(recallK)
-                                .numCandidates(recallK)
-                        );
+            int recallK = topK * 30;
 
-                        // 过滤仅保留包含关键词的文本
-                        s.query(q -> q.match(m -> m.field("textContent").query(query)));
+            // KNN 向量搜索
+            SearchResponse<EsDocument> knnResponse = esClient.search(s -> s
+                    .index("knowledge_base")
+                    .knn(kn -> kn
+                            .field("vector")
+                            .queryVector(queryVector)
+                            .k(recallK)
+                            .numCandidates(recallK)
+                    )
+                    .size(recallK),
+                    EsDocument.class);
 
-                        // RRF 融合
-                        s.rank(r -> r.rrf(rrf -> rrf
-                                .windowSize((long) recallK)
-                                .rankConstant(60L)
-                        ));
-                        s.size(topK);
-                        return s;
-                    }, EsDocument.class);
+            // BM25 文本搜索
+            SearchResponse<EsDocument> bm25Response = esClient.search(s -> s
+                    .index("knowledge_base")
+                    .query(q -> q.match(m -> m.field("textContent").query(query)))
+                    .size(recallK),
+                    EsDocument.class);
 
-            return response.hits().hits().stream()
-                    .map(hit -> {
-                        assert hit.source() != null;
-                        return new SearchResult(
-                                hit.source().getFileMd5(),
-                                hit.source().getChunkId(),
-                                hit.source().getTextContent(),
-                                hit.score()
-                        );
-                    })
-                    .toList();
+            // Java 端 RRF 融合
+            return fuseWithRRFSimple(knnResponse.hits().hits(), bm25Response.hits().hits(), topK);
         } catch (Exception e) {
             logger.error("搜索失败", e);
             // 发生异常时尝试使用纯文本搜索作为后备方案
@@ -334,6 +308,93 @@ public class HybridSearchService {
                             hit.source().getTextContent(),
                             hit.score()
                     );
+                })
+                .toList();
+    }
+
+    /**
+     * Java 端 RRF 融合（带权限信息的 SearchHit）
+     * 公式: score = Σ 1/(k + rank_i)，k=60
+     */
+    private List<SearchResult> fuseWithRRF(
+            List<co.elastic.clients.elasticsearch.core.search.Hit<EsDocument>> knnHits,
+            List<co.elastic.clients.elasticsearch.core.search.Hit<EsDocument>> bm25Hits,
+            int topK) {
+        final int K = 60;
+        // key = fileMd5:chunkId
+        Map<String, double[]> scoreMap = new HashMap<>();
+        Map<String, EsDocument> docMap = new HashMap<>();
+
+        // KNN 排名累加
+        for (int i = 0; i < knnHits.size(); i++) {
+            EsDocument doc = knnHits.get(i).source();
+            if (doc == null) continue;
+            String key = doc.getFileMd5() + ":" + doc.getChunkId();
+            scoreMap.computeIfAbsent(key, k -> new double[1])[0] += 1.0 / (K + i + 1);
+            docMap.putIfAbsent(key, doc);
+        }
+
+        // BM25 排名累加
+        for (int i = 0; i < bm25Hits.size(); i++) {
+            EsDocument doc = bm25Hits.get(i).source();
+            if (doc == null) continue;
+            String key = doc.getFileMd5() + ":" + doc.getChunkId();
+            scoreMap.computeIfAbsent(key, k -> new double[1])[0] += 1.0 / (K + i + 1);
+            docMap.putIfAbsent(key, doc);
+        }
+
+        return scoreMap.entrySet().stream()
+                .sorted(Map.Entry.<String, double[]>comparingByValue(
+                        (a, b) -> Double.compare(b[0], a[0])))
+                .limit(topK)
+                .map(entry -> {
+                    String key = entry.getKey();
+                    EsDocument doc = docMap.get(key);
+                    logger.debug("RRF 结果 - 文件: {}, 块: {}, 分数: {}",
+                            doc.getFileMd5(), doc.getChunkId(), entry.getValue()[0]);
+                    return new SearchResult(
+                            doc.getFileMd5(), doc.getChunkId(), doc.getTextContent(),
+                            entry.getValue()[0], doc.getUserId(), doc.getOrgTag(), doc.isPublic());
+                })
+                .toList();
+    }
+
+    /**
+     * Java 端 RRF 融合（简化版，无权限信息）
+     */
+    private List<SearchResult> fuseWithRRFSimple(
+            List<co.elastic.clients.elasticsearch.core.search.Hit<EsDocument>> knnHits,
+            List<co.elastic.clients.elasticsearch.core.search.Hit<EsDocument>> bm25Hits,
+            int topK) {
+        final int K = 60;
+        Map<String, double[]> scoreMap = new HashMap<>();
+        Map<String, EsDocument> docMap = new HashMap<>();
+
+        for (int i = 0; i < knnHits.size(); i++) {
+            EsDocument doc = knnHits.get(i).source();
+            if (doc == null) continue;
+            String key = doc.getFileMd5() + ":" + doc.getChunkId();
+            scoreMap.computeIfAbsent(key, k -> new double[1])[0] += 1.0 / (K + i + 1);
+            docMap.putIfAbsent(key, doc);
+        }
+
+        for (int i = 0; i < bm25Hits.size(); i++) {
+            EsDocument doc = bm25Hits.get(i).source();
+            if (doc == null) continue;
+            String key = doc.getFileMd5() + ":" + doc.getChunkId();
+            scoreMap.computeIfAbsent(key, k -> new double[1])[0] += 1.0 / (K + i + 1);
+            docMap.putIfAbsent(key, doc);
+        }
+
+        return scoreMap.entrySet().stream()
+                .sorted(Map.Entry.<String, double[]>comparingByValue(
+                        (a, b) -> Double.compare(b[0], a[0])))
+                .limit(topK)
+                .map(entry -> {
+                    EsDocument doc = docMap.get(entry.getKey());
+                    return new SearchResult(
+                            doc.getFileMd5(), doc.getChunkId(), doc.getTextContent(),
+                            entry.getValue()[0]);
                 })
                 .toList();
     }
