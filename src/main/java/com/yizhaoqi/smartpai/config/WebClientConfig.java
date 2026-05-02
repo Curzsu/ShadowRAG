@@ -20,6 +20,9 @@ public class WebClientConfig {
     @Value("${mineru.api.url:http://localhost:8000}")
     private String mineruApiUrl;
 
+    @Value("${reranker.api.url:http://localhost:8082}")
+    private String rerankerApiUrl;
+
     @Bean
     public WebClient embeddingWebClient() {
         ExchangeStrategies strategies = ExchangeStrategies.builder()
@@ -47,6 +50,14 @@ public class WebClientConfig {
         return WebClient.builder()
             .baseUrl(mineruApiUrl)
             .exchangeStrategies(strategies)
+            .build();
+    }
+
+    @Bean
+    public WebClient rerankerWebClient() {
+        return WebClient.builder()
+            .baseUrl(rerankerApiUrl)
+            .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
             .build();
     }
 }
