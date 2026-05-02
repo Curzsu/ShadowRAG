@@ -34,7 +34,8 @@ src/main/java/com/yizhaoqi/smartpai/
 ├── service/
 │   └── ConversationCompressionService.java   # Core compression logic
 ├── config/
-│   └── CompressionConfig.java                # Thread pool + threshold config
+│   ├── CompressionProperties.java            # @ConfigurationProperties holder
+│   └── CompressionConfig.java                # @Configuration with @Bean
 
 src/main/resources/scripts/
 ├── compress_and_replace.lua                  # Async compression: replace head with summary
@@ -74,7 +75,7 @@ The Lua script must operate on raw Redis bytes. Therefore:
 - The Lua script reads the raw value which is the JSON string that `objectMapper.writeValueAsString()` produced (possibly wrapped in quotes by `GenericJackson2JsonRedisSerializer`).
 - **Verification step required during implementation**: Before writing the Lua script, the implementer must inspect the actual raw Redis value format using `redis-cli GET conversation:{id}` to determine whether the value is plain JSON `[{...}]` or double-encoded `"\"[{...}]"\""`. The Lua script and Java read/write paths must handle whichever format exists.
 
-**Recommended approach**: Since ChatHandler already serializes with Jackson, refactor ChatHandler to also use `StringRedisTemplate` for the conversation history key. This eliminates the double-encoding issue entirely and ensures Lua scripts operate on clean JSON. If this refactor is deferred, the Lua script must account for the current double-encoded format.
+**Required prerequisite**: ChatHandler and ConversationService must be refactored to inject `StringRedisTemplate` instead of `RedisTemplate<String, String>` for all conversation history operations. This eliminates the `GenericJackson2JsonRedisSerializer` double-encoding entirely. The Lua scripts assume clean JSON — they will NOT work with the current double-encoded format. This refactor is mandatory, not optional.
 
 ## Core Mechanisms
 
@@ -320,14 +321,15 @@ Since step 4 always happens after step 2, the final MySQL state is always the co
 | File | Operation | Estimated Lines |
 |---|---|---|
 | `application.yml` | Append config section | ~20 |
-| `CompressionConfig.java` | New file | ~65 |
+| `CompressionProperties.java` | New file | ~20 |
+| `CompressionConfig.java` | New file | ~20 |
 | `ConversationCompressionService.java` | New file | ~200 |
-| `DeepSeekClient.java` | Add `callSync()` method | ~30 |
-| `ChatHandler.java` | Restructure `updateConversationHistory()` | ~10 |
+| `DeepSeekClient.java` | Add `callSync()` method | ~25 |
+| `ChatHandler.java` | Restructure `updateConversationHistory()`, switch to `StringRedisTemplate` | ~15 |
 | `compress_and_replace.lua` | New file | ~20 |
 | `sync_truncate.lua` | New file | ~15 |
 
-Total: ~360 lines.
+Total: ~335 lines.
 
 ### ChatHandler.java Change
 
@@ -350,13 +352,13 @@ Restructure `updateConversationHistory()` — exact replacement code:
 // 6. conversationCompressionService.checkAndCompress(conversationId, history);  // NEW
 ```
 
-### CompressionConfig.java
+### CompressionProperties.java
 
 ```java
 @Component
 @ConfigurationProperties(prefix = "ai.compression")
 @Data
-public class CompressionConfig {
+public class CompressionProperties {
     private int softThreshold = 30;
     private int hardThresholdToken = 50000;
     private int keepRounds = 6;
@@ -372,14 +374,24 @@ public class CompressionConfig {
         private int queueCapacity = 50;
         private String threadNamePrefix = "compression-";
     }
+}
+```
+
+Note: Pure properties holder, matches `AiProperties.java` pattern.
+
+### CompressionConfig.java
+
+```java
+@Configuration
+public class CompressionConfig {
 
     @Bean
-    public ThreadPoolTaskExecutor compressionExecutor() {
+    public ThreadPoolTaskExecutor compressionExecutor(CompressionProperties props) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(threadPool.getCoreSize());
-        executor.setMaxPoolSize(threadPool.getMaxSize());
-        executor.setQueueCapacity(threadPool.getQueueCapacity());
-        executor.setThreadNamePrefix(threadPool.getThreadNamePrefix());
+        executor.setCorePoolSize(props.getThreadPool().getCoreSize());
+        executor.setMaxPoolSize(props.getThreadPool().getMaxSize());
+        executor.setQueueCapacity(props.getThreadPool().getQueueCapacity());
+        executor.setThreadNamePrefix(props.getThreadPool().getThreadNamePrefix());
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
         executor.initialize();
         return executor;
@@ -387,14 +399,14 @@ public class CompressionConfig {
 }
 ```
 
-Note: Uses `@Component` + `@ConfigurationProperties` to match the existing `AiProperties.java` pattern.
+Note: `@Configuration` with `@Bean` method for proper Spring proxying. Properties and bean definition are split into two classes following Spring best practices.
 
 ### DeepSeekClient.java Addition
 
 Add a public synchronous method alongside existing streaming methods:
 
 ```java
-public String callSync(String prompt) {
+public String callSync(String prompt, Duration timeout) {
     Map<String, Object> requestBody = new HashMap<>();
     requestBody.put("model", model);
     requestBody.put("messages", List.of(Map.of("role", "user", "content", prompt)));
@@ -406,14 +418,16 @@ public String callSync(String prompt) {
         .bodyValue(requestBody)
         .retrieve()
         .bodyToMono(String.class)
-        .timeout(Duration.ofSeconds(30))
+        .timeout(timeout)
         .map(response -> {
             JsonNode node = objectMapper.readTree(response);
             return node.path("choices").path(0).path("message").path("content").asText();
         })
-        .block(Duration.ofSeconds(60));
+        .block(timeout.multipliedBy(2));  // block timeout = 2x mono timeout as safety net
 }
 ```
+
+Note: `timeout` is passed from the caller (`ConversationCompressionService`) using `Duration.ofSeconds(compressionProperties.getLlmTimeoutSeconds())`. This keeps `DeepSeekClient` free from compression-specific config dependencies.
 
 ### ConversationCompressionService Method List
 
@@ -423,7 +437,7 @@ public class ConversationCompressionService {
     // Dependencies
     private final ThreadPoolTaskExecutor compressionExecutor;
     private final ConversationService conversationService;
-    private final CompressionConfig config;
+    private final CompressionProperties config;
     private final StringRedisTemplate stringRedisTemplate;  // NOT RedisTemplate<String, Object>
     private final RedisScript<Long> compressScript;
     private final RedisScript<Long> truncateScript;
