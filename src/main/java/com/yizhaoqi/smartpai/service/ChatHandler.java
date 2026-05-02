@@ -41,6 +41,7 @@ public class ChatHandler {
     private final ConversationService conversationService;
     private final ObjectMapper objectMapper;
     private final AiProperties aiProperties;
+    private final ConversationCompressionService compressionService;
 
     // 停止标志
     private final Map<String, Boolean> stopFlags = new ConcurrentHashMap<>();
@@ -73,13 +74,15 @@ public class ChatHandler {
                       DeepSeekClient deepSeekClient,
                       ConversationService conversationService,
                       ObjectMapper objectMapper,
-                      AiProperties aiProperties) {
+                      AiProperties aiProperties,
+                      ConversationCompressionService compressionService) {
         this.redisTemplate = redisTemplate;
         this.searchService = searchService;
         this.deepSeekClient = deepSeekClient;
         this.conversationService = conversationService;
         this.objectMapper = objectMapper;
         this.aiProperties = aiProperties;
+        this.compressionService = compressionService;
     }
 
     public void processMessage(String userId, String userMessage, WebSocketSession session) {
@@ -335,19 +338,17 @@ public class ChatHandler {
         assistantMsgMap.put("content", response);
         assistantMsgMap.put("timestamp", currentTimestamp);
         history.add(assistantMsgMap);
-        
-        // 限制历史记录长度，保留最近的20条消息
-        if (history.size() > 20) {
-            history = history.subList(history.size() - 20, history.size());
-        }
-        
+
         try {
             String json = objectMapper.writeValueAsString(history);
             redisTemplate.opsForValue().set(key, json, Duration.ofDays(7));
             logger.debug("更新会话历史，会话ID: {}, 总消息数: {}", conversationId, history.size());
 
-            // 异步同步到 MySQL
+            // 同步到 MySQL（压缩前先持久化，防止数据丢失）
             conversationService.syncToMySQL(conversationId, userId);
+
+            // 检查阈值并触发异步压缩
+            compressionService.checkAndCompress(conversationId, history, userId);
         } catch (JsonProcessingException e) {
             logger.error("序列化对话历史出错: {}, 会话ID: {}", e.getMessage(), conversationId, e);
         }
