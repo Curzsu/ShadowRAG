@@ -75,7 +75,7 @@ The Lua script must operate on raw Redis bytes. Therefore:
 - The Lua script reads the raw value which is the JSON string that `objectMapper.writeValueAsString()` produced (possibly wrapped in quotes by `GenericJackson2JsonRedisSerializer`).
 - **Verification step required during implementation**: Before writing the Lua script, the implementer must inspect the actual raw Redis value format using `redis-cli GET conversation:{id}` to determine whether the value is plain JSON `[{...}]` or double-encoded `"\"[{...}]"\""`. The Lua script and Java read/write paths must handle whichever format exists.
 
-**Required prerequisite**: ChatHandler and ConversationService must be refactored to inject `StringRedisTemplate` instead of `RedisTemplate<String, String>` for all conversation history operations. This eliminates the `GenericJackson2JsonRedisSerializer` double-encoding entirely. The Lua scripts assume clean JSON — they will NOT work with the current double-encoded format. This refactor is mandatory, not optional.
+**Required prerequisite**: ChatHandler and ConversationService must be refactored to inject `StringRedisTemplate` instead of `RedisTemplate<String, Object>` for all conversation history operations. This eliminates the `GenericJackson2JsonRedisSerializer` double-encoding entirely. The Lua scripts assume clean JSON — they will NOT work with the current double-encoded format. This refactor is mandatory, not optional.
 
 ## Core Mechanisms
 
@@ -230,7 +230,7 @@ Both scripts must handle the actual raw Redis value format (see "Redis Serializa
    - If Lua returns -1 (bad summary JSON) -> log error, do not retry with same input
    - If Lua returns 0 (key missing or too short) -> no-op
 8. Call conversationService.syncToMySQL() to persist compressed state
-9. Remove from activeTasks
+9. Remove from activeTasks — **must execute in a `finally` block** to guarantee cleanup even if step 7 or 8 throws. Failure to remove would permanently block future compression for this conversation.
 ```
 
 **Key change from initial draft**: `splitIndex` is recomputed from the **current** history size (step 2), not from the stale value captured at submission time. This prevents the "stale split" problem where messages that should have been compressed end up in the unmanaged middle zone between the summary and the preserved tail.
@@ -420,8 +420,12 @@ public String callSync(String prompt, Duration timeout) {
         .bodyToMono(String.class)
         .timeout(timeout)
         .map(response -> {
-            JsonNode node = objectMapper.readTree(response);
-            return node.path("choices").path(0).path("message").path("content").asText();
+            try {
+                JsonNode node = objectMapper.readTree(response);
+                return node.path("choices").path(0).path("message").path("content").asText();
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException("Failed to parse LLM response", e);
+            }
         })
         .block(timeout.multipliedBy(2));  // block timeout = 2x mono timeout as safety net
 }
@@ -497,6 +501,7 @@ These structured log lines provide visibility into compression frequency, effect
 | Conversation data loss | Hard threshold sync truncation (millisecond fallback) |
 | Malformed LLM summary corrupts Redis | pcall guard in Lua script returns -1, Java side skips write |
 | Compression task pile-up | ConcurrentHashMap dedup + DiscardPolicy |
+| activeTasks entry leak on exception | `activeTasks.remove()` in `finally` block guarantees cleanup |
 | Stale splitIndex after history growth | Recompute splitIndex from current Redis state inside async task |
 | Redis/MySQL inconsistency | syncToMySQL before compression; async task re-syncs after |
 | Redis key TTL reset | Lua script preserves existing TTL via TTL + EX |
