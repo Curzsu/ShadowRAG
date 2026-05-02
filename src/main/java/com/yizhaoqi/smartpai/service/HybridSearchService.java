@@ -5,6 +5,7 @@ import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import com.yizhaoqi.smartpai.client.EmbeddingClient;
+import com.yizhaoqi.smartpai.client.RerankerClient;
 import com.yizhaoqi.smartpai.entity.EsDocument;
 import com.yizhaoqi.smartpai.entity.SearchResult;
 import com.yizhaoqi.smartpai.model.User;
@@ -52,6 +53,9 @@ public class HybridSearchService {
 
     @Autowired
     private FileUploadRepository fileUploadRepository;
+
+    @Autowired
+    private RerankerClient rerankerClient;
 
     /**
      * 使用文本匹配和向量相似度进行混合搜索，支持权限过滤
@@ -118,6 +122,9 @@ public class HybridSearchService {
             List<SearchResult> results = fuseWithRRF(
                     knnResponse.hits().hits(), bm25Response.hits().hits(), topK);
             logger.debug("RRF 融合后返回搜索结果数量: {}", results.size());
+
+            // 4. Cross-Encoder 精排（可选，需 TEI 服务可用）
+            results = applyRerank(query, results, topK);
             attachFileNames(results);
             return results;
         } catch (Exception e) {
@@ -506,6 +513,39 @@ public class HybridSearchService {
             }
         });
         return Query.of(q -> q.bool(boolBuilder.build()));
+    }
+
+    /**
+     * 使用 Cross-Encoder 精排模型对 RRF 融合结果重排序
+     * 如果 RerankerClient 不可用或调用失败，返回原始 RRF 排序结果
+     */
+    private List<SearchResult> applyRerank(String query, List<SearchResult> rrfResults, int topK) {
+        if (!rerankerClient.isEnabled() || rrfResults.isEmpty()) {
+            return rrfResults;
+        }
+
+        // 提取文档文本用于 rerank
+        List<String> documents = rrfResults.stream()
+                .map(SearchResult::getTextContent)
+                .toList();
+
+        List<RerankerClient.RerankResult> rerankResults = rerankerClient.rerank(query, documents, topK);
+        if (rerankResults == null) {
+            logger.debug("Rerank 未执行或失败，保持 RRF 原始排序");
+            return rrfResults;
+        }
+
+        // 按 rerank 结果重排序：用 rerank 分数替换 RRF 分数
+        List<SearchResult> reranked = new ArrayList<>();
+        for (RerankerClient.RerankResult rr : rerankResults) {
+            SearchResult original = rrfResults.get(rr.index());
+            reranked.add(new SearchResult(
+                    original.getFileMd5(), original.getChunkId(), original.getTextContent(),
+                    rr.score(), original.getUserId(), original.getOrgTag(), original.getIsPublic()
+            ));
+        }
+        logger.debug("Cross-Encoder 精排完成，返回 {} 个结果", reranked.size());
+        return reranked;
     }
 
     private void attachFileNames(List<SearchResult> results) {
