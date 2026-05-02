@@ -23,6 +23,7 @@ This design introduces an async compression mechanism that compresses early conv
 | Redis atomicity | Lua script with cjson | Atomic head replacement, no concurrent overwrite |
 | Thread pool rejection | DiscardPolicy | Never block Netty EventLoop threads |
 | Hard threshold fallback | Sync truncation only (millisecond Redis op) | No LLM call on critical path |
+| Redis serialization | Use `StringRedisTemplate` for compression | Bypass `GenericJackson2JsonRedisSerializer` double-encoding |
 
 ## Architecture
 
@@ -36,7 +37,8 @@ src/main/java/com/yizhaoqi/smartpai/
 │   └── CompressionConfig.java                # Thread pool + threshold config
 
 src/main/resources/scripts/
-└── compress_and_replace.lua                  # Atomic Redis replacement script
+├── compress_and_replace.lua                  # Async compression: replace head with summary
+└── sync_truncate.lua                         # Hard threshold: truncate to tail only
 ```
 
 No new entities or repositories. Reuses existing data structures.
@@ -46,19 +48,33 @@ No new entities or repositories. Reuses existing data structures.
 ```
 ChatHandler.updateConversationHistory()
   |
-  +-- 1. Append messages to Redis history (existing logic)
-  +-- 2. compressionService.checkAndCompress(conversationId, history)
-  |      |
-  |      +-- Below soft threshold -> return (no-op)
-  |      +-- Above soft, below hard -> submit async compression (deduplicated)
-  |      |     +-- On completion: update Redis via Lua -> syncToMySQL
-  |      +-- Above hard threshold -> sync truncate (millisecond Redis op)
-  |           +-- No async compression triggered after sync truncate
-  |
-  +-- 3. syncToMySQL() (existing, unaffected)
+  +-- 1. Append messages, write FULL history to Redis (remove old 20-msg cap)
+  +-- 2. conversationService.syncToMySQL() (sync first, before any compression)
+  +-- 3. conversationCompressionService.checkAndCompress(conversationId, history)
+         |
+         +-- Below soft threshold -> return (no-op)
+         +-- Above soft, below hard -> submit async compression (deduplicated)
+         |     +-- On completion: update Redis via Lua -> syncToMySQL again
+         +-- Above hard threshold -> sync truncate (millisecond Redis op)
+              +-- No async compression triggered after sync truncate
 ```
 
-ChatHandler changes: one line insertion in `updateConversationHistory()`, remove the existing 20-message hard cap.
+**Key ordering change from initial draft**: `syncToMySQL` is called BEFORE `checkAndCompress`. This ensures:
+1. The uncompressed state is always persisted first (data never lost).
+2. The async compression task's `syncToMySQL` always writes AFTER ChatHandler's write, guaranteeing the compressed state is the final MySQL state.
+
+### Redis Serialization Strategy
+
+The existing `RedisConfig` configures `RedisTemplate<String, Object>` with `GenericJackson2JsonRedisSerializer` as the value serializer. ChatHandler pre-serializes history via `objectMapper.writeValueAsString()` and then calls `redisTemplate.opsForValue().set(key, json)`, resulting in double-encoded JSON in Redis.
+
+The Lua script must operate on raw Redis bytes. Therefore:
+
+- `ConversationCompressionService` injects Spring Boot's auto-configured `StringRedisTemplate` (which uses `StringRedisSerializer` for both key and value).
+- All Lua script operations use `StringRedisTemplate` to read/write raw strings.
+- The Lua script reads the raw value which is the JSON string that `objectMapper.writeValueAsString()` produced (possibly wrapped in quotes by `GenericJackson2JsonRedisSerializer`).
+- **Verification step required during implementation**: Before writing the Lua script, the implementer must inspect the actual raw Redis value format using `redis-cli GET conversation:{id}` to determine whether the value is plain JSON `[{...}]` or double-encoded `"\"[{...}]"\""`. The Lua script and Java read/write paths must handle whichever format exists.
+
+**Recommended approach**: Since ChatHandler already serializes with Jackson, refactor ChatHandler to also use `StringRedisTemplate` for the conversation history key. This eliminates the double-encoding issue entirely and ensures Lua scripts operate on clean JSON. If this refactor is deferred, the Lua script must account for the current double-encoded format.
 
 ## Core Mechanisms
 
@@ -78,6 +94,15 @@ private final ConcurrentHashMap<String, CompletableFuture<Void>> activeTasks = n
 ```yaml
 ai:
   compression:
+    soft-threshold: 30            # Message count
+    hard-threshold-token: 50000   # Token estimation
+    keep-rounds: 6                # Preserve recent 6 rounds (12 messages)
+    retry-max: 3                  # Max async compression retries
+    llm-timeout-seconds: 30       # Timeout for summary LLM call
+    summary-prompt: |
+      你是一个对话摘要助手。请将以下对话历史压缩为一段简洁的摘要，
+      保留关键事实、决策和上下文信息，使后续对话能无缝衔接。
+      用中文输出，不超过 500 字。
     thread-pool:
       core-size: 2
       max-size: 4
@@ -93,14 +118,6 @@ Rejection policy: **DiscardPolicy**. When the pool is saturated, compression tas
 
 ### Soft/Hard Dual Thresholds
 
-```yaml
-ai:
-  compression:
-    soft-threshold: 30            # Message count
-    hard-threshold-token: 50000   # Token estimation
-    keep-rounds: 6                # Preserve recent 6 rounds (12 messages)
-```
-
 **Soft threshold (message count)**: Fast check, no computation needed. Triggers async compression.
 
 **Hard threshold (token estimation)**: Conservative estimate using `content.length() / 2` per message. Triggers synchronous truncation as emergency brake.
@@ -113,11 +130,13 @@ private int estimateTokens(List<Map<String, String>> history) {
 }
 ```
 
+**Known limitation**: The `length() / 2` estimation is tuned for Chinese text (~1.5-2 chars per token). For English-heavy or code-heavy messages, this can underestimate by 2-4x. This is acceptable for v1 because the hard threshold has a large safety margin (50K tokens vs. typical model limits of 64K-128K). A future iteration could use a proper tokenizer.
+
 ### Redis Atomic Replacement via Lua Script
 
-The conversation history is stored as a JSON string in Redis (`GET/SET` on `conversation:{id}`). Async compression cannot simply overwrite the entire string because new messages may have been appended during the LLM call.
+The conversation history is stored as a JSON string in Redis. Async compression cannot simply overwrite the entire string because new messages may have been appended during the LLM call.
 
-Solution: A Lua script that atomically replaces only the head portion:
+**Script 1: `compress_and_replace.lua`** — Replaces head with summary:
 
 ```lua
 -- KEYS[1] = conversation:{conversationId}
@@ -127,42 +146,93 @@ local key = KEYS[1]
 local splitIndex = tonumber(ARGV[1])
 local summaryJson = ARGV[2]
 
+-- Validate summary JSON
+local ok, summaryMsg = pcall(cjson.decode, summaryJson)
+if not ok or type(summaryMsg) ~= "table" then return -1 end
+
 local current = redis.call('GET', key)
 if not current then return 0 end
 
 local messages = cjson.decode(current)
 if #messages < splitIndex then return 0 end
 
-local newMessages = { cjson.decode(summaryJson) }
+-- Preserve existing TTL
+local ttl = redis.call('TTL', key)
+
+-- Replace head with summary, keep tail intact
+local newMessages = { summaryMsg }
 for i = splitIndex + 1, #messages do
     newMessages[#newMessages + 1] = messages[i]
 end
 
-redis.call('SET', key, cjson.encode(newMessages))
+local encoded = cjson.encode(newMessages)
+if ttl > 0 then
+    redis.call('SET', key, encoded, 'EX', ttl)
+else
+    redis.call('SET', key, encoded)
+end
 return #newMessages
 ```
 
-The `splitIndex` is captured at task submission time (`history.size() - keepRounds * 2`). Regardless of how many messages were appended during compression, the script only replaces the head `[0..splitIndex-1]` and preserves everything after.
+Key features:
+- `pcall` guard on `cjson.decode(summaryJson)` prevents malformed LLM output from corrupting Redis state. Returns `-1` on parse failure (distinguishable from "key not found" which returns `0`).
+- TTL preservation: reads current TTL and re-applies it via `EX` flag. Prevents key expiry reset.
+- Atomicity: entire script executes as a single Redis operation.
+
+**Script 2: `sync_truncate.lua`** — Hard threshold emergency truncation:
+
+```lua
+-- KEYS[1] = conversation:{conversationId}
+-- ARGV[1] = keepCount (number of messages to keep from tail)
+local key = KEYS[1]
+local keepCount = tonumber(ARGV[1])
+
+local current = redis.call('GET', key)
+if not current then return 0 end
+
+local messages = cjson.decode(current)
+if #messages <= keepCount then return #messages end
+
+-- Keep only the last keepCount messages
+local trimmed = {}
+for i = #messages - keepCount + 1, #messages do
+    trimmed[#trimmed + 1] = messages[i]
+end
+
+local ttl = redis.call('TTL', key)
+local encoded = cjson.encode(trimmed)
+if ttl > 0 then
+    redis.call('SET', key, encoded, 'EX', ttl)
+else
+    redis.call('SET', key, encoded)
+end
+return #trimmed
+```
+
+Both scripts must handle the actual raw Redis value format (see "Redis Serialization Strategy" section above).
 
 ### Async Compression Flow
 
 ```
 1. Read latest history from Redis (may have grown since submission)
-2. Split:
-   - head = history[0 .. splitIndex-1]       <- to be compressed
-   - tail = history[splitIndex .. end]        <- preserved verbatim
-3. If head is empty or has only 1 message -> no compression needed, exit
-4. Call LLM for summary:
-   - Reuse DeepSeekClient's WebClient and API config
-   - Use WebClient.block() (runs in compression thread pool, NOT Netty EventLoop)
-   - Prompt: summary-prompt from config + concatenated head messages
-   - Model params: temperature=0.1
-5. Construct summary message:
+2. Recompute splitIndex based on CURRENT history size:
+   - splitIndex = currentHistory.size() - keepRounds * 2
+   - If splitIndex <= 0 -> compression no longer needed, exit
+3. Split:
+   - head = currentHistory[0 .. splitIndex-1]       <- to be compressed
+   - tail = currentHistory[splitIndex .. end]         <- preserved verbatim
+4. If head is empty or has only 1 message -> no compression needed, exit
+5. Call LLM for summary (see LLM Call section below)
+6. Construct summary message:
    - {"role": "system", "content": "[历史摘要] xxx", "timestamp": "now"}
-6. Execute Lua script: replace head with summary, preserve tail
-7. Call conversationService.syncToMySQL() to persist compressed state
-8. Remove from activeTasks
+7. Execute compress_and_replace.lua: replace head with summary, preserve tail
+   - If Lua returns -1 (bad summary JSON) -> log error, do not retry with same input
+   - If Lua returns 0 (key missing or too short) -> no-op
+8. Call conversationService.syncToMySQL() to persist compressed state
+9. Remove from activeTasks
 ```
+
+**Key change from initial draft**: `splitIndex` is recomputed from the **current** history size (step 2), not from the stale value captured at submission time. This prevents the "stale split" problem where messages that should have been compressed end up in the unmanaged middle zone between the summary and the preserved tail.
 
 ### LLM Call for Summary
 
@@ -170,31 +240,46 @@ A dedicated non-streaming method in `ConversationCompressionService`:
 
 ```java
 private String callLlmForSummary(String conversationText) {
-    // Reuse DeepSeekClient's WebClient configuration
-    // POST to /chat/completions with:
-    //   model: same as main chat
-    //   messages: [{ role: "user", content: summaryPrompt + conversationText }]
-    //   temperature: 0.1
-    //   max_tokens: 1024
-    // Use .block() - safe because this runs in the compression thread pool
+    // DeepSeekClient creates its own WebClient internally and has no getter.
+    // Option A (preferred): Add a public callSync(String prompt) method to DeepSeekClient
+    //   that wraps the WebClient POST + .block(Duration.ofSeconds(timeout)).
+    //   This keeps API config (URL, key, model) centralized in one place.
+    // Option B: Create a separate WebClient bean in CompressionConfig using
+    //   the same ai.* properties. Duplicates config but decouples classes.
+
+    // Using Option A:
+    //   deepSeekClient.callSync(config.getSummaryPrompt() + "\n\n" + conversationText)
+    //
+    // DeepSeekClient.callSync implementation:
+    //   POST to /chat/completions with:
+    //     model: same as main chat (${deepseek.api.model})
+    //     messages: [{ role: "user", content: prompt }]
+    //     temperature: 0.1
+    //     max_tokens: 1024
+    //   Uses .block(Duration.ofSeconds(config.getLlmTimeoutSeconds()))
+    //   Safe to block because this runs in the compression thread pool
+    //   Timeout is configurable via ai.compression.llm-timeout-seconds
 }
 ```
+
+**Timeout**: Explicit `.block(Duration.ofSeconds(30))` with configurable timeout. Prevents indefinite hang if LLM API is unresponsive. On timeout, the retry mechanism catches the exception and retries with backoff.
 
 ### Retry Mechanism
 
 ```java
 int retryCount = 0;
-while (retryCount <= retryMax) {
+while (retryCount <= config.getRetryMax()) {
     try {
         // Execute compression...
         break;
     } catch (Exception e) {
         retryCount++;
-        if (retryCount > retryMax) {
-            log.error("Compression failed after max retries, conversationId={}", conversationId, e);
+        if (retryCount > config.getRetryMax()) {
+            log.error("Compression failed after {} retries, conversationId={}",
+                config.getRetryMax(), conversationId, e);
             break;
         }
-        Thread.sleep(1000 * retryCount);  // Linear backoff
+        Thread.sleep(1000L * retryCount);  // Linear backoff: 1s, 2s, 3s
     }
 }
 ```
@@ -206,32 +291,27 @@ After max retries exhausted:
 
 ### Sync Truncation (Hard Threshold Fallback)
 
-```java
-private void syncTruncate(String conversationId, List<Map<String, String>> history) {
-    // Keep only the last keepRounds * 2 messages
-    // Use a Lua script for atomicity (same pattern, simpler - just LTRIM equivalent)
-    // Millisecond operation, safe to run on Netty thread
-}
-```
+Uses `sync_truncate.lua` script. Parameters: `conversationId` and `keepCount = keepRounds * 2`.
 
-This is a pure Redis operation. No LLM call. Execution time is in single-digit milliseconds.
+This is a pure Redis operation. No LLM call. Execution time is in single-digit milliseconds. Safe to run on a Netty thread due to negligible blocking.
 
 ### Exception Isolation
 
-`checkAndCompress()` wraps all internal logic in try-catch. Exceptions never propagate to ChatHandler. The `syncToMySQL()` call after `checkAndCompress()` always executes regardless of compression outcome.
+`checkAndCompress()` wraps all internal logic in try-catch. Exceptions never propagate to ChatHandler. The `syncToMySQL()` call (now placed before `checkAndCompress`) always executes regardless of compression outcome.
 
 ## Redis/MySQL Consistency
 
-The current `syncToMySQL()` in ChatHandler writes the uncompressed history to MySQL. The async compression task handles its own persistence:
+The call flow ensures MySQL consistency through ordering:
 
-1. Task completes -> Lua script updates Redis
-2. Task calls `conversationService.syncToMySQL()` -> writes compressed state to MySQL
+1. ChatHandler writes full history to Redis.
+2. ChatHandler calls `syncToMySQL()` (persists uncompressed state to MySQL).
+3. ChatHandler calls `checkAndCompress()` (may submit async task).
+4. Async task completes: updates Redis via Lua, then calls `syncToMySQL()` again (overwrites MySQL with compressed state).
 
-This means MySQL may briefly contain uncompressed data between the ChatHandler sync and the compression task sync. This is acceptable because:
+Since step 4 always happens after step 2, the final MySQL state is always the compressed version. There is a brief window where MySQL contains uncompressed data, but this is acceptable because:
 
-- The data is not lost, just not yet compressed
-- The next compression will overwrite with compressed version
-- On conversation reload, MySQL data is loaded into Redis, and the next message check will trigger compression if still above threshold
+- The data is not lost, just not yet compressed.
+- On application restart or conversation reload, MySQL data is loaded into Redis and the next message check will trigger compression if still above threshold.
 
 ## Integration Points
 
@@ -239,39 +319,59 @@ This means MySQL may briefly contain uncompressed data between the ChatHandler s
 
 | File | Operation | Estimated Lines |
 |---|---|---|
-| `application.yml` | Append config section | ~15 |
-| `CompressionConfig.java` | New file | ~60 |
-| `ConversationCompressionService.java` | New file | ~180 |
-| `ChatHandler.java` | Insert 1 line, remove 2 lines | ~3 |
-| `compress_and_replace.lua` | New file | ~15 |
+| `application.yml` | Append config section | ~20 |
+| `CompressionConfig.java` | New file | ~65 |
+| `ConversationCompressionService.java` | New file | ~200 |
+| `DeepSeekClient.java` | Add `callSync()` method | ~30 |
+| `ChatHandler.java` | Restructure `updateConversationHistory()` | ~10 |
+| `compress_and_replace.lua` | New file | ~20 |
+| `sync_truncate.lua` | New file | ~15 |
 
-Total: ~270 lines. Core logic concentrated in `ConversationCompressionService`.
+Total: ~360 lines.
 
 ### ChatHandler.java Change
 
-In `updateConversationHistory()`, after appending messages, before `syncToMySQL`:
+Restructure `updateConversationHistory()` — exact replacement code:
 
 ```java
-// REMOVE: if (history.size() > 20) { history = history.subList(history.size() - 20, history.size()); }
+// BEFORE (current code):
+// 1. Append userMsg, assistantMsg to history
+// 2. if (history.size() > 20) { history = history.subList(...) }
+// 3. String json = objectMapper.writeValueAsString(history);
+// 4. redisTemplate.opsForValue().set(key, json, Duration.ofDays(7));
+// 5. conversationService.syncToMySQL(conversationId, userId);
 
-// ADD:
-conversationCompressionService.checkAndCompress(conversationId, history);
-
-// Existing: conversationService.syncToMySQL(conversationId, userId);
+// AFTER (new code):
+// 1. Append userMsg, assistantMsg to history (unchanged)
+// 2. REMOVED: if (history.size() > 20) { history = history.subList(...) }
+// 3. String json = objectMapper.writeValueAsString(history);  // Full history, no truncation
+// 4. redisTemplate.opsForValue().set(key, json, Duration.ofDays(7));
+// 5. conversationService.syncToMySQL(conversationId, userId);  // Sync BEFORE compression
+// 6. conversationCompressionService.checkAndCompress(conversationId, history);  // NEW
 ```
 
 ### CompressionConfig.java
 
 ```java
-@Configuration
+@Component
 @ConfigurationProperties(prefix = "ai.compression")
+@Data
 public class CompressionConfig {
-    private int softThreshold;
-    private int hardThresholdToken;
-    private int keepRounds;
-    private int retryMax;
-    private String summaryPrompt;
+    private int softThreshold = 30;
+    private int hardThresholdToken = 50000;
+    private int keepRounds = 6;
+    private int retryMax = 3;
+    private int llmTimeoutSeconds = 30;
+    private String summaryPrompt = "请将以下对话历史压缩为简洁摘要...";
     private ThreadPoolConfig threadPool;
+
+    @Data
+    public static class ThreadPoolConfig {
+        private int coreSize = 2;
+        private int maxSize = 4;
+        private int queueCapacity = 50;
+        private String threadNamePrefix = "compression-";
+    }
 
     @Bean
     public ThreadPoolTaskExecutor compressionExecutor() {
@@ -287,6 +387,34 @@ public class CompressionConfig {
 }
 ```
 
+Note: Uses `@Component` + `@ConfigurationProperties` to match the existing `AiProperties.java` pattern.
+
+### DeepSeekClient.java Addition
+
+Add a public synchronous method alongside existing streaming methods:
+
+```java
+public String callSync(String prompt) {
+    Map<String, Object> requestBody = new HashMap<>();
+    requestBody.put("model", model);
+    requestBody.put("messages", List.of(Map.of("role", "user", "content", prompt)));
+    requestBody.put("temperature", 0.1);
+    requestBody.put("max_tokens", 1024);
+
+    return webClient.post()
+        .uri("/chat/completions")
+        .bodyValue(requestBody)
+        .retrieve()
+        .bodyToMono(String.class)
+        .timeout(Duration.ofSeconds(30))
+        .map(response -> {
+            JsonNode node = objectMapper.readTree(response);
+            return node.path("choices").path(0).path("message").path("content").asText();
+        })
+        .block(Duration.ofSeconds(60));
+}
+```
+
 ### ConversationCompressionService Method List
 
 ```java
@@ -296,8 +424,10 @@ public class ConversationCompressionService {
     private final ThreadPoolTaskExecutor compressionExecutor;
     private final ConversationService conversationService;
     private final CompressionConfig config;
-    private final RedisTemplate<String, String> redisTemplate;
+    private final StringRedisTemplate stringRedisTemplate;  // NOT RedisTemplate<String, Object>
     private final RedisScript<Long> compressScript;
+    private final RedisScript<Long> truncateScript;
+    private final DeepSeekClient deepSeekClient;
 
     // Deduplication
     private final ConcurrentHashMap<String, CompletableFuture<Void>> activeTasks;
@@ -308,21 +438,53 @@ public class ConversationCompressionService {
     // Internal
     private int estimateTokens(List<Map<String, String>> history);
     private void syncTruncate(String conversationId, int keepCount);
-    private void submitAsyncCompression(String conversationId, int splitIndex);
-    private void executeCompression(String conversationId, int splitIndex);
+    private void submitAsyncCompression(String conversationId);
+    private void executeCompression(String conversationId);
     private String callLlmForSummary(String conversationText);
     private void applyCompressionViaLua(String conversationId, int splitIndex, String summary);
 }
 ```
 
+Note: `submitAsyncCompression` no longer takes `splitIndex` parameter. The index is computed inside the async task from the current Redis state.
+
+## Observability
+
+Key log points:
+
+```java
+// Soft threshold exceeded, async submitted
+log.info("Compression triggered: conversationId={}, messages={}, tokens={}", id, size, tokens);
+
+// Compression completed
+log.info("Compression completed: conversationId={}, before={} messages, after={} messages, saved={} tokens",
+    id, beforeSize, afterSize, savedTokens);
+
+// Compression failed after retries
+log.error("Compression failed after {} retries: conversationId={}", maxRetries, id, e);
+
+// Hard threshold triggered (emergency)
+log.warn("Hard threshold reached, sync truncating: conversationId={}, tokens={}", id, tokens);
+
+// DiscardPolicy rejected task
+log.warn("Compression pool full, task discarded: conversationId={}", id);
+
+// Lua script returned error
+log.error("Lua compression script error (code={}): conversationId={}", returnCode, id);
+```
+
+These structured log lines provide visibility into compression frequency, effectiveness, and failure patterns without requiring additional monitoring infrastructure.
+
 ## Safety Summary
 
 | Risk | Mitigation |
 |---|---|
-| Redis concurrent overwrite | Lua script atomic head replacement |
+| Redis concurrent overwrite | Lua script atomic head replacement with pcall validation |
 | Netty EventLoop blocking | DiscardPolicy, never runs LLM calls on EventLoop |
 | Conversation data loss | Hard threshold sync truncation (millisecond fallback) |
+| Malformed LLM summary corrupts Redis | pcall guard in Lua script returns -1, Java side skips write |
 | Compression task pile-up | ConcurrentHashMap dedup + DiscardPolicy |
-| Redis/MySQL inconsistency | Async task self-persists after compression |
-| Compression LLM failure | Retry with linear backoff, graceful degradation |
+| Stale splitIndex after history growth | Recompute splitIndex from current Redis state inside async task |
+| Redis/MySQL inconsistency | syncToMySQL before compression; async task re-syncs after |
+| Redis key TTL reset | Lua script preserves existing TTL via TTL + EX |
+| Compression LLM failure | Retry with linear backoff, configurable timeout |
 | Exception propagation | checkAndCompress fully try-caught internally |
