@@ -11,8 +11,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.function.Consumer;
 import java.util.concurrent.atomic.AtomicReference;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
+import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.yizhaoqi.smartpai.config.AiProperties;
@@ -270,5 +272,35 @@ public class DeepSeekClient {
         } catch (Exception e) {
             logger.error("处理工具数据块时出错: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * Synchronous LLM call for compression summaries.
+     * Blocks the calling thread until response is received.
+     * Safe to call from the compression thread pool — NOT from Netty EventLoop.
+     */
+    public String callSync(String prompt, Duration timeout) {
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", model);
+        requestBody.put("messages", List.of(Map.of("role", "user", "content", prompt)));
+        requestBody.put("temperature", 0.1);
+        requestBody.put("max_tokens", 1024);
+
+        return webClient.post()
+                .uri("/chat/completions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(requestBody)
+                .retrieve()
+                .bodyToMono(String.class)
+                .timeout(timeout)
+                .map(response -> {
+                    try {
+                        JsonNode node = objectMapper.readTree(response);
+                        return node.path("choices").path(0).path("message").path("content").asText();
+                    } catch (JsonProcessingException e) {
+                        throw new RuntimeException("Failed to parse LLM response", e);
+                    }
+                })
+                .block(timeout.multipliedBy(2));
     }
 }
