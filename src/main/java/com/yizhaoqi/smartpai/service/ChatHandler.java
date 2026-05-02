@@ -7,7 +7,7 @@ import com.yizhaoqi.smartpai.client.DeepSeekClient;
 import com.yizhaoqi.smartpai.entity.SearchResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -35,7 +35,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 public class ChatHandler {
     
     private static final Logger logger = LoggerFactory.getLogger(ChatHandler.class);
-    private final RedisTemplate<String, String> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
     private final HybridSearchService searchService;
     private final DeepSeekClient deepSeekClient;
     private final ConversationService conversationService;
@@ -68,7 +68,7 @@ public class ChatHandler {
         )
     );
 
-    public ChatHandler(RedisTemplate<String, String> redisTemplate,
+    public ChatHandler(StringRedisTemplate redisTemplate,
                       HybridSearchService searchService,
                       DeepSeekClient deepSeekClient,
                       ConversationService conversationService,
