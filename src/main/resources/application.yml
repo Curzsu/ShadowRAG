@@ -144,3 +144,18 @@ ai:
     temperature: 0.3
     max-tokens: 4096
     top-p: 0.9
+  compression:
+    soft-threshold: 30
+    hard-threshold-token: 50000
+    keep-rounds: 6
+    retry-max: 3
+    llm-timeout-seconds: 30
+    summary-prompt: |
+      你是一个对话摘要助手。请将以下对话历史压缩为一段简洁的摘要，
+      保留关键事实、决策和上下文信息，使后续对话能无缝衔接。
+      用中文输出，不超过 500 字。
+    thread-pool:
+      core-size: 2
+      max-size: 4
+      queue-capacity: 50
+      thread-name-prefix: "compression-"
