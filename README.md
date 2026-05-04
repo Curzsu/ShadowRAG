@@ -158,7 +158,7 @@ cd frontend && pnpm install && pnpm dev
 浏览器打开 `http://localhost:9527`，使用默认管理员账号登录：
 
 - 用户名：`admin`
-- 密码：`REDACTED`
+- 密码：`123456`
 
 ## 配置说明
 
