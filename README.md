@@ -118,7 +118,7 @@ ShadowRAG/
 - Node.js 18.20.0+
 - pnpm 8.7.0+
 - Docker & Docker Compose（用于运行基础设施服务）
-- Ollama（用于本地 Embedding 模型，需拉取 bge-m3）
+- NVIDIA GPU + 驱动（用于 MinerU 解析和 Ollama Embedding）
 
 ### 1. 启动基础设施服务
 
@@ -136,16 +136,10 @@ cd docs && docker-compose up -d
 | Kafka | 9092 | 消息队列 |
 | MinIO | 19000 / 19001 | 文件存储（API / 控制台） |
 | MinerU | 8000 | 文档解析（需 GPU） |
+| Ollama | 11434 | Embedding 服务（自动拉取 bge-m3，需 GPU） |
+| TEI Reranker | 8082 | Cross-Encoder 精排 |
 
-### 2. 启动本地 Embedding 服务
-
-```bash
-# 拉取并运行 bge-m3 模型
-ollama pull bge-m3
-ollama serve
-```
-
-### 3. 启动后端
+### 2. 启动后端
 
 ```bash
 mvn spring-boot:run
@@ -153,13 +147,13 @@ mvn spring-boot:run
 
 后端运行在 `http://localhost:8081`。
 
-### 4. 启动前端
+### 3. 启动前端
 
 ```bash
 cd frontend && pnpm install && pnpm dev
 ```
 
-### 5. 访问应用
+### 4. 访问应用
 
 浏览器打开 `http://localhost:9527`，使用默认管理员账号登录：
 
