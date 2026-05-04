@@ -65,7 +65,7 @@ jwt:
 # 管理员账号初始化配置
 admin:
   username: admin
-  password: qQ980789582!
+  password: 123456
   primary-org: default
   org-tags: default,admin
 
