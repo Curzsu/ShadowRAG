@@ -133,6 +133,37 @@ services:
       retries: 5
       start_period: 300s
 
+  # 启动时自动拉取 bge-m3，已存在则跳过
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    restart: always
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        /bin/ollama serve &
+        until curl -sf http://localhost:11434/api/version > /dev/null; do sleep 2; done
+        ollama pull bge-m3
+        wait
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:11434/api/version || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
   es:
     image: elasticsearch:8.10.4
     container_name: es
@@ -178,3 +209,4 @@ volumes:
   kafka-data:
   es-data:
   tei-models:
+  ollama-data:

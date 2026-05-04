@@ -7,7 +7,9 @@ ShadowRAG 是一个企业级 AI 知识管理系统，基于 RAG（检索增强�
 ## 功能特性
 
 - **文档管理**：支持多种格式文档上传，自动解析与索引，支持分片上传和断点续传
-- **语义检索**：基于 BGE-M3 向量模型的语义搜索，结合 Elasticsearch 全文检索
+- **Agentic RAG**：LLM 通过 Function Calling 自主决定是否搜索知识库，两阶段工具调用流程
+- **混合检索 + 精排**：KNN 向量检索 + BM25 全文检索 → Java 端 RRF 融合 → Cross-Encoder 精排
+- **长记忆异步压缩**：ConcurrentHashMap 会话级任务去重 + CompletableFuture 异步压缩早期对话为摘要，Redis Lua 脚本原子头部替换，软硬双阈值 + 失败重试 + 同步截断兜底
 - **AI 对话**：集成 DeepSeek LLM，通过 WebSocket 实时流式输出回答
 - **多租户隔离**：基于组织标签的数据隔离，支持公开/私有文档权限控制
 - **异步处理**：Kafka 驱动的文档异步解析与向量化流水线
@@ -29,6 +31,7 @@ ShadowRAG 是一个企业级 AI 知识管理系统，基于 RAG（检索增强�
 | 安全认证 | Spring Security + JWT |
 | LLM | DeepSeek API / 本地 Ollama |
 | Embedding | Ollama bge-m3（1024 维） |
+| Reranker | HuggingFace TEI bge-reranker-v2-m3 |
 | 实时通信 | WebSocket |
 | 响应式 | Spring WebFlux |
 | 中文处理 | HanLP 1.8.6 |
@@ -54,7 +57,21 @@ ShadowRAG 是一个企业级 AI 知识管理系统，基于 RAG（检索增强�
 ```
 文档上传 → MinerU/Tika 解析 → 文本分块 → BGE-M3 向量化 → 存入 Elasticsearch
                                                                     ↓
-用户提问 → WebSocket 连接 → 向量检索 + 全文检索 → 拼接上下文 → DeepSeek 生成回答（流式输出）
+用户提问 → WebSocket → LLM 自主决策是否搜索（Agentic RAG）
+                            ↓ 是
+                      KNN + BM25 检索 → RRF 融合 → Cross-Encoder 精排 → LLM 生成回答（流式输出）
+                            ↓ 否
+                      LLM 直接回答
+```
+
+### 长记忆压缩流程
+
+```
+每轮对话结束 → 写入 Redis → syncToMySQL → 检查阈值
+                                              ↓
+                                    消息 < 30 条 → 跳过
+                                    消息 ≥ 30 条 + Token < 50000 → 异步压缩（LLM 摘要 + Lua 原子替换）
+                                    Token ≥ 50000 → 同步截断（保留近 6 轮）
 ```
 
 ### 项目结构
@@ -162,6 +179,10 @@ cd frontend && pnpm install && pnpm dev
 | `mineru.api.url` | MinerU 文档解析服务地址 |
 | `mineru.api.enabled` | 是否启用 MinerU，`false` 时回退到 Tika |
 | `file.parsing.chunk-size` | 文本分块大小，默认 512 字符 |
+| `ai.compression.soft-threshold` | 压缩软阈值，默认 30 条消息触发异步压缩 |
+| `ai.compression.hard-threshold-token` | 压缩硬阈值，默认 50000 Token 触发同步截断 |
+| `ai.compression.keep-rounds` | 压缩时保留最近对话轮数，默认 6 轮 |
+| `reranker.api.enabled` | 是否启用 Cross-Encoder 精排 |
 
 ## 架构设计
 
