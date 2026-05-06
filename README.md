@@ -105,6 +105,9 @@ ShadowRAG/
 │   │   └── constants/                      # 常量
 │   └── ...
 ├── docs/                                   # Docker Compose 部署配置
+│   ├── docker-compose.yaml                 # 服务编排
+│   ├── Dockerfile.mineru                    # MinerU 自定义镜像
+│   └── init-db.sql                          # MySQL 首次启动自动建库
 ├── pom.xml                                 # Maven 依赖
 └── README.md
 ```
@@ -130,10 +133,10 @@ cd docs && docker-compose up -d
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
-| MySQL | 3307（容器内 3306） | 主数据库，密码 `123456` |
+| MySQL | 33060（容器内 3306） | 主数据库，密码 `123456`，首次启动自动建库 |
 | Redis | 6379 | 缓存 |
 | Elasticsearch | 9200 | 搜索与向量存储 |
-| Kafka | 9092 | 消息队列 |
+| Kafka | 29092（容器内 9092） | 消息队列 |
 | MinIO | 19000 / 19001 | 文件存储（API / 控制台） |
 | MinerU | 8000 | 文档解析（需 GPU） |
 | Ollama | 11434 | Embedding 服务（自动拉取 bge-m3，需 GPU） |
