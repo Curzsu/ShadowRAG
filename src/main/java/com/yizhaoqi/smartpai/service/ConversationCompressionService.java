@@ -185,8 +185,6 @@ public class ConversationCompressionService {
 
         logger.info("Compression completed: conversationId={}, before={} messages, after={} messages",
                 conversationId, currentHistory.size(), result);
-
-        conversationService.syncToMySQL(conversationId, userId);
     }
 
     private String callLlmForSummary(String conversationText) {
