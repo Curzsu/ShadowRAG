@@ -2,6 +2,10 @@ package com.yizhaoqi.smartpai.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.knuddels.jtokkit.Encodings;
+import com.knuddels.jtokkit.api.Encoding;
+import com.knuddels.jtokkit.api.EncodingRegistry;
+import com.knuddels.jtokkit.api.EncodingType;
 import com.yizhaoqi.smartpai.client.DeepSeekClient;
 import com.yizhaoqi.smartpai.config.CompressionProperties;
 import org.slf4j.Logger;
@@ -24,9 +28,10 @@ public class ConversationCompressionService {
 
     private static final Logger logger = LoggerFactory.getLogger(ConversationCompressionService.class);
     private static final DateTimeFormatter TS_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+    private static final Encoding TOKEN_ENCODING = Encodings.newDefaultEncodingRegistry()
+            .getEncoding(EncodingType.CL100K_BASE);
 
     private final ThreadPoolTaskExecutor compressionExecutor;
-    private final ConversationService conversationService;
     private final CompressionProperties config;
     private final StringRedisTemplate stringRedisTemplate;
     private final RedisScript<Long> compressScript;
@@ -38,7 +43,6 @@ public class ConversationCompressionService {
 
     public ConversationCompressionService(
             ThreadPoolTaskExecutor compressionExecutor,
-            ConversationService conversationService,
             CompressionProperties config,
             StringRedisTemplate stringRedisTemplate,
             RedisScript<Long> compressScript,
@@ -46,7 +50,6 @@ public class ConversationCompressionService {
             DeepSeekClient deepSeekClient,
             ObjectMapper objectMapper) {
         this.compressionExecutor = compressionExecutor;
-        this.conversationService = conversationService;
         this.config = config;
         this.stringRedisTemplate = stringRedisTemplate;
         this.compressScript = compressScript;
@@ -81,7 +84,10 @@ public class ConversationCompressionService {
 
     int estimateTokens(List<Map<String, String>> history) {
         return history.stream()
-                .mapToInt(m -> m.getOrDefault("content", "").length() / 2)
+                .mapToInt(m -> {
+                    String text = m.getOrDefault("role", "") + ": " + m.getOrDefault("content", "");
+                    return TOKEN_ENCODING.countTokens(text);
+                })
                 .sum();
     }
 
@@ -112,7 +118,7 @@ public class ConversationCompressionService {
         try {
             while (retryCount <= config.getRetryMax()) {
                 try {
-                    doCompress(conversationId, userId);
+                    doCompress(conversationId);
                     return;
                 } catch (Exception e) {
                     retryCount++;
@@ -134,7 +140,7 @@ public class ConversationCompressionService {
         }
     }
 
-    private void doCompress(String conversationId, String userId) throws Exception {
+    private void doCompress(String conversationId) throws Exception {
         String key = "conversation:" + conversationId;
         String json = stringRedisTemplate.opsForValue().get(key);
         if (json == null) return;
