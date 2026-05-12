@@ -156,11 +156,36 @@ public class ConversationCompressionService {
             return;
         }
 
-        List<Map<String, String>> head = currentHistory.subList(0, splitIndex);
-        if (head.isEmpty()) return;
+        // === 增量压缩：找已有摘要边界 ===
+        String marker = config.getSummaryMarker();
+        int lastSummaryIndex = -1;
+        for (int i = 0; i < splitIndex; i++) {
+            String content = currentHistory.get(i).getOrDefault("content", "");
+            if (content.startsWith(marker)) {
+                lastSummaryIndex = i;
+            }
+        }
 
+        int compressStart = (lastSummaryIndex == -1) ? 0 : lastSummaryIndex + 1;
+
+        // 新消息范围 [compressStart, splitIndex)
+        List<Map<String, String>> toCompress = currentHistory.subList(compressStart, splitIndex);
+        if (toCompress.isEmpty()) {
+            logger.debug("No new messages to compress for conversationId={}", conversationId);
+            return;
+        }
+
+        // 构建 LLM 输入（只对 toCompress 生成独立摘要，不合并旧摘要）
         StringBuilder sb = new StringBuilder();
-        for (Map<String, String> msg : head) {
+        if (lastSummaryIndex >= 0) {
+            String previousSummary = currentHistory.get(lastSummaryIndex).getOrDefault("content", "");
+            String summaryText = previousSummary.substring(marker.length()).trim();
+            // 旧摘要仅作为上下文帮助 LLM 理解连贯性，不要求合并
+            sb.append("[以下是之前对话的摘要，仅供理解上下文，不需要合并]\n")
+              .append(summaryText).append("\n\n");
+            sb.append("[以下是新的对话内容，请只对这部分生成独立的摘要]\n");
+        }
+        for (Map<String, String> msg : toCompress) {
             sb.append(msg.getOrDefault("role", "unknown")).append(": ")
               .append(msg.getOrDefault("content", "")).append("\n\n");
         }
@@ -173,15 +198,17 @@ public class ConversationCompressionService {
 
         String summaryJson = objectMapper.writeValueAsString(Map.of(
                 "role", "system",
-                "content", "[历史摘要] " + summary,
+                "content", config.getSummaryMarker() + " " + summary,
                 "timestamp", LocalDateTime.now().format(TS_FORMAT)
         ));
 
+        // 调用 Lua 脚本：删除 [compressStart, splitIndex)，插入新摘要
         Long result = stringRedisTemplate.execute(
                 compressScript,
                 List.of(key),
-                String.valueOf(splitIndex),
-                summaryJson
+                String.valueOf(compressStart),   // ARGV[1]
+                String.valueOf(splitIndex),       // ARGV[2]
+                summaryJson                       // ARGV[3]
         );
 
         if (result != null && result == -1) {
@@ -189,8 +216,9 @@ public class ConversationCompressionService {
             return;
         }
 
-        logger.info("Compression completed: conversationId={}, before={} messages, after={} messages",
-                conversationId, currentHistory.size(), result);
+        logger.info("Incremental compression completed: conversationId={}, " +
+                    "compressRange=[{},{}), before={} messages, after={} messages",
+                conversationId, compressStart, splitIndex, currentHistory.size(), result);
     }
 
     private String callLlmForSummary(String conversationText) {
