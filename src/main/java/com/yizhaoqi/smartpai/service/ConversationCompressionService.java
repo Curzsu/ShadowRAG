@@ -102,15 +102,12 @@ public class ConversationCompressionService {
     }
 
     private void submitAsyncCompression(String conversationId, String userId) {
-        CompletableFuture<Void> future = CompletableFuture.runAsync(
-                () -> executeCompression(conversationId, userId),
-                compressionExecutor
+        activeTasks.computeIfAbsent(conversationId, key ->
+                CompletableFuture.runAsync(
+                        () -> executeCompression(conversationId, userId),
+                        compressionExecutor
+                )
         );
-        CompletableFuture<Void> existing = activeTasks.putIfAbsent(conversationId, future);
-        if (existing != null) {
-            logger.debug("Compression already in progress for conversationId={}", conversationId);
-            future.cancel(false);
-        }
     }
 
     private void executeCompression(String conversationId, String userId) {
