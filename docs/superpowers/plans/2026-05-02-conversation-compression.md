@@ -293,7 +293,7 @@ Add this method at the end of the class, before the closing `}`:
 /**
  * Synchronous LLM call for compression summaries.
  * Blocks the calling thread until response is received.
- * Safe to call from the compression thread pool — NOT from Netty EventLoop.
+ * Safe to call from the compression thread pool — NOT from Tomcat's request-handling threads.
  */
 public String callSync(String prompt, Duration timeout) {
     Map<String, Object> requestBody = new HashMap<>();

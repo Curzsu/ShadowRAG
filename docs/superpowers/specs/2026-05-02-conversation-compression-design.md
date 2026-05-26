@@ -21,7 +21,7 @@ This design introduces an async compression mechanism that compresses early conv
 | Trigger timing | Every message round check + async compress | Real-time, catches growth early |
 | Threshold dimension | Hybrid: message count (soft) + token estimation (hard) | Fast check for soft, precise guard for hard |
 | Redis atomicity | Lua script with cjson | Atomic head replacement, no concurrent overwrite |
-| Thread pool rejection | DiscardPolicy | Never block Netty EventLoop threads |
+| Thread pool rejection | DiscardPolicy | Never block Tomcat WebSocket threads with long-running LLM calls |
 | Hard threshold fallback | Sync truncation only (millisecond Redis op) | No LLM call on critical path |
 | Redis serialization | Use `StringRedisTemplate` for compression | Bypass `GenericJackson2JsonRedisSerializer` double-encoding |
 
@@ -113,7 +113,7 @@ ai:
 
 Rejection policy: **DiscardPolicy**. When the pool is saturated, compression tasks are silently discarded. This is critical because:
 
-1. ChatHandler runs on Netty EventLoop threads. `CallerRunsPolicy` would block an EventLoop, potentially freezing hundreds of connections.
+1. ChatHandler runs on Tomcat's WebSocket worker threads (default pool size 200, shared with HTTP requests). `CallerRunsPolicy` would block a Tomcat thread for 3-10 seconds (the duration of a synchronous LLM call), reducing the pool's capacity to handle other requests. Under concurrent compression triggers, this can exhaust the thread pool and cause service-wide request rejection.
 2. Compression is an optimization, not a requirement. The hard threshold sync truncation is the safety net.
 3. The next message will re-check thresholds and retry submission.
 
@@ -294,7 +294,7 @@ After max retries exhausted:
 
 Uses `sync_truncate.lua` script. Parameters: `conversationId` and `keepCount = keepRounds * 2`.
 
-This is a pure Redis operation. No LLM call. Execution time is in single-digit milliseconds. Safe to run on a Netty thread due to negligible blocking.
+This is a pure Redis operation. No LLM call. Execution time is in single-digit milliseconds. Safe to run synchronously on a Tomcat thread due to negligible blocking.
 
 ### Exception Isolation
 
@@ -497,7 +497,7 @@ These structured log lines provide visibility into compression frequency, effect
 | Risk | Mitigation |
 |---|---|
 | Redis concurrent overwrite | Lua script atomic head replacement with pcall validation |
-| Netty EventLoop blocking | DiscardPolicy, never runs LLM calls on EventLoop |
+| Tomcat thread pool exhaustion | DiscardPolicy, never runs LLM calls on Tomcat worker threads |
 | Conversation data loss | Hard threshold sync truncation (millisecond fallback) |
 | Malformed LLM summary corrupts Redis | pcall guard in Lua script returns -1, Java side skips write |
 | Compression task pile-up | ConcurrentHashMap dedup + DiscardPolicy |
