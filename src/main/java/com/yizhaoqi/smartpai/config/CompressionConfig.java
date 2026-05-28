@@ -21,9 +21,9 @@ public class CompressionConfig {
         executor.setMaxPoolSize(tp.getMaxSize());
         executor.setQueueCapacity(tp.getQueueCapacity());
         executor.setThreadNamePrefix(tp.getThreadNamePrefix());
-        executor.setRejectedExecutionHandler((r, exec) ->
-                logger.warn("Compression pool full, task discarded")
-        );
+        executor.setRejectedExecutionHandler((r, exec) -> {
+            throw new java.util.concurrent.RejectedExecutionException("Compression pool full, task rejected");
+        });
         executor.initialize();
         return executor;
     }

@@ -102,12 +102,20 @@ public class ConversationCompressionService {
     }
 
     private void submitAsyncCompression(String conversationId, String userId) {
-        activeTasks.computeIfAbsent(conversationId, key ->
-                CompletableFuture.runAsync(
-                        () -> executeCompression(conversationId, userId),
-                        compressionExecutor
-                )
-        );
+        try {
+            activeTasks.computeIfAbsent(conversationId, key ->
+                    CompletableFuture.runAsync(
+                            () -> executeCompression(conversationId, userId),
+                            compressionExecutor
+                    )
+            );
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            logger.warn("Compression task rejected (pool full): conversationId={}", conversationId);
+            activeTasks.remove(conversationId);
+        } catch (Exception e) {
+            logger.error("Failed to submit compression task: conversationId={}", conversationId, e);
+            activeTasks.remove(conversationId);
+        }
     }
 
     private void executeCompression(String conversationId, String userId) {
