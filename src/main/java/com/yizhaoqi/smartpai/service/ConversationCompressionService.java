@@ -60,7 +60,7 @@ public class ConversationCompressionService {
 
     public void checkAndCompress(String conversationId, List<Map<String, String>> history, String userId) {
         try {
-            if (history == null || history.size() < config.getSoftThreshold()) {
+            if (history == null || history.isEmpty()) {
                 return;
             }
 
@@ -75,7 +75,9 @@ public class ConversationCompressionService {
                 return;
             }
 
-            submitAsyncCompression(conversationId, userId);
+            if (history.size() >= config.getSoftThreshold() || tokens >= config.getSoftThresholdToken()) {
+                submitAsyncCompression(conversationId, userId);
+            }
 
         } catch (Exception e) {
             logger.error("checkAndCompress failed for conversationId={}: {}", conversationId, e.getMessage(), e);
