@@ -36,6 +36,7 @@ class ConversationCompressionServiceTest {
     void setUp() {
         config = new CompressionProperties();
         config.setSoftThreshold(30);
+        config.setSoftThresholdToken(20000);
         config.setKeepRounds(6);
         config.setHardThresholdToken(50000);
         config.setSummaryMarker("[历史摘要]");
@@ -89,5 +90,18 @@ class ConversationCompressionServiceTest {
 
         assertDoesNotThrow(() -> service.checkAndCompress("conv1", history, "user1"));
         verify(stringRedisTemplate).execute(eq(truncateScript), anyList(), any(String.class));
+    }
+
+    @Test
+    void checkAndCompress_shouldTriggerAsync_whenTokensExceedSoftThresholdToken_evenIfBelowMessageThreshold() {
+        // message count is 2 (below soft threshold of 30)
+        // content is long enough to exceed softThresholdToken of 20000 (approx 24000 tokens)
+        List<Map<String, String>> history = List.of(
+                Map.of("role", "user", "content", "Hello world. ".repeat(8000)),
+                Map.of("role", "assistant", "content", "Hello response. ".repeat(8000))
+        );
+
+        assertDoesNotThrow(() -> service.checkAndCompress("conv1", history, "user1"));
+        verify(compressionExecutor).execute(any(Runnable.class));
     }
 }
