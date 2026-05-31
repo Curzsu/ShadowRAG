@@ -78,9 +78,9 @@ services:
           sleep 2
         done
         echo "Creating topic: file-processing"
-        kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 1 --topic file-processing 2>/dev/null || true
+        kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 3 --topic file-processing 2>/dev/null || true
         echo "Creating topic: vectorization"
-        kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 1 --topic vectorization 2>/dev/null || true
+        kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 1 --partitions 3 --topic vectorization 2>/dev/null || true
         tail -f /dev/null
     healthcheck:
       test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
