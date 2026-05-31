@@ -99,6 +99,7 @@ public class KafkaConfig {
 
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
+        factory.setConcurrency(3); // 并发消费线程数，与 topic partition 数对齐
         factory.setCommonErrorHandler(errorHandler);
         return factory;
     }
