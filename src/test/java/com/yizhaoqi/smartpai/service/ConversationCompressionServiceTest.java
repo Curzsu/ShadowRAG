@@ -35,7 +35,6 @@ class ConversationCompressionServiceTest {
     @BeforeEach
     void setUp() {
         config = new CompressionProperties();
-        config.setSoftThreshold(30);
         config.setSoftThresholdToken(20000);
         config.setKeepRounds(6);
         config.setHardThresholdToken(50000);
@@ -63,7 +62,8 @@ class ConversationCompressionServiceTest {
     }
 
     @Test
-    void checkAndCompress_shouldNotTrigger_belowSoftThreshold() {
+    void checkAndCompress_shouldNotTrigger_belowSoftThresholdToken() {
+        // 单条短消息，token 远低于软阈值（20000），不应触发任何压缩
         List<Map<String, String>> history = List.of(
                 Map.of("role", "user", "content", "hi")
         );
@@ -74,7 +74,7 @@ class ConversationCompressionServiceTest {
     @Test
     void checkAndCompress_shouldTriggerSyncTruncate_atHardThreshold() {
         // Create history with enough messages to exceed hard threshold
-        // softThreshold=30, hardThresholdToken=50000
+        // softThresholdToken=20000, hardThresholdToken=50000
         // CL100K_BASE tokenizer is very efficient on repeated chars:
         // ~254 tokens per message of "a".repeat(2000), so ~7600 tokens for 30 msgs.
         // Use 200 messages to comfortably exceed 50000 tokens.
@@ -93,9 +93,9 @@ class ConversationCompressionServiceTest {
     }
 
     @Test
-    void checkAndCompress_shouldTriggerAsync_whenTokensExceedSoftThresholdToken_evenIfBelowMessageThreshold() {
-        // message count is 2 (below soft threshold of 30)
-        // content is long enough to exceed softThresholdToken of 20000 (approx 24000 tokens)
+    void checkAndCompress_shouldTriggerAsync_whenTokensExceedSoftThresholdToken() {
+        // 2 条长消息（条数少但 token 高），验证压缩只按 token 维度触发
+        // content 足够长以超过 softThresholdToken=20000（约 24000 tokens）
         List<Map<String, String>> history = List.of(
                 Map.of("role", "user", "content", "Hello world. ".repeat(8000)),
                 Map.of("role", "assistant", "content", "Hello response. ".repeat(8000))

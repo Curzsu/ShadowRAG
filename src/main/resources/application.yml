@@ -145,7 +145,6 @@ ai:
     max-tokens: 4096
     top-p: 0.9
   compression:
-    soft-threshold: 30
     hard-threshold-token: 50000
     keep-rounds: 6
     retry-max: 3
