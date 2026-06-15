@@ -75,7 +75,9 @@ public class ConversationCompressionService {
                 return;
             }
 
-            if (history.size() >= config.getSoftThreshold() || tokens >= config.getSoftThresholdToken()) {
+            // 仅按 token 维度判断：条数维度冗余（短消息 token 低无需压，长消息 token 高会触发），
+            // 且防不住"条数多但 token 平缓"后的突变长消息——真正兜底是硬阈值。
+            if (tokens >= config.getSoftThresholdToken()) {
                 submitAsyncCompression(conversationId, userId);
             }
 

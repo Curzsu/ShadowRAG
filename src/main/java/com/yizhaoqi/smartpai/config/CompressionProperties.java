@@ -9,7 +9,6 @@ import org.springframework.stereotype.Component;
 @Data
 public class CompressionProperties {
 
-    private int softThreshold = 30;
     private int softThresholdToken = 20000;
     private int hardThresholdToken = 50000;
     private int keepRounds = 6;
