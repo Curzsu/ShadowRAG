@@ -25,7 +25,7 @@ spring:
       max-request-size: 100MB # 整个请求的最大大小
   kafka:
     enabled: true  # 启用 Kafka
-    bootstrap-servers: 127.0.0.1:29092 # Kafka 服务器地址
+    bootstrap-servers: 127.0.0.1:9092 # Kafka 服务器地址
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
