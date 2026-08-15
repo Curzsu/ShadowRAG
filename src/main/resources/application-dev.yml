@@ -60,7 +60,7 @@ minio:
     bucketName: uploads
     publicUrl: http://localhost:19000
 jwt:
-  secret-key: "PXrQbuCwXwOZzkML/Vm2S5rSwt1iybvmKtGDzVEu+Hc="
+  secret-key: "${JWT_SECRET_KEY:}"
 
 # 管理员账号初始化配置
 admin:
@@ -96,7 +96,7 @@ deepseek:
   api:
     url: https://api.deepseek.com/v1
     model: deepseek-chat  # 本地: deepseek-r1:7b, 官方: deepseek-chat
-    key: ***REMOVED***
+    key: "${DEEPSEEK_API_KEY:}"
     # DeepSeek API Key
 
 embedding:
