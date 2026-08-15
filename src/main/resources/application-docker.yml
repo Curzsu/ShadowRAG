@@ -55,12 +55,12 @@ spring:
 
 minio:
   endpoint: http://localhost:19000
-  accessKey: REDACTED
-  secretKey: REDACTED
+  accessKey: "${MINIO_ACCESS_KEY:}"
+  secretKey: "${MINIO_SECRET_KEY:}"
   bucketName: uploads
   publicUrl: http://localhost:19000
 jwt:
-  secret-key: "UkVEQUNURUQtRVhBTVBMRS1LRVktRE8tTk9ULVVTRSE="
+  secret-key: "${JWT_SECRET_KEY:}"
 
 # 管理员账号初始化配置
 admin:

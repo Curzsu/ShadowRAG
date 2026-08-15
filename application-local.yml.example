@@ -1,0 +1,20 @@
+# 本地私有配置模板
+# 使用方法：复制为项目根目录的 application-local.yml 并填入真实值。
+# application-local.yml 已加入 .gitignore，不会被提交。
+#
+# 也可以不用本文件，直接设置同名环境变量（DEEPSEEK_API_KEY / JWT_SECRET_KEY / ES_PASSWORD），
+# 两种方式任选其一；都不配置时，AI 对话、登录、ES 检索将不可用。
+
+deepseek:
+  api:
+    # LLM API key（当前用智谱 open.bigmodel.cn，也可换 DeepSeek 官方或本地 Ollama）
+    key: <你的 API key>
+
+jwt:
+  # JWT 签名密钥，Base64 编码，解码后至少 32 字节
+  # 生成方式：openssl rand -base64 48
+  secret-key: "<Base64 编码的密钥>"
+
+elasticsearch:
+  # ES elastic 用户密码（与 docs/docker-compose.yaml 中 ELASTIC_PASSWORD 保持一致）
+  password: "<ES 密码>"

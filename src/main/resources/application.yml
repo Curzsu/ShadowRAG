@@ -1,6 +1,9 @@
 server:
   port: 8081 # 指定端口号
 spring:
+  config:
+    # 本地私有配置（API key / JWT secret / ES 密码），文件不存在则跳过
+    import: optional:file:./application-local.yml
   datasource:
     url: jdbc:mysql://localhost:33060/PaiSmart?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: root
@@ -60,7 +63,7 @@ minio:
   bucketName: uploads
   publicUrl: http://localhost:19000
 jwt:
-  secret-key: "UkVEQUNURUQtRVhBTVBMRS1LRVktRE8tTk9ULVVTRSE="
+  secret-key: "${JWT_SECRET_KEY:}"
 
 # 管理员账号初始化配置
 admin:
@@ -79,10 +82,8 @@ elasticsearch:
   host: localhost       # Elasticsearch主机地址
   port: 9200            # Elasticsearch端口号
   scheme: http         # 协议（http/https）
-  #username: elastic     # 安装后生成的默认用户
-  #password: REDACTED
   username: elastic
-  password: REDACTED
+  password: "${ES_PASSWORD:}"
 
 
 logging:
@@ -105,7 +106,7 @@ deepseek:
 #    model: deepseek-r1:7b  # 本地: deepseek-r1:7b, 官方: deepseek-chat
 #    key: ollama
       url: https://open.bigmodel.cn/api/coding/paas/v4
-      key: ***REMOVED***
+      key: "${DEEPSEEK_API_KEY:}"
       model: glm-5       
 
 mineru:
