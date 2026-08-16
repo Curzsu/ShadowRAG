@@ -62,8 +62,6 @@ public class KafkaConfig {
         config.put(ProducerConfig.RETRIES_CONFIG, 3); // 自动重试 3 次
 
         DefaultKafkaProducerFactory<String, Object> factory = new DefaultKafkaProducerFactory<>(config);
-        // 设置事务前缀，启用事务能力
-        factory.setTransactionIdPrefix("file-upload-tx-");
         return factory;
     }
 
@@ -81,6 +79,8 @@ public class KafkaConfig {
         config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
         config.put(JsonDeserializer.TRUSTED_PACKAGES, trustedPackages);
+        config.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 1);
+        config.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 600000);
         return new DefaultKafkaConsumerFactory<>(config);
     }
 

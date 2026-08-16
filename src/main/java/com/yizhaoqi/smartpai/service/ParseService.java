@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.xml.sax.SAXException;
 
 import java.io.*;
@@ -69,6 +70,7 @@ public class ParseService {
      * @throws IOException   如果文件读取过程中发生错误
      * @throws TikaException 如果文件解析过程中发生错误
      */
+    @Transactional
     public void parseAndSave(String fileMd5, InputStream fileStream,
             String userId, String orgTag, boolean isPublic) throws IOException, TikaException {
         logger.info("开始流式解析文件，fileMd5: {}, userId: {}, orgTag: {}, isPublic: {}",
@@ -105,6 +107,7 @@ public class ParseService {
      * @param orgTag     组织标签
      * @param isPublic   是否公开
      */
+    @Transactional
     public void parsePlainText(String fileMd5, InputStream fileStream,
             String userId, String orgTag, boolean isPublic) throws IOException {
         logger.info("直接读取纯文本文件，fileMd5: {}", fileMd5);
@@ -142,6 +145,7 @@ public class ParseService {
     /**
      * 兼容旧版本的解析方法
      */
+    @Transactional
     public void parseAndSave(String fileMd5, InputStream fileStream) throws IOException, TikaException {
         // 使用默认值调用新方法
         parseAndSave(fileMd5, fileStream, "unknown", "DEFAULT", false);
@@ -158,6 +162,7 @@ public class ParseService {
      * @param orgTag     组织标签
      * @param isPublic   是否公开
      */
+    @Transactional
     public void parseAndSaveByMinerU(String fileMd5, InputStream fileStream,
             String fileName, String userId, String orgTag, boolean isPublic) {
         logger.info("使用 MinerU 解析文件，fileMd5: {}, fileName: {}", fileMd5, fileName);
@@ -287,6 +292,11 @@ public class ParseService {
      */
     private int saveChildChunks(String fileMd5, List<String> chunks,
             String userId, String orgTag, boolean isPublic, int startingChunkId) {
+        // 流式解析会多次调用本方法；仅在首批切片写入前替换该文件的历史切片。
+        if (startingChunkId == 0) {
+            documentVectorRepository.deleteByFileMd5(fileMd5);
+        }
+
         int currentChunkId = startingChunkId;
         for (String chunk : chunks) {
             currentChunkId++;

@@ -35,7 +35,6 @@ spring:
       acks: all
       retries: 3
       enable-idempotence: true
-      transactional-id-prefix: file-upload-tx-
       properties:
         client.dns.lookup: use_all_dns_ips
     consumer:

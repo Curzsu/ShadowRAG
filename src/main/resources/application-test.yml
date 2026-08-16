@@ -1,0 +1,52 @@
+# CI / 测试环境配置（GitHub Actions 集成测试使用，SPRING_PROFILES_ACTIVE=test）
+# 要点：
+# 1. 把基础设施端点指向 CI sidecar 的 localhost 端口（本地 docker-compose 用 33060，
+#    但 CI 的 mysql service 暴露的是 3306）。
+# 2. 禁用需要 GPU 的服务（MinerU / Ollama Embedding / TEI Reranker），避免 CI 无法启动。
+# 3. ES / MinIO 客户端为懒加载，这两个 @SpringBootTest 用例不会真正连接，故不单独起容器。
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/PaiSmart?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: "123456"
+  jpa:
+    hibernate:
+      ddl-auto: update
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: ""   # CI 的 redis sidecar 未设密码
+  kafka:
+    bootstrap-servers: localhost:9092
+
+elasticsearch:
+  host: localhost
+  port: 9200
+  scheme: http
+  username: ""
+  password: ""
+
+minio:
+  endpoint: http://localhost:19000
+  accessKey: minioadmin
+  secretKey: minioadmin
+
+# GPU 相关服务在 CI 中不可用，统一关闭
+mineru:
+  api:
+    enabled: false
+reranker:
+  api:
+    enabled: false
+embedding:
+  api:
+    url: http://localhost:11434/v1
+
+logging:
+  level:
+    com.yizhaoqi.smartpai.service: INFO
+    io.minio: WARN
+    org.springframework.web: WARN
+    org.springframework.security: WARN

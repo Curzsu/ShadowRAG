@@ -15,6 +15,8 @@ import java.sql.Blob;
     @Index(name = "idx_dv_file_md5", columnList = "file_md5"),
     @Index(name = "idx_dv_user_id", columnList = "user_id"),
     @Index(name = "idx_dv_org_tag", columnList = "org_tag")
+}, uniqueConstraints = {
+    @UniqueConstraint(name = "uk_dv_file_chunk", columnNames = {"file_md5", "chunk_id"})
 })
 public class DocumentVector {
     @Id
