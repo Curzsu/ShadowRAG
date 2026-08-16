@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -66,6 +67,7 @@ public interface FileUploadRepository extends JpaRepository<FileUpload, Long> {
     /**
      * 只更新 parse_status 列，避免全字段 save 覆盖其他并发修改（如 status）
      */
+    @Transactional
     @Modifying
     @Query("UPDATE FileUpload f SET f.parseStatus = :parseStatus WHERE f.fileMd5 = :fileMd5")
     void updateParseStatusByFileMd5(@Param("fileMd5") String fileMd5, @Param("parseStatus") int parseStatus);

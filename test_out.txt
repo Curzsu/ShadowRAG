@@ -1,0 +1,5 @@
+01:12:00.455 [main] INFO com.yizhaoqi.smartpai.service.ConversationCompressionService -- Compression check: conversationId=conv1, messages=2, estimatedTokens=48006
+01:12:00.763 [main] INFO com.yizhaoqi.smartpai.service.ConversationCompressionService -- Compression check: conversationId=conv1, messages=200, estimatedTokens=50800
+01:12:00.763 [main] WARN com.yizhaoqi.smartpai.service.ConversationCompressionService -- Hard threshold reached, sync truncating: conversationId=conv1, tokens=50800
+01:12:00.768 [main] INFO com.yizhaoqi.smartpai.service.ConversationCompressionService -- Sync truncate completed: conversationId=conv1, remainingMessages=12
+01:12:00.772 [main] INFO com.yizhaoqi.smartpai.service.ConversationCompressionService -- Compression check: conversationId=conv1, messages=1, estimatedTokens=3

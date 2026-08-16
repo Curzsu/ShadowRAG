@@ -12,7 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.io.*;
 import java.net.HttpURLConnection;
@@ -40,11 +40,18 @@ public class FileProcessingConsumer {
     }
 
     @KafkaListener(topics = "#{kafkaConfig.getFileProcessingTopic()}", groupId = "#{kafkaConfig.getFileProcessingGroupId()}")
-    @Transactional
     public void processTask(FileProcessingTask task) {
         log.info("Received task: {}", task);
         log.info("文件权限信息: userId={}, orgTag={}, isPublic={}",
                 task.getUserId(), task.getOrgTag(), task.isPublic());
+
+        if (fileUploadRepository.findByFileMd5(task.getFileMd5())
+                .map(FileUpload::getParseStatus)
+                .filter(status -> status == 2)
+                .isPresent()) {
+            log.info("文件已解析完成，跳过重复消息: fileMd5={}", task.getFileMd5());
+            return;
+        }
 
         // 更新解析状态为：解析中
         updateParseStatus(task.getFileMd5(), 1);
@@ -88,6 +95,9 @@ public class FileProcessingConsumer {
 
             // 更新解析状态为：解析完成
             updateParseStatus(task.getFileMd5(), 2);
+        } catch (DataIntegrityViolationException e) {
+            // 唯一约束冲突说明同一文件的分块已经由先前处理写入，正常确认该消息。
+            log.info("分块已存在，按已处理确认消息: fileMd5={}", task.getFileMd5(), e);
         } catch (Exception e) {
             log.error("Error processing task: {}", task, e);
             // 更新解析状态为：解析失败
@@ -201,7 +211,7 @@ public class FileProcessingConsumer {
      * 避免 load→modify→save 全字段写入覆盖其他并发修改（如 status 字段）
      *
      * @param fileMd5 文件MD5
-     * @param status 0=待解析, 1=解析中, 2=解析完成, 3=解析失败
+     * @param status 0=待解析, 1=解析中, 2=解析完成, 3=解析失败, 4=死信
      */
     private void updateParseStatus(String fileMd5, int status) {
         try {

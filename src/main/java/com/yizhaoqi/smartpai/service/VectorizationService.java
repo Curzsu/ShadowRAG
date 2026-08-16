@@ -12,7 +12,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.IntStream;
 
 // 向量化服务类
@@ -63,7 +62,7 @@ public class VectorizationService {
             // 构建 Elasticsearch 文档并存储
             List<EsDocument> esDocuments = IntStream.range(0, chunks.size())
                     .mapToObj(i -> new EsDocument(
-                            UUID.randomUUID().toString(),
+                            fileMd5 + "_" + chunks.get(i).getChunkId(),
                             fileMd5,
                             chunks.get(i).getChunkId(),
                             chunks.get(i).getContent(),

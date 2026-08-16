@@ -50,7 +50,7 @@ public class FileUpload {
 
     /**
      * 文件解析状态
-     * null/0=待解析, 1=解析中, 2=解析完成, 3=解析失败
+     * null/0=待解析, 1=解析中, 2=解析完成, 3=解析失败, 4=死信
      */
     @Column(name = "parse_status")
     private Integer parseStatus;
@@ -90,4 +90,3 @@ public class FileUpload {
     @UpdateTimestamp
     private LocalDateTime mergedAt;
 }
-

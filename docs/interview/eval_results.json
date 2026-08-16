@@ -1,0 +1,924 @@
+{
+  "summary": {
+    "bm25": {
+      "hit": 0.92,
+      "mrr": 0.8156666666666667
+    },
+    "knn": {
+      "hit": 0.9,
+      "mrr": 0.8106666666666666
+    },
+    "hybrid": {
+      "hit": 0.9,
+      "mrr": 0.8216666666666668
+    }
+  },
+  "details": {
+    "bm25": [
+      {
+        "qid": 1,
+        "hit": 0.0,
+        "rr": 0.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 2,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 3,
+        "hit": 0.0,
+        "rr": 0.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 4,
+        "hit": 1.0,
+        "rr": 0.2,
+        "difficulty": "hard"
+      },
+      {
+        "qid": 5,
+        "hit": 0.0,
+        "rr": 0.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 6,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 7,
+        "hit": 1.0,
+        "rr": 0.5,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 8,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 9,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 10,
+        "hit": 1.0,
+        "rr": 0.25,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 11,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 12,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 13,
+        "hit": 1.0,
+        "rr": 0.3333333333333333,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 14,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 15,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 16,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 17,
+        "hit": 1.0,
+        "rr": 0.5,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 18,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 19,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 20,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 21,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 22,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 23,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 24,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "hard"
+      },
+      {
+        "qid": 25,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "hard"
+      },
+      {
+        "qid": 26,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 27,
+        "hit": 1.0,
+        "rr": 0.5,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 28,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 29,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 30,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 31,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 32,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 33,
+        "hit": 0.0,
+        "rr": 0.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 34,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 35,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 36,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 37,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 38,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 39,
+        "hit": 1.0,
+        "rr": 0.5,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 40,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 41,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 42,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 43,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 44,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 45,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 46,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 47,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 48,
+        "hit": 1.0,
+        "rr": 0.5,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 49,
+        "hit": 1.0,
+        "rr": 0.5,
+        "difficulty": "hard"
+      },
+      {
+        "qid": 50,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "hard"
+      }
+    ],
+    "knn": [
+      {
+        "qid": 1,
+        "hit": 1.0,
+        "rr": 0.2,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 2,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 3,
+        "hit": 1.0,
+        "rr": 0.5,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 4,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "hard"
+      },
+      {
+        "qid": 5,
+        "hit": 0.0,
+        "rr": 0.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 6,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 7,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 8,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 9,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 10,
+        "hit": 0.0,
+        "rr": 0.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 11,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 12,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 13,
+        "hit": 0.0,
+        "rr": 0.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 14,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 15,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 16,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 17,
+        "hit": 1.0,
+        "rr": 0.5,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 18,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 19,
+        "hit": 0.0,
+        "rr": 0.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 20,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 21,
+        "hit": 1.0,
+        "rr": 0.5,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 22,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 23,
+        "hit": 0.0,
+        "rr": 0.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 24,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "hard"
+      },
+      {
+        "qid": 25,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "hard"
+      },
+      {
+        "qid": 26,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 27,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 28,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 29,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 30,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 31,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 32,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 33,
+        "hit": 1.0,
+        "rr": 0.3333333333333333,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 34,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 35,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 36,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 37,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 38,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 39,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 40,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 41,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 42,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 43,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 44,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 45,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 46,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 47,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 48,
+        "hit": 1.0,
+        "rr": 0.5,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 49,
+        "hit": 1.0,
+        "rr": 0.5,
+        "difficulty": "hard"
+      },
+      {
+        "qid": 50,
+        "hit": 1.0,
+        "rr": 0.5,
+        "difficulty": "hard"
+      }
+    ],
+    "hybrid": [
+      {
+        "qid": 1,
+        "hit": 0.0,
+        "rr": 0.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 2,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 3,
+        "hit": 0.0,
+        "rr": 0.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 4,
+        "hit": 1.0,
+        "rr": 0.5,
+        "difficulty": "hard"
+      },
+      {
+        "qid": 5,
+        "hit": 0.0,
+        "rr": 0.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 6,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 7,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 8,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 9,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 10,
+        "hit": 0.0,
+        "rr": 0.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 11,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 12,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 13,
+        "hit": 1.0,
+        "rr": 0.25,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 14,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 15,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 16,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 17,
+        "hit": 1.0,
+        "rr": 0.5,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 18,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 19,
+        "hit": 1.0,
+        "rr": 0.5,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 20,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 21,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 22,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 23,
+        "hit": 1.0,
+        "rr": 0.3333333333333333,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 24,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "hard"
+      },
+      {
+        "qid": 25,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "hard"
+      },
+      {
+        "qid": 26,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 27,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 28,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 29,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 30,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 31,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 32,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 33,
+        "hit": 0.0,
+        "rr": 0.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 34,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 35,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 36,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 37,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 38,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 39,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 40,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 41,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 42,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 43,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 44,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 45,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 46,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 47,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "easy"
+      },
+      {
+        "qid": 48,
+        "hit": 1.0,
+        "rr": 0.5,
+        "difficulty": "medium"
+      },
+      {
+        "qid": 49,
+        "hit": 1.0,
+        "rr": 0.5,
+        "difficulty": "hard"
+      },
+      {
+        "qid": 50,
+        "hit": 1.0,
+        "rr": 1.0,
+        "difficulty": "hard"
+      }
+    ]
+  }
+}
