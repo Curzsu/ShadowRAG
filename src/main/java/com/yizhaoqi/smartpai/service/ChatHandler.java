@@ -98,7 +98,7 @@ public class ChatHandler {
             String conversationId = getOrCreateConversationId(userId);
 
             // 2. 获取对话历史
-            List<Map<String, String>> history = getConversationHistory(conversationId);
+            List<Map<String, String>> history = getConversationHistory(conversationId, userId);
             logger.debug("获取到 {} 条历史对话", history.size());
 
             // 3. 构建 messages（不含 context，让 LLM 决定是否搜索）
@@ -352,21 +352,22 @@ public class ChatHandler {
         return conversationId;
     }
 
-    private List<Map<String, String>> getConversationHistory(String conversationId) {
+    List<Map<String, String>> getConversationHistory(String conversationId, String userId) {
         String key = "conversation:" + conversationId;
         String json = redisTemplate.opsForValue().get(key);
         try {
             if (json == null) {
-                logger.debug("会话 {} 没有历史记录", conversationId);
-                return new ArrayList<>();
+                logger.info("会话工作集未命中，准备从 MySQL 重建: conversationId={}", conversationId);
+                return conversationService.switchConversation(userId, conversationId);
             }
             
             List<Map<String, String>> history = objectMapper.readValue(json, new TypeReference<List<Map<String, String>>>() {});
             logger.debug("读取到会话 {} 的 {} 条历史记录", conversationId, history.size());
             return history;
         } catch (JsonProcessingException e) {
-            logger.error("解析对话历史出错: {}, 会话ID: {}", e.getMessage(), conversationId, e);
-            return new ArrayList<>();
+            logger.warn("Redis 会话工作集损坏，准备从 MySQL 重建: conversationId={}, error={}",
+                    conversationId, e.getMessage());
+            return conversationService.switchConversation(userId, conversationId);
         }
     }
 
@@ -375,7 +376,7 @@ public class ChatHandler {
             List<Map<String, String>> appended = conversationMessageService.appendTurn(
                     conversationId, userMessage, response, java.time.LocalDateTime.now());
             compressionService.appendMessages(conversationId, appended);
-            List<Map<String, String>> workingSet = getConversationHistory(conversationId);
+            List<Map<String, String>> workingSet = getConversationHistory(conversationId, userId);
             logger.debug("原始消息已持久化并原子追加工作集，会话ID: {}, 工作集消息数: {}",
                     conversationId, workingSet.size());
             compressionService.checkAndCompress(conversationId, workingSet);

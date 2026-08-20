@@ -76,8 +76,9 @@ ShadowRAG 是一个企业级 AI 知识管理系统，基于 RAG（检索增强�
 检索完成   → 追加 tool-call/tool-result      → 第二次 LLM 调用前再次预算并按需截断检索结果
 ```
 
-Redis 工作集丢失或切换会话时，可从 `conversation_messages` 按消息序号恢复原始历史；重建也通过
-version CAS Lua 提交，并与升级前的 `conversations.messages` 只读快照合并。旧 JSON 字段不再接收压缩结果回写。
+普通聊天读取会先访问 Redis；工作集 miss 或 JSON 损坏时，会自动从 `conversation_messages` 按消息序号回源，
+并通过 version CAS Lua 重建 Redis。显式切换会话也复用同一恢复流程，并与升级前的
+`conversations.messages` 只读快照合并。旧 JSON 字段不再接收压缩结果回写。
 
 ### 项目结构
 
