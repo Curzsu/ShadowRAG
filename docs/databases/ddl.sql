@@ -55,3 +55,16 @@ CREATE TABLE document_vectors (
                                   org_tag VARCHAR(50) COMMENT '文件所属组织标签',
                                   is_public BOOLEAN NOT NULL DEFAULT FALSE COMMENT '文件是否公开'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文档向量存储表';
+
+-- 会话原始消息采用追加式存储；conversations.messages 仅保留为旧数据兼容字段。
+CREATE TABLE conversation_messages (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '全局单调消息序号',
+    conversation_id BIGINT NOT NULL COMMENT '关联 conversations.id',
+    role VARCHAR(16) NOT NULL COMMENT 'user / assistant',
+    content LONGTEXT NOT NULL COMMENT '原始消息正文，不受上下文压缩影响',
+    created_at DATETIME NOT NULL COMMENT '消息创建时间',
+    PRIMARY KEY (id),
+    INDEX idx_conversation_message_order (conversation_id, id),
+    CONSTRAINT fk_conversation_message_conversation
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='会话原始消息追加日志';

@@ -39,4 +39,16 @@ public class CompressionConfig {
         return RedisScript.of(
                 new ClassPathResource("scripts/sync_truncate.lua"), Long.class);
     }
+
+    @Bean
+    public RedisScript<Long> appendMessagesScript() {
+        return RedisScript.of(
+                new ClassPathResource("scripts/append_messages.lua"), Long.class);
+    }
+
+    @Bean
+    public RedisScript<Long> replaceWorkingSetScript() {
+        return RedisScript.of(
+                new ClassPathResource("scripts/replace_working_set.lua"), Long.class);
+    }
 }

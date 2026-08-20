@@ -9,7 +9,7 @@ ShadowRAG 是一个企业级 AI 知识管理系统，基于 RAG（检索增强�
 - **文档管理**：支持多种格式文档上传，自动解析与索引，支持分片上传和断点续传
 - **Agentic RAG**：LLM 通过 Function Calling 自主决定是否搜索知识库，两阶段工具调用流程
 - **混合检索 + 精排**：KNN 向量检索 + BM25 全文检索 → Java 端 RRF 融合 → Cross-Encoder 精排
-- **长记忆异步压缩**：ConcurrentHashMap 会话级任务去重 + CompletableFuture 异步压缩早期对话为摘要，Redis Lua 脚本原子头部替换，软硬双阈值 + 失败重试 + 同步截断兜底
+- **可恢复的长记忆压缩**：MySQL 追加式原始消息日志作为事实源，Redis 保存可丢弃的压缩工作集；Lua 原子追加与版本 CAS 防止并发覆盖，token 软硬阈值负责后台治理，每次模型调用前再做独立预算兜底
 - **AI 对话**：集成 DeepSeek LLM，通过 WebSocket 实时流式输出回答
 - **多租户隔离**：基于组织标签的数据隔离，支持公开/私有文档权限控制
 - **异步处理**：Kafka 驱动的文档异步解析与向量化流水线
@@ -67,12 +67,17 @@ ShadowRAG 是一个企业级 AI 知识管理系统，基于 RAG（检索增强�
 ### 长记忆压缩流程
 
 ```
-每轮对话结束 → 写入 Redis → syncToMySQL → 检查阈值
-                                              ↓
-                                    消息 < 30 条 → 跳过
-                                    消息 ≥ 30 条 + Token < 50000 → 异步压缩（LLM 摘要 + Lua 原子替换）
-                                    Token ≥ 50000 → 同步截断（保留近 6 轮）
+每轮回答完成 → MySQL 事务追加原始 user/assistant → Redis Lua 原子追加并递增 version
+                                                        ↓
+                         Token ≥ 20000 → 异步摘要 → version CAS 成功后原子替换
+                         Token ≥ 50000 → 同步截断 Redis 工作集（MySQL 原文不受影响）
+
+下一次请求 → 摘要按“非可信历史记忆”合并 → 第一次 LLM 调用前预算（含 tools/输出预留）
+检索完成   → 追加 tool-call/tool-result      → 第二次 LLM 调用前再次预算并按需截断检索结果
 ```
+
+Redis 工作集丢失或切换会话时，可从 `conversation_messages` 按消息序号恢复原始历史；重建也通过
+version CAS Lua 提交，并与升级前的 `conversations.messages` 只读快照合并。旧 JSON 字段不再接收压缩结果回写。
 
 ### 项目结构
 

@@ -14,6 +14,8 @@ public class CompressionProperties {
     private int keepRounds = 6;
     private int retryMax = 3;
     private int llmTimeoutSeconds = 30;
+    private int historyTtlSeconds = 604800;
+    private int summaryOutputReserveTokens = 1024;
     private String summaryPrompt = "请将以下对话历史压缩为简洁摘要，保留关键信息。";
     private String summaryMarker = "[历史摘要]";
     private ThreadPoolConfig threadPool;

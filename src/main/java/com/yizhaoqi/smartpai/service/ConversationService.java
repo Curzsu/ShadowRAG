@@ -10,7 +10,6 @@ import com.yizhaoqi.smartpai.repository.ConversationRepository;
 import com.yizhaoqi.smartpai.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -18,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,17 +28,26 @@ public class ConversationService {
 
     private static final Logger logger = LoggerFactory.getLogger(ConversationService.class);
 
-    @Autowired
-    private ConversationRepository conversationRepository;
+    private final ConversationRepository conversationRepository;
+    private final UserRepository userRepository;
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
+    private final ConversationMessageService conversationMessageService;
+    private final ConversationCompressionService compressionService;
 
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private StringRedisTemplate redisTemplate;
-
-    @Autowired
-    private ObjectMapper objectMapper;
+    public ConversationService(ConversationRepository conversationRepository,
+                               UserRepository userRepository,
+                               StringRedisTemplate redisTemplate,
+                               ObjectMapper objectMapper,
+                               ConversationMessageService conversationMessageService,
+                               ConversationCompressionService compressionService) {
+        this.conversationRepository = conversationRepository;
+        this.userRepository = userRepository;
+        this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
+        this.conversationMessageService = conversationMessageService;
+        this.compressionService = compressionService;
+    }
 
     /**
      * 新建对话
@@ -104,23 +113,36 @@ public class ConversationService {
         String redisKey = "user:" + username + ":current_conversation";
         redisTemplate.opsForValue().set(redisKey, conversationId, Duration.ofDays(7));
 
-        // 将 MySQL 中的历史加载到 Redis
-        String historyKey = "conversation:" + conversationId;
-        if (conversation.getMessages() != null) {
-            redisTemplate.opsForValue().set(historyKey, conversation.getMessages(), Duration.ofDays(7));
-        }
-
-        // 解析并返回历史消息
+        // 用 version CAS 重建工作集；冲突时重新读数据库，避免覆盖并发 append/compress。
         try {
-            String messages = conversation.getMessages();
-            if (messages == null || messages.isEmpty()) {
-                return List.of();
+            for (int attempt = 1; attempt <= 3; attempt++) {
+                long expectedVersion = compressionService.getWorkingSetVersion(conversationId);
+                List<Map<String, String>> rawMessages = conversationMessageService.getRawHistory(conversationId);
+                List<Map<String, String>> messages = mergeLegacyAndRawHistory(conversation, rawMessages);
+                if (compressionService.replaceWorkingSet(conversationId, expectedVersion, messages)) {
+                    return messages;
+                }
+                logger.info("重建会话工作集发生版本冲突，准备重试: conversationId={}, attempt={}",
+                        conversationId, attempt);
             }
-            return objectMapper.readValue(messages, new TypeReference<List<Map<String, String>>>() {});
+            throw new CustomException("会话正在更新，请稍后重试", HttpStatus.CONFLICT);
         } catch (JsonProcessingException e) {
             logger.error("解析会话历史出错: {}", e.getMessage());
             return List.of();
         }
+    }
+
+    private List<Map<String, String>> mergeLegacyAndRawHistory(
+            Conversation conversation,
+            List<Map<String, String>> rawMessages) throws JsonProcessingException {
+        List<Map<String, String>> merged = new ArrayList<>();
+        String legacyJson = conversation.getMessages();
+        if (legacyJson != null && !legacyJson.isBlank()) {
+            merged.addAll(objectMapper.readValue(
+                    legacyJson, new TypeReference<List<Map<String, String>>>() {}));
+        }
+        merged.addAll(rawMessages);
+        return merged;
     }
 
     /**
@@ -143,11 +165,13 @@ public class ConversationService {
             throw new CustomException("无权删除此会话", HttpStatus.FORBIDDEN);
         }
 
-        // 删除 MySQL
+        // 先删除追加式原始消息，再删除会话元数据。
+        conversationMessageService.deleteRawHistory(conversationId);
         conversationRepository.deleteByConversationId(conversationId);
 
-        // 删除 Redis 历史数据
-        redisTemplate.delete("conversation:" + conversationId);
+        // 工作集与版本号必须一起删除，避免残留版本影响后续诊断。
+        String historyKey = "conversation:" + conversationId;
+        redisTemplate.delete(List.of(historyKey, historyKey + ":version"));
 
         // 如果删除的是当前会话，清除 current_conversation
         String currentKey = "user:" + username + ":current_conversation";
@@ -157,64 +181,6 @@ public class ConversationService {
         }
 
         logger.info("用户 {} 删除会话: {}", username, conversationId);
-    }
-
-    /**
-     * 将 Redis 聊天历史同步到 MySQL
-     * 由 ChatHandler 在每次对话完成后调用
-     *
-     * @param conversationId 会话UUID
-     * @param username       用户名（用于在 MySQL 中找不到记录时创建）
-     */
-    public void syncToMySQL(String conversationId, String username) {
-        try {
-            // 从 Redis 读取最新历史
-            String historyKey = "conversation:" + conversationId;
-            String messagesJson = redisTemplate.opsForValue().get(historyKey);
-
-            if (messagesJson == null) {
-                return;
-            }
-
-            // 查找 MySQL 中的记录
-            Conversation conversation = conversationRepository.findByConversationId(conversationId).orElse(null);
-
-            if (conversation == null) {
-                // MySQL 中没有记录，创建一条新的
-                User user = userRepository.findByUsername(username).orElse(null);
-                if (user == null) {
-                    logger.warn("同步会话失败，用户不存在: {}", username);
-                    return;
-                }
-                conversation = new Conversation();
-                conversation.setConversationId(conversationId);
-                conversation.setUser(user);
-            }
-
-            // 更新 messages 和 title
-            conversation.setMessages(messagesJson);
-
-            // 如果标题还是默认的"新对话"，尝试从第一条用户消息中提取标题
-            if ("新对话".equals(conversation.getTitle()) || conversation.getTitle() == null) {
-                try {
-                    List<Map<String, String>> messages = objectMapper.readValue(messagesJson,
-                            new TypeReference<List<Map<String, String>>>() {});
-                    String firstUserMsg = messages.stream()
-                            .filter(m -> "user".equals(m.get("role")))
-                            .map(m -> m.get("content"))
-                            .findFirst()
-                            .orElse("新对话");
-                    conversation.setTitle(firstUserMsg.length() > 20 ? firstUserMsg.substring(0, 20) + "..." : firstUserMsg);
-                } catch (Exception e) {
-                    logger.debug("提取会话标题失败: {}", e.getMessage());
-                }
-            }
-
-            conversationRepository.save(conversation);
-            logger.debug("同步会话 {} 到 MySQL 成功", conversationId);
-        } catch (Exception e) {
-            logger.error("同步会话 {} 到 MySQL 失败: {}", conversationId, e.getMessage(), e);
-        }
     }
 
     /**

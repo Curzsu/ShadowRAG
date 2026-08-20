@@ -1,5 +1,7 @@
 # ShadowRAG 项目面试复习手册
 
+> **上下文压缩章节更新提示（2026-08-19）：** 本文基于旧版实现审计，其中关于 Redis 整体写回、`syncToMySQL` 和消息条数阈值的描述已过期。该主题请以 [`docs/interview/上下文压缩面试回答模板.md`](interview/上下文压缩面试回答模板.md) 为准。
+
 > 面向：大厂日常实习——后端开发 / 大模型应用开发  
 > 扫描基线：`master`，HEAD `5835ee8f1fe4844d3de77dabc1b676b443ca8c73`  
 > 扫描时间：2026-08-11（Asia/Shanghai）  
