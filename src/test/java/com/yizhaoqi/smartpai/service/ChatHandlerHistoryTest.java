@@ -105,6 +105,64 @@ class ChatHandlerHistoryTest {
     }
 
     @Test
+    void getConversationHistory_shouldReturnRedisHitWithoutDatabaseReload() throws Exception {
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        List<Map<String, String>> cached = List.of(
+                Map.of("seq", "11", "role", "user", "content", "cached question")
+        );
+        when(valueOperations.get("conversation:conv-1"))
+                .thenReturn(objectMapper.writeValueAsString(cached));
+
+        List<Map<String, String>> result = handler.getConversationHistory("conv-1", "alice");
+
+        assertEquals(cached, result);
+        verify(conversationService, never()).switchConversation("alice", "conv-1");
+    }
+
+    @Test
+    void getConversationHistory_shouldReloadAndCasRebuildWhenRedisMisses() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get("conversation:conv-1")).thenReturn(null);
+        List<Map<String, String>> restored = List.of(
+                Map.of("seq", "21", "role", "user", "content", "restored question"),
+                Map.of("seq", "22", "role", "assistant", "content", "restored answer")
+        );
+        when(conversationService.switchConversation("alice", "conv-1")).thenReturn(restored);
+
+        List<Map<String, String>> result = handler.getConversationHistory("conv-1", "alice");
+
+        assertEquals(restored, result);
+        verify(conversationService).switchConversation("alice", "conv-1");
+    }
+
+    @Test
+    void getConversationHistory_shouldSupportEmptyNewConversationOnRedisMiss() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get("conversation:new-conv")).thenReturn(null);
+        when(conversationService.switchConversation("alice", "new-conv")).thenReturn(List.of());
+
+        List<Map<String, String>> result = handler.getConversationHistory("new-conv", "alice");
+
+        assertTrue(result.isEmpty());
+        verify(conversationService).switchConversation("alice", "new-conv");
+    }
+
+    @Test
+    void getConversationHistory_shouldRepairMalformedRedisWorkingSetFromDatabase() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get("conversation:conv-1")).thenReturn("not-json");
+        List<Map<String, String>> restored = List.of(
+                Map.of("seq", "31", "role", "user", "content", "database history")
+        );
+        when(conversationService.switchConversation("alice", "conv-1")).thenReturn(restored);
+
+        List<Map<String, String>> result = handler.getConversationHistory("conv-1", "alice");
+
+        assertEquals(restored, result);
+        verify(conversationService).switchConversation("alice", "conv-1");
+    }
+
+    @Test
     void buildMessages_shouldTreatBoundedSummariesAsUntrustedMemoryAndKeepOneSystemMessage() {
         List<Map<String, String>> history = List.of(
                 Map.of("type", "summary", "role", "assistant", "content", "oldest summary"),
