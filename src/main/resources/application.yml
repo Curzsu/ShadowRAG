@@ -144,9 +144,16 @@ ai:
     temperature: 0.3
     max-tokens: 4096
     top-p: 0.9
+  context:
+    window-tokens: 65536
+    safety-margin-tokens: 2048
+    max-summary-segments: 3
   compression:
+    soft-threshold-token: 20000
     hard-threshold-token: 50000
     keep-rounds: 6
+    history-ttl-seconds: 604800
+    summary-output-reserve-tokens: 1024
     retry-max: 3
     llm-timeout-seconds: 30
     summary-prompt: |

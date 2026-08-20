@@ -31,7 +31,7 @@ public class Conversation {
     private String title;  // 会话标题，取第一条用户消息的前20个字符
 
     @Column(columnDefinition = "TEXT")
-    private String messages;  // 完整聊天历史 JSON（与 Redis 相同格式）
+    private String messages;  // 旧版 JSON 快照，仅用于兼容读取；新消息写入 conversation_messages
 
     @CreationTimestamp
     private LocalDateTime createdAt;

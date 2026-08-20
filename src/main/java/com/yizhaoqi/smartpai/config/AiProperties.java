@@ -14,6 +14,7 @@ public class AiProperties {
 
     private Prompt prompt = new Prompt();
     private Generation generation = new Generation();
+    private Context context = new Context();
 
     @Data
     public static class Prompt {
@@ -36,4 +37,14 @@ public class AiProperties {
         /** nucleus top-p */
         private Double topP = 0.9;
     }
-} 
+
+    @Data
+    public static class Context {
+        /** 模型上下文窗口；应按实际部署模型配置 */
+        private int windowTokens = 65536;
+        /** 为 tokenizer 误差、消息封装和供应商差异预留的安全空间 */
+        private int safetyMarginTokens = 2048;
+        /** 拼入提示词的最近摘要段数量上限，避免摘要本身无限增长 */
+        private int maxSummarySegments = 3;
+    }
+}
