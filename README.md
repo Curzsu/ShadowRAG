@@ -10,7 +10,7 @@ ShadowRAG 是一个企业级 AI 知识管理系统，基于 RAG（检索增强�
 - **Agentic RAG**：LLM 通过 Function Calling 自主决定是否搜索知识库，两阶段工具调用流程
 - **混合检索 + 精排**：KNN 向量检索 + BM25 全文检索 → Java 端 RRF 融合 → Cross-Encoder 精排
 - **可恢复的长记忆压缩**：MySQL 追加式原始消息日志作为事实源，Redis 保存可丢弃的压缩工作集；Lua 原子追加与版本 CAS 防止并发覆盖，token 软硬阈值负责后台治理，每次模型调用前再做独立预算兜底
-- **AI 对话**：集成 DeepSeek LLM，通过 WebSocket 实时流式输出回答
+- **AI 对话**：支持 OpenAI 兼容的 LLM 接口（GLM、DeepSeek 或本地 Ollama），通过 WebSocket 实时流式输出回答
 - **多租户隔离**：基于组织标签的数据隔离，支持公开/私有文档权限控制
 - **异步处理**：Kafka 驱动的文档异步解析与向量化流水线
 - **文档解析**：MinerU 优先解析（支持 PDF/图片等复杂排版），Tika 自动回退
@@ -29,7 +29,7 @@ ShadowRAG 是一个企业级 AI 知识管理系统，基于 RAG（检索增强�
 | 文件存储 | MinIO 8.5.12 |
 | 文档解析 | MinerU / Apache Tika 2.9.1 |
 | 安全认证 | Spring Security + JWT |
-| LLM | DeepSeek API / 本地 Ollama |
+| LLM | OpenAI 兼容接口（GLM / DeepSeek / 本地 Ollama） |
 | Embedding | Ollama bge-m3（1024 维） |
 | Reranker | HuggingFace TEI bge-reranker-v2-m3 |
 | 实时通信 | WebSocket |
@@ -142,13 +142,39 @@ cd docs && docker-compose up -d
 | MySQL | 33060（容器内 3306） | 主数据库，密码 `123456`，首次启动自动建库 |
 | Redis | 6379 | 缓存 |
 | Elasticsearch | 9200 | 搜索与向量存储 |
-| Kafka | 29092（容器内 9092） | 消息队列 |
+| Kafka | 9092 | 消息队列 |
 | MinIO | 19000 / 19001 | 文件存储（API / 控制台） |
 | MinerU | 8000 | 文档解析（需 GPU） |
 | Ollama | 11434 | Embedding 服务（自动拉取 bge-m3，需 GPU） |
 | TEI Reranker | 8082 | Cross-Encoder 精排 |
 
-### 2. 启动后端
+### 2. 配置本地凭据
+
+启动后端前至少需要配置以下变量：
+
+| 环境变量 | 说明 |
+|----------|------|
+| `DEEPSEEK_API_KEY` | 当前 LLM 服务的 API Key；变量名为兼容现有配置而保留 |
+| `JWT_SECRET_KEY` | JWT 签名密钥，建议使用足够长的随机字符串 |
+| `ES_PASSWORD` | Elasticsearch 密码，须与 `docs/docker-compose.yaml` 中的 `ELASTIC_PASSWORD` 一致 |
+
+也可以在项目根目录创建不会被 Git 跟踪的 `application-local.yml`：
+
+```yaml
+deepseek:
+  api:
+    key: "替换为你的 LLM API Key"
+
+jwt:
+  secret-key: "替换为足够长的随机字符串"
+
+elasticsearch:
+  password: "替换为 Docker Compose 中配置的 Elasticsearch 密码"
+```
+
+该文件已被 `.gitignore` 排除，请勿把真实密钥写入其他受 Git 跟踪的配置文件。
+
+### 3. 启动后端
 
 ```bash
 mvn spring-boot:run
@@ -156,18 +182,20 @@ mvn spring-boot:run
 
 后端运行在 `http://localhost:8081`。
 
-### 3. 启动前端
+### 4. 启动前端
 
 ```bash
 cd frontend && pnpm install && pnpm dev
 ```
 
-### 4. 访问应用
+### 5. 访问应用
 
 浏览器打开 `http://localhost:9527`，使用默认管理员账号登录：
 
 - 用户名：`admin`
 - 密码：`123456`
+
+> `docker-compose.yaml` 和默认配置中的 MySQL、Redis、MinIO、Elasticsearch 及管理员密码仅用于本地开发。对外部署前必须全部替换，并避免将真实凭据提交到 Git。
 
 ## 配置说明
 
@@ -175,14 +203,17 @@ cd frontend && pnpm install && pnpm dev
 
 | 配置项 | 说明 |
 |--------|------|
-| `deepseek.api.url` | LLM API 地址，支持官方 API 或本地 Ollama |
-| `deepseek.api.model` | 模型名称，如 `deepseek-chat` 或 `deepseek-r1:7b` |
+| `deepseek.api.url` | OpenAI 兼容的 LLM API 地址，支持 GLM、DeepSeek 或本地 Ollama |
+| `deepseek.api.model` | 模型名称，如 `glm-5`、`deepseek-chat` 或 `deepseek-r1:7b` |
+| `deepseek.api.key` | LLM API Key，建议通过 `DEEPSEEK_API_KEY` 或 `application-local.yml` 提供 |
 | `embedding.api.url` | Embedding 服务地址（Ollama） |
 | `embedding.api.model` | Embedding 模型名称，默认 `bge-m3` |
+| `jwt.secret-key` | JWT 签名密钥，建议通过 `JWT_SECRET_KEY` 或 `application-local.yml` 提供 |
+| `elasticsearch.password` | Elasticsearch 密码，建议通过 `ES_PASSWORD` 或 `application-local.yml` 提供 |
 | `mineru.api.url` | MinerU 文档解析服务地址 |
 | `mineru.api.enabled` | 是否启用 MinerU，`false` 时回退到 Tika |
 | `file.parsing.chunk-size` | 文本分块大小，默认 512 字符 |
-| `ai.compression.soft-threshold` | 压缩软阈值，默认 30 条消息触发异步压缩 |
+| `ai.compression.soft-threshold-token` | 压缩软阈值，默认 20000 Token 触发异步压缩 |
 | `ai.compression.hard-threshold-token` | 压缩硬阈值，默认 50000 Token 触发同步截断 |
 | `ai.compression.keep-rounds` | 压缩时保留最近对话轮数，默认 6 轮 |
 | `reranker.api.enabled` | 是否启用 Cross-Encoder 精排 |
