@@ -1,0 +1,24 @@
+{
+  "totalPairs": 60,
+  "completedPairs": 60,
+  "failedPairs": 0,
+  "agentic": {
+    "p50TtftMs": 8659,
+    "p95TtftMs": 20641.3
+  },
+  "forced": {
+    "p50TtftMs": 13187,
+    "p95TtftMs": 23041.25,
+    "p50RetrievalMs": 1534,
+    "p95RetrievalMs": 2282.35
+  },
+  "p50TtftReductionPercent": 34.34,
+  "dataset": "docs\\eval\\agent_routing\\routing-test.jsonl",
+  "model": "glm-5-3-flash",
+  "apiUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
+  "temperature": 0.3,
+  "topP": 0.9,
+  "topK": 10,
+  "warmupPairs": 2,
+  "timingDefinition": "request start to first non-empty answer content"
+}

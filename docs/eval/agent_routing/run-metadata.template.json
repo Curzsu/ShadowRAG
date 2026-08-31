@@ -1,0 +1,15 @@
+{
+  "runId": "",
+  "startedAt": "",
+  "dataset": "docs/eval/agent_routing/routing-test.jsonl",
+  "datasetSha256": "",
+  "model": "",
+  "temperature": 0.0,
+  "toolChoice": "auto",
+  "systemPromptSource": "src/main/resources/application.yml#ai.prompt.rules",
+  "toolSchemaSource": "src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java#SEARCH_TOOL",
+  "promptCommit": "",
+  "warmupRuns": 0,
+  "repeatsPerCase": 1,
+  "notes": ""
+}

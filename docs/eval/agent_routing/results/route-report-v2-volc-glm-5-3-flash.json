@@ -1,0 +1,148 @@
+{
+  "total": 120,
+  "correct": 120,
+  "accuracy": 1.0,
+  "confusion": {
+    "SEARCH": {
+      "SEARCH": 60,
+      "DIRECT": 0
+    },
+    "DIRECT": {
+      "SEARCH": 0,
+      "DIRECT": 60
+    }
+  },
+  "routes": {
+    "SEARCH": {
+      "support": 60,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    },
+    "DIRECT": {
+      "support": 60,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  "macroF1": 1.0,
+  "tags": {
+    "calculation": {
+      "total": 3,
+      "correct": 3,
+      "accuracy": 1.0
+    },
+    "chitchat": {
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0
+    },
+    "citation": {
+      "total": 7,
+      "correct": 7,
+      "accuracy": 1.0
+    },
+    "colloquial": {
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0
+    },
+    "comparison": {
+      "total": 9,
+      "correct": 9,
+      "accuracy": 1.0
+    },
+    "explicit_document": {
+      "total": 9,
+      "correct": 9,
+      "accuracy": 1.0
+    },
+    "fact_lookup": {
+      "total": 32,
+      "correct": 32,
+      "accuracy": 1.0
+    },
+    "finance_general": {
+      "total": 2,
+      "correct": 2,
+      "accuracy": 1.0
+    },
+    "general_advice": {
+      "total": 18,
+      "correct": 18,
+      "accuracy": 1.0
+    },
+    "general_knowledge": {
+      "total": 24,
+      "correct": 24,
+      "accuracy": 1.0
+    },
+    "hard_negative": {
+      "total": 38,
+      "correct": 38,
+      "accuracy": 1.0
+    },
+    "hard_positive": {
+      "total": 14,
+      "correct": 14,
+      "accuracy": 1.0
+    },
+    "health_general": {
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0
+    },
+    "internal_policy": {
+      "total": 11,
+      "correct": 11,
+      "accuracy": 1.0
+    },
+    "multi_turn": {
+      "total": 18,
+      "correct": 18,
+      "accuracy": 1.0
+    },
+    "named_document": {
+      "total": 10,
+      "correct": 10,
+      "accuracy": 1.0
+    },
+    "project_specific": {
+      "total": 8,
+      "correct": 8,
+      "accuracy": 1.0
+    },
+    "pronoun_reference": {
+      "total": 6,
+      "correct": 6,
+      "accuracy": 1.0
+    },
+    "summarization": {
+      "total": 4,
+      "correct": 4,
+      "accuracy": 1.0
+    },
+    "synthesis": {
+      "total": 11,
+      "correct": 11,
+      "accuracy": 1.0
+    },
+    "technical_question": {
+      "total": 25,
+      "correct": 25,
+      "accuracy": 1.0
+    },
+    "uploaded_file": {
+      "total": 16,
+      "correct": 16,
+      "accuracy": 1.0
+    },
+    "writing": {
+      "total": 4,
+      "correct": 4,
+      "accuracy": 1.0
+    }
+  },
+  "errors": []
+}
