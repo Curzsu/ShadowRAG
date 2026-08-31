@@ -76,20 +76,24 @@ public class RerankerClient {
     }
 
     /**
-     * 解析 TEI /rerank 响应
-     * 格式: { "results": [ { "index": 0, "relevance_score": 0.95 }, ... ] }
+     * 解析 TEI /rerank 响应。
+     * 当前 TEI 返回顶层数组和 score 字段；同时兼容旧的 results 包装与 relevance_score 字段。
      */
     private List<RerankResult> parseResponse(String response) throws Exception {
         JsonNode root = objectMapper.readTree(response);
-        JsonNode resultsNode = root.get("results");
+        JsonNode resultsNode = root.isArray() ? root : root.get("results");
         if (resultsNode == null || !resultsNode.isArray()) {
-            throw new RuntimeException("TEI rerank 响应格式错误: 缺少 results 数组");
+            throw new RuntimeException("TEI rerank 响应格式错误: 预期顶层数组或 results 数组");
         }
 
         List<RerankResult> results = new ArrayList<>();
         for (JsonNode node : resultsNode) {
             int index = node.get("index").asInt();
-            double score = node.get("relevance_score").asDouble();
+            JsonNode scoreNode = node.has("score") ? node.get("score") : node.get("relevance_score");
+            if (scoreNode == null || !scoreNode.isNumber()) {
+                throw new RuntimeException("TEI rerank 响应格式错误: 缺少 score 字段");
+            }
+            double score = scoreNode.asDouble();
             results.add(new RerankResult(index, score));
         }
         return results;

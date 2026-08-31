@@ -1,0 +1,59 @@
+{
+  "runId": "agent-routing-v2-volc-20260830",
+  "baseCommit": "583a77cec929db067ee3af124fd5538a4e38b9d0",
+  "dataset": {
+    "path": "docs/eval/agent_routing/routing-test.jsonl",
+    "sha256": "5d8f81f7849aaedf0b570c411202cdae46a6fbc7f70e75b08a3114f499d082f9",
+    "total": 120,
+    "search": 60,
+    "direct": 60,
+    "annotationStatus": "pending_human_review"
+  },
+  "prompt": {
+    "path": "docs/eval/agent_routing/routing-system-prompt-v2.txt",
+    "sha256": "671d42bbd34f3a2328c987a62db5fa2c993701c4f270cbedc1311392ee1e7540"
+  },
+  "model": {
+    "provider": "Volcengine Coding Plan",
+    "apiUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
+    "name": "glm-5-3-flash",
+    "temperature": 0.3,
+    "topP": 0.9,
+    "maxTokens": 4096,
+    "toolChoice": "auto"
+  },
+  "routing": {
+    "completedAt": "2026-08-30T12:05:02+08:00",
+    "predictions": "docs/eval/agent_routing/results/predictions-v2-volc-glm-5-3-flash.jsonl",
+    "predictionsSha256": "273a9918678cf46eb63fc0a548160ebe9d663023ba6372846033701e524be2ad",
+    "report": "docs/eval/agent_routing/results/route-report-v2-volc-glm-5-3-flash.json",
+    "accuracy": 1.0,
+    "searchRecall": 1.0,
+    "errors": 0
+  },
+  "ttft": {
+    "completedAt": "2026-08-30T16:32:13+08:00",
+    "cases": 60,
+    "warmupPairs": 2,
+    "repeatsPerCase": 1,
+    "concurrency": 1,
+    "order": "alternating; 30 agentic-first and 30 forced-first",
+    "retrievalTopK": 10,
+    "rawResults": "docs/eval/agent_routing/results/ttft-direct-60-rerank-v2-volc.jsonl",
+    "rawResultsSha256": "0e57d25211db310c9b3d48dbb38ee8dc7f5ff28174bdffa95a0e2845b06bc567",
+    "summary": "docs/eval/agent_routing/results/ttft-direct-60-rerank-summary-v2-volc.json",
+    "agenticP50Ms": 8659,
+    "agenticP95Ms": 20641.3,
+    "forcedP50Ms": 13187,
+    "forcedP95Ms": 23041.25,
+    "forcedRetrievalP50Ms": 1534,
+    "p50ReductionPercent": 34.34,
+    "failedPairs": 0,
+    "reranker": "BAAI/bge-reranker-v2-m3; TEI top-level array response applied successfully",
+    "timingDefinition": "request start to first non-empty answer content"
+  },
+  "security": {
+    "apiKeyStoredInRepository": false,
+    "apiKeyInjection": "temporary environment variable"
+  }
+}

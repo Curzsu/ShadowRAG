@@ -80,8 +80,23 @@ src/main/resources/application.yml~
 # Windows reserved device names
 nul
 
+# Python evaluation tooling
+__pycache__/
+*.py[cod]
+
 # 本地私有配置（含 API key / JWT secret / ES 密码，勿提交）
 application-local.yml
+.env
+.env.*
+!.env.example
+
+# 与当前 Agentic RAG 交付无关的本地计划文档
+/docs/superpowers/plans/2026-08-25-llm-as-judge-faithfulness-evaluation.md
+
+# Agentic RAG 临时/修复前评测产物（保留正式 v1/v2 与 rerank 结果）
+/docs/eval/agent_routing/results/*smoke*
+/docs/eval/agent_routing/results/ttft-direct-60-v2-volc.jsonl
+/docs/eval/agent_routing/results/ttft-direct-60-summary-v2-volc.json
 
 # Eclipse/VSCode project files
 .classpath

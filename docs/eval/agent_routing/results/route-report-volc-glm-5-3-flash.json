@@ -1,0 +1,419 @@
+{
+  "total": 120,
+  "correct": 93,
+  "accuracy": 0.775,
+  "confusion": {
+    "SEARCH": {
+      "SEARCH": 60,
+      "DIRECT": 0
+    },
+    "DIRECT": {
+      "SEARCH": 27,
+      "DIRECT": 33
+    }
+  },
+  "routes": {
+    "SEARCH": {
+      "support": 60,
+      "precision": 0.6896551724137931,
+      "recall": 1.0,
+      "f1": 0.8163265306122449
+    },
+    "DIRECT": {
+      "support": 60,
+      "precision": 1.0,
+      "recall": 0.55,
+      "f1": 0.7096774193548387
+    }
+  },
+  "macroF1": 0.7630019749835418,
+  "tags": {
+    "calculation": {
+      "total": 3,
+      "correct": 2,
+      "accuracy": 0.6666666666666666
+    },
+    "chitchat": {
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0
+    },
+    "citation": {
+      "total": 7,
+      "correct": 7,
+      "accuracy": 1.0
+    },
+    "colloquial": {
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0
+    },
+    "comparison": {
+      "total": 9,
+      "correct": 9,
+      "accuracy": 1.0
+    },
+    "explicit_document": {
+      "total": 9,
+      "correct": 9,
+      "accuracy": 1.0
+    },
+    "fact_lookup": {
+      "total": 32,
+      "correct": 32,
+      "accuracy": 1.0
+    },
+    "finance_general": {
+      "total": 2,
+      "correct": 2,
+      "accuracy": 1.0
+    },
+    "general_advice": {
+      "total": 18,
+      "correct": 7,
+      "accuracy": 0.3888888888888889
+    },
+    "general_knowledge": {
+      "total": 24,
+      "correct": 15,
+      "accuracy": 0.625
+    },
+    "hard_negative": {
+      "total": 38,
+      "correct": 17,
+      "accuracy": 0.4473684210526316
+    },
+    "hard_positive": {
+      "total": 14,
+      "correct": 14,
+      "accuracy": 1.0
+    },
+    "health_general": {
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0
+    },
+    "internal_policy": {
+      "total": 11,
+      "correct": 11,
+      "accuracy": 1.0
+    },
+    "multi_turn": {
+      "total": 18,
+      "correct": 18,
+      "accuracy": 1.0
+    },
+    "named_document": {
+      "total": 10,
+      "correct": 10,
+      "accuracy": 1.0
+    },
+    "project_specific": {
+      "total": 8,
+      "correct": 8,
+      "accuracy": 1.0
+    },
+    "pronoun_reference": {
+      "total": 6,
+      "correct": 6,
+      "accuracy": 1.0
+    },
+    "summarization": {
+      "total": 4,
+      "correct": 4,
+      "accuracy": 1.0
+    },
+    "synthesis": {
+      "total": 11,
+      "correct": 11,
+      "accuracy": 1.0
+    },
+    "technical_question": {
+      "total": 25,
+      "correct": 14,
+      "accuracy": 0.56
+    },
+    "uploaded_file": {
+      "total": 16,
+      "correct": 16,
+      "accuracy": 1.0
+    },
+    "writing": {
+      "total": 4,
+      "correct": 3,
+      "accuracy": 0.75
+    }
+  },
+  "errors": [
+    {
+      "id": "test-direct-001",
+      "query": "试用期和正式劳动合同期限通常是什么关系？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "general_knowledge",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-003",
+      "query": "发票清单一般需要包含哪些字段？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "general_knowledge",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-005",
+      "query": "数据留存期限应该依据哪些因素制定？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "general_knowledge",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-009",
+      "query": "后端简历怎样描述 Spring Cloud 项目更有说服力？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "writing",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-012",
+      "query": "如何从会议记录里提取行动项？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "general_advice",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-013",
+      "query": "RAG 的父子分块策略有什么优缺点？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "technical_question",
+        "general_knowledge"
+      ]
+    },
+    {
+      "id": "test-direct-019",
+      "query": "数据库迁移为什么通常需要双写阶段？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "technical_question",
+        "general_knowledge"
+      ]
+    },
+    {
+      "id": "test-direct-020",
+      "query": "内推奖励机制怎样设计更公平？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "general_advice",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-021",
+      "query": "API 版本升级时如何保持向后兼容？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "technical_question",
+        "general_knowledge"
+      ]
+    },
+    {
+      "id": "test-direct-022",
+      "query": "客服投诉环比增长率怎么算？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "calculation",
+        "general_knowledge"
+      ]
+    },
+    {
+      "id": "test-direct-023",
+      "query": "敏感数据导出审批流程一般有哪些控制点？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "general_advice",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-025",
+      "query": "排查支付超时时，怎样区分网关和数据库问题？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "technical_question",
+        "general_advice"
+      ]
+    },
+    {
+      "id": "test-direct-030",
+      "query": "方案评审时常见的否决原因有哪些？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "general_advice",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-032",
+      "query": "置信度阈值过高会带来什么问题？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "technical_question",
+        "general_knowledge"
+      ]
+    },
+    {
+      "id": "test-direct-033",
+      "query": "查询改写在 RAG 中通常有哪些作用？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "technical_question",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-034",
+      "query": "Elasticsearch 索引命名有哪些通用建议？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "technical_question",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-035",
+      "query": "重排服务超时时常见的降级方案是什么？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "technical_question",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-036",
+      "query": "转正审批流程一般如何设计？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "general_advice",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-040",
+      "query": "P0 故障的行业通用响应流程是什么？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "general_advice",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-041",
+      "query": "多家供应商报价应该如何综合比较？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "general_advice",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-042",
+      "query": "隐私政策里为什么要提供撤回授权入口？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "general_knowledge",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-043",
+      "query": "Kafka 消息积压事故通常暴露哪些治理问题？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "technical_question",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-047",
+      "query": "HyDE 在什么情况下可能导致语义漂移？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "technical_question",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-050",
+      "query": "住宿报销标准每年调整时要考虑哪些因素？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "general_advice",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-052",
+      "query": "混合检索中 BM25 权重应该如何调参？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "technical_question",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-053",
+      "query": "事故升级时应该先通知哪些角色？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "general_advice",
+        "hard_negative"
+      ]
+    },
+    {
+      "id": "test-direct-054",
+      "query": "如何识别银行流水里的重复交易？",
+      "expectedRoute": "DIRECT",
+      "predictedRoute": "SEARCH",
+      "tags": [
+        "general_advice",
+        "hard_negative"
+      ]
+    }
+  ]
+}

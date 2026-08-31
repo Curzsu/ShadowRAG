@@ -54,7 +54,10 @@ public class ChatHandler {
             "type", "function",
             "function", Map.of(
                 "name", "search_knowledge_base",
-                "description", "搜索知识库文档。当用户问题涉及已上传的文档、文件、知识库内容时调用此工具获取相关信息。对于通用知识、闲聊、数学计算等不需要搜索。",
+                "description", "仅用于检索用户明确指向的已上传文件、当前知识库、内部制度或项目文档中的事实。"
+                        + "只有可靠回答必须依赖这些私有或指定资料时才调用。对于通用知识、技术原理、行业惯例、"
+                        + "计算、写作和一般建议不要调用；问题仅出现‘文档、报告、制度、流程、基金’等名词，"
+                        + "但未要求读取具体资料时，也不要调用。",
                 "parameters", Map.of(
                     "type", "object",
                     "properties", Map.of(

@@ -1,0 +1,2 @@
+{"id":"test-search-001","predictedRoute":"SEARCH","toolName":"search_knowledge_base","latencyMs":824,"error":null}
+{"id":"test-direct-001","predictedRoute":"DIRECT","toolName":null,"latencyMs":607,"error":null}
