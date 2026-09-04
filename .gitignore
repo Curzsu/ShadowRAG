@@ -103,3 +103,24 @@ application-local.yml
 .factorypath
 .project
 .settings/
+
+# Local assistant state
+/.claude/settings.local.json
+/.workbuddy/
+/.qoder/
+
+# Accidental scratch and temporary output files
+/2}
+/docs/interview/2}
+/mvn_out.txt
+/test_out.txt
+/tmp_batch_test.ps1
+/tmp_emb_test.py
+
+# Accidental duplicate files
+/CurzsuShadowRAGdocscompose-mineru.yaml
+/CurzsuShadowRAGdocsDockerfile.mineru
+
+# Unused generated homepage CSS
+/homepage/css/tailwind-build.css
+/homepage/css/tailwind-runtime.css
