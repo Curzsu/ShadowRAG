@@ -340,7 +340,7 @@ sequenceDiagram
     participant OSS as MinIO
     participant MQ as Kafka
     participant CON as FileProcessingConsumer
-    participant PAR as ParseService
+    participant PS as ParseService
     participant DB as MySQL
     participant VEC as VectorizationService
     participant EMB as Embedding 服务
@@ -363,15 +363,15 @@ sequenceDiagram
     OSS-->>CON: 返回文件流
 
     alt MinerU 已启用且支持该文件类型
-        CON->>PAR: 使用 MinerU 解析为 Markdown
+        CON->>PS: 使用 MinerU 解析为 Markdown
     else 纯文本文件
-        CON->>PAR: 直接读取文本
+        CON->>PS: 直接读取文本
     else 其他文件类型
-        CON->>PAR: 使用 Apache Tika 解析
+        CON->>PS: 使用 Apache Tika 解析
     end
-    PAR->>PAR: 清洗并进行语义分块
-    PAR->>DB: 批量保存文本分块及权限信息
-    PAR-->>CON: 返回解析结果
+    PS->>PS: 清洗并进行语义分块
+    PS->>DB: 批量保存文本分块及权限信息
+    PS-->>CON: 返回解析结果
 
     CON->>VEC: vectorize(fileMd5, 权限信息)
     VEC->>DB: 查询该文件的文本分块
