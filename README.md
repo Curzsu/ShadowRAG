@@ -332,9 +332,69 @@ cd frontend && pnpm install && pnpm dev
 
 文档上传后的处理流程通过 Kafka 异步执行：
 
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as 用户 / Vue 前端
+    participant UP as UploadController / UploadService
+    participant OSS as MinIO
+    participant MQ as Kafka
+    participant CON as FileProcessingConsumer
+    participant PAR as ParseService
+    participant DB as MySQL
+    participant VEC as VectorizationService
+    participant EMB as Embedding 服务
+    participant ES as Elasticsearch
+
+    loop 上传全部分片
+        U->>UP: 上传文件分片
+        UP->>OSS: 保存临时分片
+        UP-->>U: 返回已上传分片状态
+    end
+    U->>UP: 请求合并文件
+    UP->>OSS: 合并分片并生成对象地址
+    OSS-->>UP: 返回 objectUrl
+    UP->>MQ: 发送 FileProcessingTask（key = fileMd5）
+    UP-->>U: 返回合并成功，进入异步处理
+
+    MQ-->>CON: 投递文件处理任务
+    CON->>DB: 更新 parseStatus = 1（解析中）
+    CON->>OSS: 下载合并后的文件
+    OSS-->>CON: 返回文件流
+
+    alt MinerU 已启用且支持该文件类型
+        CON->>PAR: 使用 MinerU 解析为 Markdown
+    else 纯文本文件
+        CON->>PAR: 直接读取文本
+    else 其他文件类型
+        CON->>PAR: 使用 Apache Tika 解析
+    end
+    PAR->>PAR: 清洗并进行语义分块
+    PAR->>DB: 批量保存文本分块及权限信息
+    PAR-->>CON: 返回解析结果
+
+    CON->>VEC: vectorize(fileMd5, 权限信息)
+    VEC->>DB: 查询该文件的文本分块
+    DB-->>VEC: 返回分块列表
+    VEC->>EMB: 批量生成向量
+    EMB-->>VEC: 返回 embedding
+    VEC->>ES: Bulk 写入 knowledge_base 索引
+    ES-->>VEC: 返回索引结果
+
+    alt 全部处理成功
+        VEC-->>CON: 向量化完成
+        CON->>DB: 更新 parseStatus = 2（已完成）
+    else 处理过程中抛出异常
+        CON->>DB: 更新 parseStatus = 3（处理失败）
+        loop 每隔 3 秒重试，最多 4 次
+            MQ-->>CON: 重新投递同一任务
+        end
+        MQ->>MQ: 仍失败则转入 file-processing-dlt
+        Note over MQ,DB: DeadLetterConsumer 消费死信后将 parseStatus 更新为 4
+    end
 ```
-文件上传 → Kafka 消息 → 消费者接收 → MinerU/Tika 解析 → 文本分块 → 向量化 → ES 索引
-```
+
+关键点：上传接口只负责合并文件并投递任务，耗时的解析、分块、向量化和索引均由 Kafka 消费者异步完成；`fileMd5` 既是消息 Key，也是各处理阶段关联同一文档的标识。
 
 ## 构建部署
 
