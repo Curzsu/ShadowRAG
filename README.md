@@ -54,26 +54,116 @@ ShadowRAG 是一个企业级 AI 知识管理系统，基于 RAG（检索增强�
 
 ### RAG 核心流程
 
+文档上传后，会先经 Kafka 异步流水线完成 MinerU/Tika 解析、文本分块、向量化，并写入 Elasticsearch。下图聚焦一次用户提问的 Agentic RAG 调用过程：
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as 用户
+    participant FE as Vue 前端
+    participant WS as WebSocket 接入
+    participant AG as ChatHandler
+    participant MEM as Redis / MySQL
+    participant LLM as OpenAI 兼容 LLM
+    participant HS as HybridSearchService
+    participant IDX as Embedding + Elasticsearch
+    participant RR as Cross-Encoder
+
+    U->>FE: 提交问题
+    FE->>WS: WebSocket 发送文本
+    WS->>AG: processMessage(userId, question)
+    AG->>MEM: 获取当前会话与历史
+    opt Redis 未命中或数据损坏
+        MEM->>MEM: 从 MySQL 恢复并重建 Redis 工作集
+    end
+    AG->>AG: 构造消息并执行上下文预算
+    AG->>LLM: 第一次流式请求（携带知识库搜索工具）
+
+    alt LLM 可以直接回答
+        loop 流式输出
+            LLM-->>AG: content delta
+            AG-->>FE: chunk
+        end
+    else LLM 决定检索知识库
+        LLM-->>AG: tool_call(query)
+        AG->>HS: searchWithPermission(query, userId, 10)
+        HS->>IDX: 生成查询向量
+        HS->>IDX: KNN + BM25（共用权限过滤）
+        IDX-->>HS: 两路候选结果
+        HS->>HS: RRF 融合
+        opt 精排服务可用
+            HS->>RR: Cross-Encoder 精排
+            RR-->>HS: 重排结果
+        end
+        HS-->>AG: 带来源的检索结果
+        AG->>AG: 组装 tool result 并再次执行预算
+        AG->>LLM: 第二次流式请求（携带检索上下文）
+        loop 流式输出
+            LLM-->>AG: content delta
+            AG-->>FE: chunk
+        end
+    end
+
+    AG-->>FE: completion
+    FE-->>U: 展示完整回答
+    AG->>MEM: 追加原始消息并更新工作集
+    AG->>MEM: 按 token 阈值触发摘要或截断
 ```
-文档上传 → MinerU/Tika 解析 → 文本分块 → BGE-M3 向量化 → 存入 Elasticsearch
-                                                                    ↓
-用户提问 → WebSocket → LLM 自主决策是否搜索（Agentic RAG）
-                            ↓ 是
-                      KNN + BM25 检索 → RRF 融合 → Cross-Encoder 精排 → LLM 生成回答（流式输出）
-                            ↓ 否
-                      LLM 直接回答
-```
+
+关键点：只有当第一次 LLM 调用返回 `search_knowledge_base` 工具调用时，系统才会执行权限过滤后的混合检索和第二次 LLM 调用；否则模型直接流式回答。
 
 ### 长记忆压缩流程
 
-```
-每轮回答完成 → MySQL 事务追加原始 user/assistant → Redis Lua 原子追加并递增 version
-                                                        ↓
-                         Token ≥ 20000 → 异步摘要 → version CAS 成功后原子替换
-                         Token ≥ 50000 → 同步截断 Redis 工作集（MySQL 原文不受影响）
+```mermaid
+sequenceDiagram
+    autonumber
+    participant AG as ChatHandler
+    participant DB as MySQL 原始消息
+    participant REDIS as Redis 工作集
+    participant CMP as CompressionService
+    participant BUD as ContextBudgetService
+    participant LLM as 摘要 LLM
 
-下一次请求 → 摘要按“非可信历史记忆”合并 → 第一次 LLM 调用前预算（含 tools/输出预留）
-检索完成   → 追加 tool-call/tool-result      → 第二次 LLM 调用前再次预算并按需截断检索结果
+    Note over AG,LLM: 当前回答完成
+    AG->>DB: 事务追加 user / assistant 原始消息
+    AG->>REDIS: Lua 原子追加消息并递增 version
+    AG->>CMP: checkAndCompress(workingSet)
+    CMP->>CMP: 估算工作集 token
+
+    alt token ≥ 50000（硬阈值）
+        CMP->>REDIS: Lua 同步截断，保留最近 keepRounds × 2 条
+        REDIS-->>CMP: 替换工作集并递增 version
+        Note over DB: MySQL 原始消息保持完整
+    else token ≥ 20000（软阈值）
+        CMP-->>CMP: 提交异步任务（同一会话去重）
+        CMP->>REDIS: 读取 expectedVersion 与工作集快照
+        CMP->>BUD: 检查摘要提示的上下文预算
+        BUD-->>CMP: 预算通过
+        CMP->>LLM: 摘要较早且尚未压缩的消息
+        LLM-->>CMP: 返回增量摘要
+        CMP->>REDIS: Lua CAS 替换旧消息区间
+        alt version 未变化
+            REDIS-->>CMP: 写入摘要并递增 version
+        else 并发追加导致 version 冲突
+            REDIS-->>CMP: 拒绝替换
+            CMP->>CMP: 丢弃陈旧摘要
+        end
+        Note over CMP,REDIS: 摘要失败、超窗或线程池繁忙时保留现有工作集
+    else token < 20000
+        CMP-->>AG: 保持当前工作集
+    end
+
+    Note over AG,REDIS: 下一次用户请求
+    AG->>REDIS: 读取会话工作集
+    opt Redis 未命中或数据损坏
+        AG->>DB: 按消息序号读取原始历史
+        AG->>REDIS: version CAS 重建工作集
+    end
+    AG->>AG: 摘要按非可信历史记忆合并
+    AG->>BUD: 第一次 LLM 调用前预算
+    opt 知识库检索完成
+        AG->>BUD: 第二次调用前预算并按需截断 tool result
+    end
 ```
 
 普通聊天读取会先访问 Redis；工作集 miss 或 JSON 损坏时，会自动从 `conversation_messages` 按消息序号回源，
