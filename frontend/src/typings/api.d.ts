@@ -147,6 +147,8 @@ declare namespace Api {
       uploadedChunks: number[];
       progress: number;
       status: UploadStatus;
+      /** 文件解析状态（后端 parseStatus），仅上传合并完成后有意义；后端未写入时为 null/缺失 */
+      parseStatus?: ParseStatus | null;
       createdAt?: string;
       mergedAt?: string;
       requestIds?: string[]; // 请求ID，用于取消上传
