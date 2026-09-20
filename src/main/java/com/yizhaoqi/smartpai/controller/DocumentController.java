@@ -167,6 +167,7 @@ public class DocumentController {
                 dto.put("fileName", file.getFileName());
                 dto.put("totalSize", file.getTotalSize());
                 dto.put("status", file.getStatus());
+                dto.put("parseStatus", file.getParseStatus());
                 dto.put("userId", file.getUserId());
                 dto.put("public", file.isPublic());
                 dto.put("createdAt", file.getCreatedAt());

@@ -3,7 +3,7 @@ import type { UploadFileInfo } from 'naive-ui';
 import { NButton, NEllipsis, NModal, NPopconfirm, NProgress, NTag, NUpload } from 'naive-ui';
 import { uploadAccept } from '@/constants/common';
 import { fakePaginationRequest } from '@/service/request';
-import { UploadStatus } from '@/enum';
+import { ParseStatus, UploadStatus } from '@/enum';
 import SvgIcon from '@/components/custom/svg-icon.vue';
 import FilePreview from '@/components/custom/file-preview.vue';
 import UploadDialog from './modules/upload-dialog.vue';
@@ -15,8 +15,14 @@ const appStore = useAppStore();
 const previewVisible = ref(false);
 const previewFileName = ref('');
 
+// 列表接口本次请求是否失败：失败时保留页面上的任务与状态，不做任何同步
+const fetchFailed = ref(false);
+
 function apiFn() {
-  return fakePaginationRequest<Api.KnowledgeBase.List>({ url: '/documents/uploads' });
+  return fakePaginationRequest<Api.KnowledgeBase.List>({ url: '/documents/uploads' }).then(result => {
+    fetchFailed.value = Boolean(result.error);
+    return result;
+  });
 }
 
 function renderIcon(fileName: string) {
@@ -70,9 +76,9 @@ const { columns, columnChecks, data, getData, loading } = useTable({
     },
     {
       key: 'status',
-      title: '上传状态',
-      width: 100,
-      render: row => renderStatus(row.status, row.progress)
+      title: '状态',
+      width: 140,
+      render: row => renderStatus(row)
     },
     {
       key: 'orgTagName',
@@ -129,39 +135,114 @@ onMounted(async () => {
   await getList();
 });
 
+// 后端 status=1 表示上传完成；status=0 但 mergedAt 不为空也视为已合并（并发竞态导致 status 未更新）
+function isMerged(row: Api.KnowledgeBase.UploadTask) {
+  return row.status === UploadStatus.Completed || !!row.mergedAt;
+}
+
+// 解析状态是否未到终态：null/待处理(0)、处理中(1)、单次异常重试中(3) 都需要继续等待；2/4 为终态
+function isParsePending(parseStatus: Api.KnowledgeBase.UploadTask['parseStatus']) {
+  return parseStatus !== ParseStatus.Completed && parseStatus !== ParseStatus.DeadLetter;
+}
+
+// getList 是否进行中：轮询与手动刷新共用一个请求，避免重叠
+let listLoading = false;
+
+// 刚删除的文件MD5：短时间内同步时跳过，防止与删除并发返回的旧列表把该文件加回来
+const deletedFileMd5s = new Set<string>();
+
 /** 异步获取列表函数 该函数主要用于更新或初始化上传任务列表 它首先调用getData函数获取数据，然后根据获取到的数据状态更新任务列表 */
 async function getList() {
-  // 等待获取最新数据
-  await getData();
+  if (listLoading) return;
+  listLoading = true;
+  try {
+    // 等待获取最新数据
+    await getData();
 
-  if (data.value.length === 0) {
-    tasks.value = [];
-    return;
-  }
+    // 接口失败时 data 已被置空，保留页面现有任务与状态，等待下次刷新恢复
+    if (fetchFailed.value) return;
 
-  // 遍历获取到的数据，以处理每个项目
-  data.value.forEach(item => {
-    // 检查项目状态是否为已完成
-    // 后端 status=1 表示已完成；status=0 但 mergedAt 不为空也表示已完成（并发竞态导致 status 未更新）
-    const isCompleted = item.status === UploadStatus.Completed || !!item.mergedAt;
-    if (isCompleted) {
+    if (data.value.length === 0) {
+      tasks.value = [];
+      return;
+    }
+
+    // 遍历获取到的数据，以处理每个项目
+    data.value.forEach(item => {
+      // 刚删除的文件跳过，避免并发返回的旧数据把它加回来
+      if (deletedFileMd5s.has(item.fileMd5)) return;
+
       // 查找任务列表中是否有匹配的文件MD5
       const index = tasks.value.findIndex(task => task.fileMd5 === item.fileMd5);
-      // 如果找到匹配项，则更新其状态
-      if (index !== -1) {
-        tasks.value[index].status = UploadStatus.Completed;
-      } else {
-        // 如果没有找到匹配项，确保 status 为 Completed 后添加到任务列表中
-        item.status = UploadStatus.Completed;
+      // 检查项目是否已合并（上传完成）
+      if (isMerged(item)) {
+        // 如果找到匹配项，则同步服务端状态；本地上传中的 File、分片进度等字段保持不变
+        if (index !== -1) {
+          tasks.value[index].status = UploadStatus.Completed;
+          tasks.value[index].parseStatus = item.parseStatus ?? null;
+          tasks.value[index].mergedAt = item.mergedAt ?? tasks.value[index].mergedAt;
+        } else {
+          // 如果没有找到匹配项，确保 status 为 Completed 后添加到任务列表中
+          item.status = UploadStatus.Completed;
+          tasks.value.push(item);
+        }
+      } else if (index === -1) {
+        // 如果项目状态不是已完成，并且任务列表中没有相同的文件MD5，则将该项目的状态设置为中断，并添加到任务列表中
+        item.status = UploadStatus.Break;
         tasks.value.push(item);
       }
-    } else if (!tasks.value.some(task => task.fileMd5 === item.fileMd5)) {
-      // 如果项目状态不是已完成，并且任务列表中没有相同的文件MD5，则将该项目的状态设置为中断，并添加到任务列表中
-      item.status = UploadStatus.Break;
-      tasks.value.push(item);
-    }
-  });
+    });
+
+    // 服务端已不存在的已合并任务（如已在其他入口删除）同步移除；
+    // 上传中/待上传/中断的任务可能尚未在服务端建档，不能据此移除
+    const serverFileMd5s = new Set(data.value.map(item => item.fileMd5));
+    tasks.value = tasks.value.filter(task => !isMerged(task) || serverFileMd5s.has(task.fileMd5));
+  } finally {
+    listLoading = false;
+  }
 }
+
+// #region 处理状态自动刷新
+const PARSE_POLL_INTERVAL = 4000;
+let pollTimer: ReturnType<typeof setTimeout> | null = null;
+let pollDisposed = false;
+
+// 存在已合并且解析状态未到终态的文件时自动刷新列表，全部到达终态后停止
+const hasPendingParseTask = computed(() =>
+  tasks.value.some(task => isMerged(task) && isParsePending(task.parseStatus))
+);
+
+watch(
+  hasPendingParseTask,
+  pending => {
+    if (pending) ensurePolling();
+    else stopPolling();
+  },
+  { immediate: true }
+);
+
+function ensurePolling() {
+  if (pollTimer !== null) return;
+  pollTimer = setTimeout(async () => {
+    pollTimer = null;
+    if (pollDisposed || !hasPendingParseTask.value) return;
+    await getList();
+    if (!pollDisposed && hasPendingParseTask.value) ensurePolling();
+  }, PARSE_POLL_INTERVAL);
+}
+
+function stopPolling() {
+  if (pollTimer !== null) {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+}
+
+onUnmounted(() => {
+  pollDisposed = true;
+  stopPolling();
+});
+// #endregion
 
 async function handleDelete(fileMd5: string) {
   const index = tasks.value.findIndex(task => task.fileMd5 === fileMd5);
@@ -181,8 +262,11 @@ async function handleDelete(fileMd5: string) {
   const { error } = await request({ url: `/documents/${fileMd5}`, method: 'DELETE' });
   if (!error) {
     tasks.value.splice(index, 1);
+    deletedFileMd5s.add(fileMd5);
+    // 超过两个轮询周期后服务端数据已稳定，无需继续跳过该文件
+    setTimeout(() => deletedFileMd5s.delete(fileMd5), PARSE_POLL_INTERVAL * 2);
     window.$message?.success('删除成功');
-    await getData();
+    await getList();
   }
 }
 
@@ -200,11 +284,29 @@ function handleSearch() {
 }
 // #endregion
 
-// 渲染上传状态
-function renderStatus(status: UploadStatus, percentage: number) {
-  if (status === UploadStatus.Completed) return <NTag type="success">已完成</NTag>;
-  else if (status === UploadStatus.Break) return <NTag type="error">上传中断</NTag>;
-  return <NProgress percentage={percentage} processing />;
+// 渲染状态列：先判断上传是否完成，再判断解析状态
+function renderStatus(row: Api.KnowledgeBase.UploadTask) {
+  if (isMerged(row)) return renderParseStatus(row.parseStatus);
+  if (row.status === UploadStatus.Break) return <NTag type="error">上传中断</NTag>;
+  return <NProgress percentage={row.progress} processing />;
+}
+
+// 已合并文件的解析状态；文字可独立表达含义，颜色仅作辅助
+function renderParseStatus(parseStatus: Api.KnowledgeBase.UploadTask['parseStatus']) {
+  switch (parseStatus) {
+    case ParseStatus.Completed:
+      return <NTag type="success">处理完成</NTag>;
+    case ParseStatus.DeadLetter:
+      return <NTag type="error">处理失败</NTag>;
+    case ParseStatus.Processing:
+      return <NTag type="info">处理中</NTag>;
+    case ParseStatus.Error:
+      // parseStatus=3 只是单次处理异常，后台仍在重试；进入死信(4)才表示最终失败
+      return <NTag type="info">处理中（重试中）</NTag>;
+    default:
+      // null/缺失/0：已合并但尚未开始解析
+      return <NTag type="warning">上传完成，等待处理</NTag>;
+  }
 }
 
 // #region 文件续传

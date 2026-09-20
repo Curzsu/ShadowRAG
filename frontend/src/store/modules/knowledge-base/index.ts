@@ -60,9 +60,11 @@ export const useKnowledgeBaseStore = defineStore(SetupStoreId.KnowledgeBase, () 
       });
       if (error) return false;
 
-      // 更新任务状态为已完成
+      // 更新任务状态为已完成；合并成功仅代表上传完成，
+      // 解析状态初始化为待处理，由列表轮询同步后端真实进度
       const index = tasks.value.findIndex(t => t.fileMd5 === task.fileMd5);
       tasks.value[index].status = UploadStatus.Completed;
+      tasks.value[index].parseStatus = ParseStatus.Pending;
       return true;
     } catch {
       return false;
@@ -109,6 +111,7 @@ export const useKnowledgeBaseStore = defineStore(SetupStoreId.KnowledgeBase, () 
       fileName: file.name,
       totalSize: file.size,
       isPublic: form.isPublic,
+      public: form.isPublic,
       uploadedChunks: [],
       progress: 0,
       status: UploadStatus.Pending,
