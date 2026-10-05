@@ -9,7 +9,7 @@
 | 任务 | 内容 |
 | --- | --- |
 | Backend tests and build | Java 21，运行所有可独立执行的后端测试并构建 JAR；包括真实本地 HTTP/SSE、取消、并发和资源释放测试 |
-| Frontend checks and build | Node 24、pnpm 10.28.0；按锁文件安装，完整只读 lint、TypeScript、聊天/静态 SSE 测试和生产构建 |
+| Frontend checks and build | Node 24、pnpm 10.28.0；按锁文件安装，完整只读 lint、生产构建、TypeScript 和聊天/静态 SSE 测试 |
 
 使用 Maven/pnpm 缓存，取消同一分支或 PR 的旧运行，并限制任务执行时间。官方 Actions 固定到已核验的完整提交 SHA。GITHUB_TOKEN 仅有 `contents: read`，checkout 不保留 Git 凭据。
 
@@ -42,10 +42,12 @@ mvn --batch-mode --no-transfer-progress verify '-Dtest=*,!SmartPaiApplicationTes
 ```sh
 pnpm install --frozen-lockfile --ignore-scripts --registry=https://registry.npmjs.org
 pnpm lint:check
+pnpm build
 pnpm typecheck
 pnpm test:chat
-pnpm build
 ```
+
+生产构建必须先于类型检查：Vite 插件会生成被 Git 忽略的 `frontend/src/typings/auto-imports.d.ts` 和 `components.d.ts`。全新检出没有这两个文件，直接运行 `pnpm typecheck` 会报 `ref`、`defineStore` 等名称未定义；已有本地开发产物会掩盖此问题。类型检查和测试仍是必过步骤，全部通过后才上传前端产物。
 
 需要完整应用启动验收时，先按项目 README 配好并启动真实依赖，然后单独执行：
 
@@ -62,3 +64,7 @@ Actions 用法参考官方文档：[checkout](https://github.com/actions/checkou
 - 官方 actionlint 1.7.12 校验 exit 0；下载文件已核对发布方 SHA256。未运行其可选 shellcheck/pyflakes 子检查。
 - 本地使用 Windows、Java 21.0.7、Node 24.11.1、pnpm 10.28.0。GitHub 的 Ubuntu runner 尚未实际运行，须提交并推送后才能验证远端 Action 下载、缓存及产物上传。
 - 当前变更未提交或推送；未启动项目服务。
+
+### 全新检出场景补充验证（2026-10-05）
+
+移走本地 `auto-imports.d.ts` 和 `components.d.ts` 后，原顺序的类型检查复现 205 条错误（exit 2）。调整为先生产构建后类型检查，确认两个声明文件重新生成，构建、类型检查和 79 项聊天/SSE 测试均 exit 0；只读 lint 为 0 error、190 项既有 warning。此前本地验证使用了已有生成文件，未覆盖此场景。远端 CI 仍需推送后重跑确认。

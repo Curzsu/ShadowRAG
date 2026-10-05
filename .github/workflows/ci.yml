@@ -88,14 +88,16 @@ jobs:
       - name: Lint without modifying source
         run: pnpm lint:check
 
+      # Vite generates the ignored auto-imports.d.ts and components.d.ts files.
+      # A fresh checkout needs these declarations before vue-tsc can run.
+      - name: Build production frontend
+        run: pnpm build
+
       - name: Check TypeScript
         run: pnpm typecheck
 
       - name: Test chat and static SSE clients
         run: pnpm test:chat
-
-      - name: Build production frontend
-        run: pnpm build
 
       - name: Upload frontend package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
