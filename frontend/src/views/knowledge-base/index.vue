@@ -137,7 +137,7 @@ onMounted(async () => {
 
 // 后端 status=1 表示上传完成；status=0 但 mergedAt 不为空也视为已合并（并发竞态导致 status 未更新）
 function isMerged(row: Api.KnowledgeBase.UploadTask) {
-  return row.status === UploadStatus.Completed || !!row.mergedAt;
+  return row.status === UploadStatus.Completed || Boolean(row.mergedAt);
 }
 
 // 解析状态是否未到终态：null/待处理(0)、处理中(1)、单次异常重试中(3) 都需要继续等待；2/4 为终态

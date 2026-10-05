@@ -1,0 +1,334 @@
+import { type SseFrame, createSseParser } from '../../utils/sse';
+
+export interface ChatStreamInput {
+  conversationId: string;
+  requestId: string;
+  message: string;
+}
+
+function canonicalUuid(value: string): string {
+  return typeof value === 'string' && /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(value)
+    ? value.toLowerCase()
+    : value;
+}
+
+/** Match backend UUID canonicalization without changing invalid input or the caller's object. */
+export function canonicalizeChatInput(input: ChatStreamInput): ChatStreamInput {
+  return {
+    ...input,
+    conversationId: canonicalUuid(input.conversationId),
+    requestId: canonicalUuid(input.requestId)
+  };
+}
+export interface ChatEventEnvelope {
+  type: string;
+  requestId: string;
+  conversationId: string;
+  seq: number;
+  data: Record<string, unknown>;
+}
+export interface ChatCancelOptions {
+  baseURL: string;
+  getAuthorization: () => string | null;
+  onNewToken?: (token: string) => void;
+  signal?: AbortSignal;
+  fetchImpl?: typeof fetch;
+}
+export interface ChatTransportOptions extends ChatCancelOptions {
+  onEvent: (event: ChatEventEnvelope) => void;
+}
+export class ChatStreamError extends Error {
+  public status?: number;
+  public errorCode?: string;
+
+  constructor(
+    public kind: 'http' | 'protocol' | 'interrupted',
+    message: string,
+    details?: { status?: number; errorCode?: string }
+  ) {
+    super(message);
+    this.name = 'ChatStreamError';
+    this.status = details?.status;
+    this.errorCode = details?.errorCode;
+  }
+}
+export type ChatTerminalStatus = 'finished' | 'cancelled' | 'failed' | 'timed_out';
+
+const terminalStatuses = new Set<string>(['finished', 'cancelled', 'failed', 'timed_out']);
+const errorCodes = new Set<string>([
+  'MODEL_ERROR',
+  'TOOL_ERROR',
+  'HISTORY_ERROR',
+  'PERSISTENCE_ERROR',
+  'STREAM_TIMEOUT',
+  'STREAM_OVERFLOW',
+  'INTERNAL_ERROR'
+]);
+const knownTypes = new Set(['meta', 'chunk', 'tool_progress', 'error', 'completion']);
+
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function protocol(message: string): never {
+  throw new ChatStreamError('protocol', message);
+}
+
+function url(baseURL: string, path: string) {
+  return `${baseURL.replace(/\/+$/, '')}/${path}`;
+}
+
+function headers(options: ChatCancelOptions, streaming: boolean) {
+  const result = new Headers();
+  const authorization = options.getAuthorization();
+  if (authorization) result.set('Authorization', authorization);
+  result.set('Accept', streaming ? 'text/event-stream' : 'application/json');
+  if (streaming) result.set('Content-Type', 'application/json');
+  return result;
+}
+
+async function checkResponse(response: Response, options: ChatCancelOptions) {
+  const token = response.headers.get('New-Token');
+  // The caller must verify that this response still belongs to its current login session.
+  if (token) options.onNewToken?.(token);
+  if (response.ok) return;
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    /* A non-JSON proxy error is still an HTTP failure. */
+  }
+  const message =
+    record(body) && typeof body.message === 'string' ? body.message : `Chat request failed (HTTP ${response.status})`;
+  const errorCode =
+    record(body) && record(body.data) && typeof body.data.errorCode === 'string' ? body.data.errorCode : undefined;
+  throw new ChatStreamError('http', message, { status: response.status, errorCode });
+}
+
+function validateFrame(frame: SseFrame, input: ChatStreamInput): ChatEventEnvelope {
+  let envelope: unknown;
+  try {
+    envelope = JSON.parse(frame.data);
+  } catch {
+    protocol('Invalid chat event JSON');
+  }
+  if (
+    !record(envelope) ||
+    typeof envelope.type !== 'string' ||
+    !envelope.type ||
+    envelope.type !== frame.event ||
+    envelope.requestId !== input.requestId ||
+    envelope.conversationId !== input.conversationId ||
+    !Number.isSafeInteger(envelope.seq) ||
+    (envelope.seq as number) < 1 ||
+    frame.id !== String(envelope.seq) ||
+    !record(envelope.data)
+  ) {
+    protocol('Invalid chat event envelope');
+  }
+  validatePayload(envelope.type, envelope.data);
+  return envelope as unknown as ChatEventEnvelope;
+}
+
+function validatePayload(type: string, data: Record<string, unknown>) {
+  if (type === 'meta' && Object.keys(data).length !== 0) protocol('Invalid meta payload');
+  if (type === 'chunk' && typeof data.chunk !== 'string') protocol('Invalid chunk payload');
+  if (
+    type === 'tool_progress' &&
+    (data.tool !== 'search_knowledge_base' || !['started', 'finished'].includes(data.status as string))
+  ) {
+    protocol('Invalid tool progress payload');
+  }
+  if (
+    type === 'error' &&
+    (typeof data.code !== 'string' || !errorCodes.has(data.code) || typeof data.message !== 'string')
+  ) {
+    protocol('Invalid error payload');
+  }
+  if (type === 'completion' && (typeof data.status !== 'string' || !terminalStatuses.has(data.status))) {
+    protocol('Invalid completion payload');
+  }
+}
+
+function abortReason(signal: AbortSignal) {
+  return signal.reason ?? new DOMException('Aborted', 'AbortError');
+}
+
+function isAbort(error: unknown) {
+  return error instanceof Error && error.name === 'AbortError';
+}
+
+async function startStream(input: ChatStreamInput, options: ChatTransportOptions) {
+  try {
+    return await (options.fetchImpl ?? fetch)(url(options.baseURL, 'chat/stream'), {
+      method: 'POST',
+      headers: headers(options, true),
+      body: JSON.stringify(input),
+      signal: options.signal
+    });
+  } catch (error) {
+    if (isAbort(error)) throw error;
+    throw new ChatStreamError('interrupted', 'Chat stream connection interrupted');
+  }
+}
+
+function createReceiver(input: ChatStreamInput, onEvent: ChatTransportOptions['onEvent']) {
+  let terminal: ChatTerminalStatus | undefined;
+  let lastSeq = 0;
+  let failureCode: string | undefined;
+  return {
+    getStatus: () => terminal,
+    onFrame(frame: SseFrame) {
+      const event = validateFrame(frame, input);
+      if (event.seq <= lastSeq) return;
+      if (terminal) protocol('Chat event after completion');
+      if (event.seq !== lastSeq + 1) protocol('Chat event sequence gap');
+      if (failureCode && event.type !== 'completion') protocol('Expected completion after error');
+      if (
+        event.type === 'completion' &&
+        failureCode &&
+        event.data.status !== (failureCode === 'STREAM_TIMEOUT' ? 'timed_out' : 'failed')
+      ) {
+        protocol('Invalid completion after error');
+      }
+      lastSeq = event.seq;
+      if (event.type === 'error') failureCode = event.data.code as string;
+      if (event.type === 'completion') terminal = event.data.status as ChatTerminalStatus;
+      if (knownTypes.has(event.type)) onEvent(event);
+    }
+  };
+}
+
+async function releaseStream(
+  reader: ReadableStreamDefaultReader<Uint8Array> | undefined,
+  response: Response | undefined,
+  ended: boolean
+) {
+  if (reader) {
+    try {
+      if (!ended) await reader.cancel();
+    } catch {
+      /* Preserve the original transport outcome. */
+    }
+    reader.releaseLock();
+  } else if (response?.body && !response.body.locked) {
+    try {
+      await response.body.cancel();
+    } catch {
+      /* Preserve the original HTTP/protocol failure. */
+    }
+  }
+}
+
+async function readChunk(reader: ReadableStreamDefaultReader<Uint8Array>, signal?: AbortSignal) {
+  signal?.throwIfAborted();
+  try {
+    const result = await reader.read();
+    signal?.throwIfAborted();
+    return result;
+  } catch (error) {
+    if (signal?.aborted || isAbort(error)) throw error;
+    throw new ChatStreamError('interrupted', 'Chat stream connection interrupted');
+  }
+}
+
+function feedParser(parser: ReturnType<typeof createSseParser>, bytes: Uint8Array) {
+  try {
+    parser.feed(bytes);
+  } catch (error) {
+    if (error instanceof ChatStreamError) throw error;
+    throw new ChatStreamError(
+      'protocol',
+      error instanceof Error && /buffer limit/.test(error.message) ? error.message : 'Chat stream processing failed'
+    );
+  }
+}
+
+/** One generation POST; authentication failures and aborts never replay it. */
+export async function streamChat(
+  command: ChatStreamInput,
+  options: ChatTransportOptions
+): Promise<{ status: ChatTerminalStatus }> {
+  const input = canonicalizeChatInput(command);
+  options.signal?.throwIfAborted();
+  let response: Response | undefined;
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  let parser: ReturnType<typeof createSseParser> | undefined;
+  let abortListener: (() => void) | undefined;
+  let ended = false;
+  const receiver = createReceiver(input, options.onEvent);
+
+  try {
+    response = await startStream(input, options);
+    await checkResponse(response, options);
+    if (response.headers.get('Content-Type')?.split(';', 1)[0].trim().toLowerCase() !== 'text/event-stream') {
+      protocol('Expected text/event-stream response');
+    }
+    if (!response.body) protocol('Missing chat stream body');
+    reader = response.body.getReader();
+    abortListener = () => {
+      reader?.cancel().catch(() => {});
+    };
+    options.signal?.addEventListener('abort', abortListener, { once: true });
+    options.signal?.throwIfAborted();
+    parser = createSseParser(receiver.onFrame);
+    while (true) {
+      // eslint-disable-next-line no-await-in-loop -- Network reads and sequence validation must remain serial.
+      const read = await readChunk(reader, options.signal);
+      if (read.done) {
+        ended = true;
+        break;
+      }
+      feedParser(parser, read.value);
+      const terminal = receiver.getStatus();
+      if (terminal) return { status: terminal };
+    }
+    throw new ChatStreamError('interrupted', 'Chat stream ended without completion');
+  } catch (error) {
+    if (options.signal?.aborted) throw abortReason(options.signal);
+    if (error instanceof ChatStreamError && (error.kind === 'protocol' || error.kind === 'interrupted')) {
+      // Separate cancellation from the generation signal; never wait for it to unblock local cleanup.
+      cancelChatRequest(input.requestId, { ...options, signal: new AbortController().signal }).catch(() => {});
+    }
+    throw error;
+  } finally {
+    if (abortListener) options.signal?.removeEventListener('abort', abortListener);
+    parser?.finish();
+    await releaseStream(reader, response, ended);
+  }
+}
+
+/** Cancellation accepts its own signal and returns the server's actual state. */
+export async function cancelChatRequest(
+  commandRequestId: string,
+  options: ChatCancelOptions
+): Promise<{ requestId: string; status: string }> {
+  const requestId = canonicalUuid(commandRequestId);
+  options.signal?.throwIfAborted();
+  const response = await (options.fetchImpl ?? fetch)(
+    url(options.baseURL, `chat/requests/${encodeURIComponent(requestId)}/cancel`),
+    {
+      method: 'POST',
+      headers: headers(options, false),
+      signal: options.signal
+    }
+  );
+  await checkResponse(response, options);
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    protocol('Invalid chat cancellation response');
+  }
+  if (
+    !record(body) ||
+    body.code !== 200 ||
+    !record(body.data) ||
+    body.data.requestId !== requestId ||
+    typeof body.data.status !== 'string' ||
+    (!terminalStatuses.has(body.data.status) && body.data.status !== 'completing')
+  ) {
+    protocol('Invalid chat cancellation response');
+  }
+  return { requestId, status: body.data.status };
+}

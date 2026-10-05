@@ -187,9 +187,14 @@ declare namespace Api {
     }
 
     interface Message {
+      messageId: string;
+      requestId?: string;
+      conversationId?: string;
       role: 'user' | 'assistant';
       content: string;
-      status?: 'pending' | 'loading' | 'finished' | 'error';
+      status?: 'pending' | 'loading' | 'cancelling' | 'finished' | 'cancelled' | 'error';
+      errorReason?: string;
+      toolProgress?: string;
       timestamp?: string;
     }
 

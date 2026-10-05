@@ -1,0 +1,27 @@
+{
+  "settledResources" : {
+    "retainedRecords" : 24,
+    "modelConnections" : 0,
+    "workerPoolSize" : 16,
+    "activeRequests" : 0,
+    "pendingEvents" : 0,
+    "subscriptions" : 0,
+    "timerQueue" : 1,
+    "streams" : 0,
+    "timerPoolSize" : 2,
+    "workerQueue" : 0,
+    "workerLargestPoolSize" : 16,
+    "leases" : 0
+  },
+  "laterBodyMillis" : 95103,
+  "observedHeartbeatMillis" : [ 15062, 30047, 45058, 60050, 75054, 90060 ],
+  "toolGapMillis" : 95000,
+  "proxy" : "real-nginx",
+  "emitterTimeoutMillis" : 320000,
+  "generationTimeoutMillis" : 300000,
+  "heartbeatIntervalMillis" : 15000,
+  "modelRounds" : 2,
+  "recordedAt" : "2026-10-05T03:22:25.730505300Z",
+  "javaVersion" : "21.0.7",
+  "operatingSystem" : "Windows 11"
+}

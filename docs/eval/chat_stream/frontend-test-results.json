@@ -1,0 +1,97 @@
+{
+  "date": "2026-10-05",
+  "branch": "codex/backend-chat-sse",
+  "baseline": "6cb1e866a503af568bb58d8913c73dfb8154243a",
+  "scope": [
+    4,
+    5
+  ],
+  "committed": false,
+  "runtime": {
+    "pnpm": "10.28.0",
+    "dependencyChanges": false,
+    "node": "24.11.1"
+  },
+  "tests": {
+    "transport": 31,
+    "exitCode": 0,
+    "skipped": 0,
+    "passed": 54,
+    "command": "pnpm test:chat",
+    "failed": 0,
+    "sessionViewAuth": 23,
+    "total": 54
+  },
+  "lint": {
+    "warnings": 0,
+    "autofixFinalRun": false,
+    "checkedSourceFiles": 21,
+    "exitCode": 0,
+    "errors": 0
+  },
+  "typecheck": {
+    "diagnosticsMatchBaselineExactly": true,
+    "newDiagnostics": 0,
+    "source": "existing vue-markdown-shiki source diagnostics in node_modules",
+    "exitCode": 2,
+    "acceptanceA33": "partial",
+    "diagnostics": 6
+  },
+  "productionBuild": {
+    "exitCode": 0,
+    "command": "pnpm exec vite build --mode prod"
+  },
+  "browser": {
+    "cases": [
+      "normal unicode",
+      "explicit stop",
+      "cancel HTTP500",
+      "EOF without completion",
+      "new and switch during generation",
+      "history after refresh",
+      "delete active conversation",
+      "logout and relogin",
+      "stream401",
+      "route leave and return",
+      "ordinary 401 during first-send preparation",
+      "ordinary 401 on new conversation",
+      "ordinary 401 on history",
+      "ordinary 401 on list"
+    ],
+    "finishedCommitCounts": [
+      1,
+      1
+    ],
+    "finished": 2,
+    "cancelCalls": 9,
+    "cancelled": 8,
+    "cancelledCommitCounts": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "streamRequests": 10,
+    "environment": "real Vue/Pinia/fetch via existing Vite HTTP proxy and local controlled API; no real DB/model/auth",
+    "ordinary401Fix": {
+      "redReproduced": true,
+      "stale401RegressionPassed": true,
+      "browserGreen": true,
+      "generationReplay": false
+    }
+  },
+  "review": {
+    "overall": "PASS/APPROVED after single scoped P2 fix",
+    "task5": "PASS/APPROVED",
+    "task4": "PASS/APPROVED",
+    "deferredMinorCount": 2
+  },
+  "deferred": [
+    6,
+    7
+  ]
+}

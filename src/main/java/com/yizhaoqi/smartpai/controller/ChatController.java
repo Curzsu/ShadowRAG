@@ -1,81 +1,70 @@
 package com.yizhaoqi.smartpai.controller;
 
-import com.yizhaoqi.smartpai.handler.ChatWebSocketHandler;
-import com.yizhaoqi.smartpai.service.ChatHandler;
-import com.yizhaoqi.smartpai.utils.LogUtils;
+import com.yizhaoqi.smartpai.model.chat.ChatCommand;
+import com.yizhaoqi.smartpai.model.chat.ChatStreamRequest;
+import com.yizhaoqi.smartpai.service.chat.ChatRequestException;
+import com.yizhaoqi.smartpai.service.chat.ChatStreamService;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Component;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.socket.TextMessage;
-import org.springframework.web.socket.WebSocketSession;
-import org.springframework.web.socket.handler.TextWebSocketHandler;
-
+import org.springframework.web.bind.WebDataBinder;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import java.beans.PropertyEditorSupport;
+import java.security.Principal;
+import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
-@Component
 @RestController
 @RequestMapping("/api/v1/chat")
-public class ChatController extends TextWebSocketHandler {
+public class ChatController {
+    public static final String EMITTER_REQUEST_ATTRIBUTE = ChatController.class.getName() + ".emitter";
+    private final ChatStreamService streams;
+    public ChatController(ChatStreamService streams) { this.streams = streams; }
 
-    private final ChatHandler chatHandler;
-
-    public ChatController(ChatHandler chatHandler) {
-        this.chatHandler = chatHandler;
-    }
-
-    @Override
-    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
-        String userMessage = message.getPayload();
-        String userId = session.getId(); // Use session ID as userId for simplicity
-        
-        LogUtils.PerformanceMonitor monitor = LogUtils.startPerformanceMonitor("WEBSOCKET_CHAT");
-        try {
-            LogUtils.logChat(userId, session.getId(), "USER_MESSAGE", userMessage.length());
-            LogUtils.logBusiness("WEBSOCKET_CHAT", userId, "处理WebSocket聊天消息: messageLength=%d", userMessage.length());
-            
-        chatHandler.processMessage(userId, userMessage, session);
-            
-            LogUtils.logUserOperation(userId, "WEBSOCKET_CHAT", "message_processing", "SUCCESS");
-            monitor.end("WebSocket消息处理成功");
-        } catch (Exception e) {
-            LogUtils.logBusinessError("WEBSOCKET_CHAT", userId, "WebSocket消息处理失败", e);
-            monitor.end("WebSocket消息处理失败: " + e.getMessage());
-            throw e;
+    @PostMapping(value = "/stream", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public ResponseEntity<SseEmitter> stream(@RequestBody ChatStreamRequest request, Principal principal) {
+        String username = requireUsername(principal);
+        if (request == null) throw invalidRequest();
+        ChatCommand command = new ChatCommand(username, request.conversationId(), request.requestId(), request.message());
+        ChatStreamService.validate(command);
+        SseEmitter emitter = streams.open(command);
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
+            attributes.getRequest().setAttribute(EMITTER_REQUEST_ATTRIBUTE, emitter);
         }
+        return ResponseEntity.ok().contentType(new MediaType("text", "event-stream", java.nio.charset.StandardCharsets.UTF_8))
+                .header("Cache-Control", "no-cache, no-transform").header("X-Accel-Buffering", "no").body(emitter);
     }
-    
-    /**
-     * 获取WebSocket停止指令Token
-     */
-    @GetMapping("/websocket-token")
-    public ResponseEntity<?> getWebSocketToken() {
-        try {
-            String cmdToken = ChatWebSocketHandler.getInternalCmdToken();
-            
-            // 检查token是否有效
-            if (cmdToken == null || cmdToken.trim().isEmpty()) {
-                return ResponseEntity.status(500).body(Map.of(
-                    "code", 500,
-                    "message", "Token生成失败",
-                    "data", null
-                ));
+
+    @PostMapping("/requests/{requestId}/cancel")
+    public ResponseEntity<Map<String, Object>> cancel(@PathVariable UUID requestId, Principal principal) {
+        var result = streams.cancel(requireUsername(principal), requestId);
+        return ResponseEntity.ok(Map.of("code", 200, "message", "请求状态已确认", "data", Map.of(
+                "requestId", result.requestId(), "status", result.state().name().toLowerCase(Locale.ROOT))));
+    }
+
+    @InitBinder
+    void canonicalUuidPathVariables(WebDataBinder binder) {
+        binder.registerCustomEditor(UUID.class, new PropertyEditorSupport() {
+            @Override public void setAsText(String text) {
+                UUID id = UUID.fromString(text);
+                if (!id.toString().equalsIgnoreCase(text)) throw new IllegalArgumentException("Invalid UUID");
+                setValue(id);
             }
-            
-            return ResponseEntity.ok(Map.of(
-                "code", 200,
-                "message", "获取WebSocket停止指令Token成功",
-                "data", Map.of("cmdToken", cmdToken)
-            ));
-            
-        } catch (Exception e) {
-            LogUtils.logBusinessError("GET_WEBSOCKET_TOKEN", "system", "获取WebSocket Token失败", e);
-            return ResponseEntity.status(500).body(Map.of(
-                "code", 500,
-                "message", "服务器内部错误：" + e.getMessage(),
-                "data", null
-            ));
-        }
+        });
     }
+
+    private static String requireUsername(Principal principal) {
+        if (principal == null || principal.getName() == null || principal.getName().isBlank()) {
+            throw new ChatRequestException("UNAUTHENTICATED", HttpStatus.UNAUTHORIZED, "请先登录");
+        }
+        return principal.getName();
+    }
+    private static ChatRequestException invalidRequest() {
+        return new ChatRequestException("INVALID_REQUEST", HttpStatus.BAD_REQUEST, "聊天请求参数无效");
+    }
+
 }

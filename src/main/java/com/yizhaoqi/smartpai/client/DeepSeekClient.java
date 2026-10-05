@@ -4,13 +4,14 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.WebClient;
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.function.Consumer;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -18,6 +19,10 @@ import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.yizhaoqi.smartpai.config.AiProperties;
+import reactor.core.publisher.Flux;
+import reactor.netty.http.client.HttpClient;
+import reactor.netty.transport.ProxyProvider;
+import java.net.URI;
 
 @Service
 public class DeepSeekClient {
@@ -29,12 +34,25 @@ public class DeepSeekClient {
     private final ObjectMapper objectMapper;
     private static final Logger logger = LoggerFactory.getLogger(DeepSeekClient.class);
 
+    public DeepSeekClient(String apiUrl, String apiKey, String model,
+                         AiProperties aiProperties, ObjectMapper objectMapper) {
+        this(apiUrl, apiKey, model, aiProperties, objectMapper, "");
+    }
+
+    @Autowired
     public DeepSeekClient(@Value("${deepseek.api.url}") String apiUrl,
                          @Value("${deepseek.api.key}") String apiKey,
                          @Value("${deepseek.api.model}") String model,
                          AiProperties aiProperties,
-                         ObjectMapper objectMapper) {
+                         ObjectMapper objectMapper,
+                         @Value("${deepseek.api.proxy-url:}") String proxyUrl) {
         WebClient.Builder builder = WebClient.builder().baseUrl(apiUrl);
+        if (proxyUrl != null && !proxyUrl.isBlank()) {
+            URI proxy = parseProxy(proxyUrl);
+            HttpClient transport = HttpClient.create().proxy(spec -> spec.type(ProxyProvider.Proxy.HTTP)
+                    .host(proxy.getHost()).port(proxy.getPort()));
+            builder.clientConnector(new ReactorClientHttpConnector(transport));
+        }
 
         // 只有当 API key 不为空时才添加 Authorization header
         if (apiKey != null && !apiKey.trim().isEmpty()) {
@@ -47,176 +65,94 @@ public class DeepSeekClient {
         this.aiProperties = aiProperties;
         this.objectMapper = objectMapper;
     }
-    
-    public void streamResponse(String userMessage,
-                             String context,
-                             List<Map<String, String>> history,
-                             Consumer<String> onChunk,
-                             Consumer<Throwable> onError,
-                             Runnable onComplete) {
 
-        Map<String, Object> request = buildRequest(userMessage, context, history);
-
-        webClient.post()
-                .uri("/chat/completions")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(request)
-                .retrieve()
-                .bodyToFlux(String.class)
-                .subscribe(
-                    chunk -> processChunk(chunk, onChunk),
-                    onError,
-                    onComplete
-                );
+    private static URI parseProxy(String configuredProxy) {
+        String message = "deepseek.api.proxy-url must be an unauthenticated HTTP proxy with an explicit valid port";
+        URI proxy;
+        try { proxy = URI.create(configuredProxy); }
+        catch (IllegalArgumentException malformed) { throw new IllegalArgumentException(message); }
+        if (!"http".equalsIgnoreCase(proxy.getScheme()) || proxy.getHost() == null
+                || proxy.getRawUserInfo() != null || proxy.getPort() < 1 || proxy.getPort() > 65535
+                || proxy.getRawQuery() != null || proxy.getRawFragment() != null
+                || (proxy.getRawPath() != null && !proxy.getRawPath().isEmpty() && !"/".equals(proxy.getRawPath()))) {
+            throw new IllegalArgumentException(message);
+        }
+        return proxy;
     }
-    
-    private Map<String, Object> buildRequest(String userMessage, 
-                                           String context,
-                                           List<Map<String, String>> history) {
-        logger.info("构建请求，用户消息：{}，上下文长度：{}，历史消息数：{}", 
-                   userMessage, 
-                   context != null ? context.length() : 0, 
-                   history != null ? history.size() : 0);
-        
-        Map<String, Object> request = new HashMap<>();
-        request.put("model", model);
-        request.put("messages", buildMessages(userMessage, context, history));
-        request.put("stream", true);
-        // 生成参数
-        AiProperties.Generation gen = aiProperties.getGeneration();
-        if (gen.getTemperature() != null) {
-            request.put("temperature", gen.getTemperature());
-        }
-        if (gen.getTopP() != null) {
-            request.put("top_p", gen.getTopP());
-        }
-        if (gen.getMaxTokens() != null) {
-            request.put("max_tokens", gen.getMaxTokens());
-        }
-        return request;
+
+    /** Cold publisher: cancelling it disposes the active supplier HTTP response. */
+    public Flux<ModelDelta> streamWithTools(List<Map<String, Object>> messages,
+                                            List<Map<String, Object>> tools) {
+        return Flux.defer(() -> streamRequest(buildToolsRequest(messages, tools)));
     }
-    
-    private List<Map<String, String>> buildMessages(String userMessage,
-                                                  String context,
-                                                  List<Map<String, String>> history) {
-        List<Map<String, String>> messages = new ArrayList<>();
 
-        AiProperties.Prompt promptCfg = aiProperties.getPrompt();
-
-        // 1. 构建统一的 system 指令（规则 + 参考信息）
-        StringBuilder sysBuilder = new StringBuilder();
-        String rules = promptCfg.getRules();
-        if (rules != null) {
-            sysBuilder.append(rules).append("\n\n");
-        }
-
-        String refStart = promptCfg.getRefStart() != null ? promptCfg.getRefStart() : "<<REF>>";
-        String refEnd = promptCfg.getRefEnd() != null ? promptCfg.getRefEnd() : "<<END>>";
-        sysBuilder.append(refStart).append("\n");
-
-        if (context != null && !context.isEmpty()) {
-            sysBuilder.append(context);
-        } else {
-            String noResult = promptCfg.getNoResultText() != null ? promptCfg.getNoResultText() : "（本轮无检索结果）";
-            sysBuilder.append(noResult).append("\n");
-        }
-
-        sysBuilder.append(refEnd);
-
-        String systemContent = sysBuilder.toString();
-        messages.add(Map.of(
-            "role", "system",
-            "content", systemContent
-        ));
-        logger.debug("添加了系统消息，长度: {}", systemContent.length());
-
-        // 2. 追加历史消息（若有）
-        if (history != null && !history.isEmpty()) {
-            messages.addAll(history);
-        }
-
-        // 3. 当前用户问题
-        messages.add(Map.of(
-            "role", "user",
-            "content", userMessage
-        ));
-
-        return messages;
+    public Flux<String> streamResponse(List<Map<String, Object>> messages) {
+        return Flux.defer(() -> {
+            Map<String, Object> request = buildToolsRequest(messages, List.of());
+            request.remove("tools");
+            return streamRequest(request)
+                    .filter(delta -> delta.kind() == ModelDelta.Kind.CONTENT)
+                    .map(ModelDelta::value);
+        });
     }
-    
-    private void processChunk(String chunk, Consumer<String> onChunk) {
+
+    private Flux<ModelDelta> streamRequest(Map<String, Object> request) {
+        return Flux.defer(() -> {
+            AtomicBoolean receivedDone = new AtomicBoolean();
+            return webClient.post()
+                    .uri("/chat/completions")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .accept(MediaType.TEXT_EVENT_STREAM)
+                    .bodyValue(request)
+                    .retrieve()
+                    .bodyToFlux(String.class)
+                    // The provider may leave the HTTP connection open after this sentinel.
+                    .takeWhile(frame -> {
+                        if ("[DONE]".equals(frame.trim())) {
+                            receivedDone.set(true);
+                            return false;
+                        }
+                        return true;
+                    })
+                    .concatMapIterable(this::decodeModelDeltas)
+                    // HTTP EOF is transport completion, not proof that the model finished.
+                    .concatWith(Flux.defer(() -> receivedDone.get() ? Flux.empty()
+                            : Flux.error(new IllegalStateException("Model stream ended before completion marker"))));
+        });
+    }
+
+    private List<ModelDelta> decodeModelDeltas(String frame) {
         try {
-            // 检查是否是结束标记
-            if ("[DONE]".equals(chunk)) {
-                logger.debug("对话结束");
-                return;
+            JsonNode root = objectMapper.readTree(frame);
+            if (root == null || root.has("error") || !root.path("choices").isArray()
+                    || root.path("choices").isEmpty()) {
+                throw new IllegalArgumentException("Invalid model streaming response");
             }
-
-            // 直接解析 JSON
-            JsonNode node = objectMapper.readTree(chunk);
-            String content = node.path("choices")
-                               .path(0)
-                               .path("delta")
-                               .path("content")
-                               .asText("");
-
-            if (!content.isEmpty()) {
-                onChunk.accept(content);
+            JsonNode delta = root.path("choices").get(0).path("delta");
+            if (!delta.isObject()) throw new IllegalArgumentException("Invalid model delta");
+            List<ModelDelta> result = new ArrayList<>(3);
+            addTextDelta(result, delta.get("content"), ModelDelta.Kind.CONTENT);
+            JsonNode toolCalls = delta.get("tool_calls");
+            if (toolCalls != null && !toolCalls.isNull()) {
+                if (!toolCalls.isArray()) throw new IllegalArgumentException("Invalid model tool calls");
+                // Preserve the existing single-search-tool protocol.
+                if (!toolCalls.isEmpty()) {
+                    JsonNode toolCall = toolCalls.get(0);
+                    if (!toolCall.isObject()) throw new IllegalArgumentException("Invalid model tool call");
+                    addTextDelta(result, toolCall.get("id"), ModelDelta.Kind.TOOL_CALL_ID);
+                    addTextDelta(result, toolCall.path("function").get("arguments"), ModelDelta.Kind.TOOL_CALL_ARGUMENTS);
+                }
             }
-        } catch (Exception e) {
-            logger.error("处理数据块时出错: {}", e.getMessage(), e);
+            return result;
+        } catch (JsonProcessingException | IllegalArgumentException error) {
+            throw new IllegalStateException("Invalid model streaming response", error);
         }
     }
 
-    public void streamWithTools(
-            List<Map<String, Object>> messages,
-            List<Map<String, Object>> tools,
-            Consumer<String> onContentDelta,
-            Consumer<String> onToolCallId,
-            Consumer<String> onToolCallArgs,
-            Consumer<Throwable> onError,
-            Runnable onComplete) {
-
-        Map<String, Object> request = buildToolsRequest(messages, tools);
-
-        webClient.post()
-                .uri("/chat/completions")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(request)
-                .retrieve()
-                .bodyToFlux(String.class)
-                .subscribe(
-                    chunk -> processToolChunk(chunk, onContentDelta, onToolCallId, onToolCallArgs),
-                    onError,
-                    onComplete
-                );
-    }
-
-    public void streamResponse(List<Map<String, Object>> messages,
-                               Consumer<String> onChunk,
-                               Consumer<Throwable> onError,
-                               Runnable onComplete) {
-
-        Map<String, Object> request = new HashMap<>();
-        request.put("model", model);
-        request.put("messages", messages);
-        request.put("stream", true);
-        AiProperties.Generation gen = aiProperties.getGeneration();
-        if (gen.getTemperature() != null) request.put("temperature", gen.getTemperature());
-        if (gen.getTopP() != null) request.put("top_p", gen.getTopP());
-        if (gen.getMaxTokens() != null) request.put("max_tokens", gen.getMaxTokens());
-
-        webClient.post()
-                .uri("/chat/completions")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(request)
-                .retrieve()
-                .bodyToFlux(String.class)
-                .subscribe(
-                    chunk -> processChunk(chunk, onChunk),
-                    onError,
-                    onComplete
-                );
+    private void addTextDelta(List<ModelDelta> deltas, JsonNode value, ModelDelta.Kind kind) {
+        if (value == null || value.isNull()) return;
+        if (!value.isTextual()) throw new IllegalArgumentException("Invalid model delta value");
+        if (!value.textValue().isEmpty()) deltas.add(new ModelDelta(kind, value.textValue()));
     }
 
     private Map<String, Object> buildToolsRequest(List<Map<String, Object>> messages,
@@ -234,44 +170,6 @@ public class DeepSeekClient {
         if (gen.getTopP() != null) request.put("top_p", gen.getTopP());
         if (gen.getMaxTokens() != null) request.put("max_tokens", gen.getMaxTokens());
         return request;
-    }
-
-    private void processToolChunk(String chunk, Consumer<String> onContentDelta,
-                                  Consumer<String> onToolCallId, Consumer<String> onToolCallArgs) {
-        try {
-            if ("[DONE]".equals(chunk)) {
-                logger.debug("工具流式对话结束");
-                return;
-            }
-
-            JsonNode node = objectMapper.readTree(chunk);
-            JsonNode delta = node.path("choices").path(0).path("delta");
-
-            // 1. Handle text content (LLM answering directly)
-            String content = delta.path("content").asText("");
-            if (!content.isEmpty()) {
-                onContentDelta.accept(content);
-            }
-
-            // 2. Handle tool calls (arguments arrive as fragments)
-            JsonNode toolCalls = delta.path("tool_calls");
-            if (toolCalls.isArray() && !toolCalls.isEmpty()) {
-                JsonNode tc = toolCalls.get(0);
-                JsonNode function = tc.path("function");
-
-                String id = tc.path("id").asText("");
-                if (!id.isEmpty()) {
-                    onToolCallId.accept(id);
-                }
-
-                String args = function.path("arguments").asText("");
-                if (!args.isEmpty()) {
-                    onToolCallArgs.accept(args);
-                }
-            }
-        } catch (Exception e) {
-            logger.error("处理工具数据块时出错: {}", e.getMessage(), e);
-        }
     }
 
     /**

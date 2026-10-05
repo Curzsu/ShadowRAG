@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NButton, NIcon, NScrollbar, NPopconfirm } from 'naive-ui';
+import { NButton, NPopconfirm, NScrollbar } from 'naive-ui';
 
 defineOptions({
   name: 'ConversationList'
@@ -82,7 +82,7 @@ function formatTime(timestamp?: string) {
       <!-- 空状态 -->
       <div v-if="conversationList.length === 0" class="empty-state">
         <icon-mdi-chat-outline class="text-32px color-gray-300" />
-        <p class="text-12px color-gray-400 mt-2">暂无对话记录</p>
+        <p class="mt-2 text-12px color-gray-400">暂无对话记录</p>
       </div>
     </NScrollbar>
   </div>

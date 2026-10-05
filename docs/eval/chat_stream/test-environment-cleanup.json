@@ -1,0 +1,28 @@
+{
+  "recordedAt": "2026-10-05T15:52:43.9951322+08:00",
+  "listeners": [
+    {
+      "port": 18080,
+      "listening": false
+    },
+    {
+      "port": 18082,
+      "listening": false
+    },
+    {
+      "port": 18083,
+      "listening": false
+    },
+    {
+      "port": 18084,
+      "listening": false
+    },
+    {
+      "port": 19527,
+      "listening": false
+    }
+  ],
+  "temporaryTabsClosed": true,
+  "viewportReset": true,
+  "temporaryKeyProcessesTerminated": true
+}
