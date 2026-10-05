@@ -17,8 +17,12 @@ export function fetchLogin(username: string, password: string) {
   });
 }
 
-export function fetchLogout() {
-  return request({ url: '/users/logout', method: 'post' });
+export function fetchLogout(context?: { authorization: string | null; epoch: number }) {
+  return request({
+    url: '/users/logout',
+    method: 'post',
+    ...(context ? { headers: { Authorization: context.authorization }, authSessionEpoch: context.epoch } : {})
+  });
 }
 
 export function fetchRegister(username: string, password: string) {

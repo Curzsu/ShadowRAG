@@ -1,0 +1,1122 @@
+[
+  {
+    "suite": "com.yizhaoqi.smartpai.client.DeepSeekClientStreamingTest",
+    "tests": 8,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 1.365,
+    "cases": [
+      {
+        "name": "doneEndsModelStream",
+        "result": "pass"
+      },
+      {
+        "name": "cancelClosesUpstreamHttp",
+        "result": "pass"
+      },
+      {
+        "name": "httpFailureIsStreamError",
+        "result": "pass"
+      },
+      {
+        "name": "fragmentedUnicodeAndToolArgumentsAreDecodedInOrder",
+        "result": "pass"
+      },
+      {
+        "name": "missingDoneIsAnErrorInsteadOfNormalCompletion",
+        "result": "pass"
+      },
+      {
+        "name": "finishReasonWithoutDoneDoesNotAuthorizeCompletion",
+        "result": "pass"
+      },
+      {
+        "name": "publisherIsCold",
+        "result": "pass"
+      },
+      {
+        "name": "malformedJsonAndProviderErrorsAreStreamErrors",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.client.RerankerClientResponseTest",
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.011,
+    "cases": [
+      {
+        "name": "preservesLegacyWrappedResponseWithRelevanceScore",
+        "result": "pass"
+      },
+      {
+        "name": "parsesCurrentTeiTopLevelArrayWithScoreField",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.config.ChatStreamingPropertiesTest",
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.01,
+    "cases": [
+      {
+        "name": "defaultsMatchDesign",
+        "result": "pass"
+      },
+      {
+        "name": "invalidConfigurationIsRejected",
+        "result": "pass"
+      },
+      {
+        "name": "emitterReservesTenSecondPersistenceWindow",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.config.KafkaConfigReliabilityTest",
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.019,
+    "cases": [
+      {
+        "name": "producerFactoryDoesNotRequireTransactionalSend",
+        "result": "pass"
+      },
+      {
+        "name": "consumerUsesSingleRecordPollAndTenMinutePollInterval",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.consumer.DeadLetterConsumerTest",
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 1.304,
+    "cases": [
+      {
+        "name": "swallowsRepositoryFailureToPreventDeadLetterLoop",
+        "result": "pass"
+      },
+      {
+        "name": "marksDeadLetterTaskWithStatusFour",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.consumer.FileProcessingConsumerIdempotencyTest",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.161,
+    "cases": [
+      {
+        "name": "completedTaskIsAcknowledgedWithoutParsingOrVectorizingAgain",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.controller.ChatControllerSseTest",
+    "tests": 10,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 1.447,
+    "cases": [
+      {
+        "name": "invalidJsonAndUuidRejected",
+        "result": "pass"
+      },
+      {
+        "name": "authenticatedIdentityAndHeaders",
+        "result": "pass"
+      },
+      {
+        "name": "asyncIOExceptionDoesNotWriteJsonIntoStartedSse",
+        "result": "pass"
+      },
+      {
+        "name": "internalStartFailureIsSafe",
+        "result": "pass"
+      },
+      {
+        "name": "cancelUsesPrincipalNamespaceAndActualState",
+        "result": "pass"
+      },
+      {
+        "name": "noPrincipalReturns401",
+        "result": "pass"
+      },
+      {
+        "name": "accepts16000Utf16UnitsAndPreservesBody",
+        "result": "pass"
+      },
+      {
+        "name": "typedStartErrorsMapEveryBranch",
+        "result": "pass"
+      },
+      {
+        "name": "invalidCancelUuidRejected",
+        "result": "pass"
+      },
+      {
+        "name": "legacyInstructionTokenEndpointIsGone",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.controller.ChatStreamingHeaderOrderTest",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 5.164,
+    "cases": [
+      {
+        "name": "securityHeadersAreWrittenOnServletThreadBeforeSseWorkerCanFlush",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.controller.ChatStreamingHttpTest",
+    "tests": 9,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 1.156,
+    "cases": [
+      {
+        "name": "foreignPrincipalCancelCannotStopOwnersHttpStream",
+        "result": "pass"
+      },
+      {
+        "name": "realHttpLogsExcludePromptToolResultAndJwt",
+        "result": "pass"
+      },
+      {
+        "name": "legitimateGraceRefreshPreservesNewTokenHeader",
+        "result": "pass"
+      },
+      {
+        "name": "unauthenticatedAndForgedAndRevokedHave401Json",
+        "result": "pass"
+      },
+      {
+        "name": "realAsyncCompletionRetainsSseAndDoesNotBecome401",
+        "result": "pass"
+      },
+      {
+        "name": "realHttpDisconnectCancelsModelSocket",
+        "result": "pass"
+      },
+      {
+        "name": "postCommitErrorStaysSse",
+        "result": "pass"
+      },
+      {
+        "name": "removedChatWebsocketCannotHandshakeOrIssueCommandTokenOverRealHttp",
+        "result": "pass"
+      },
+      {
+        "name": "nonCanonicalRequestUuidRepresentationRejected",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.controller.ChatStreamingLoadTest",
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 24.88,
+    "cases": [
+      {
+        "name": "fiftyConcurrentRealModelStreamsHaveIsolatedPacedBodiesAndBoundedFirstText",
+        "result": "pass"
+      },
+      {
+        "name": "tenUsersOneThousandSerialRequestsReleaseEveryResourceAndExpireTerminalRecords",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.controller.ChatStreamingProxyTest",
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 2,
+    "seconds": 0.0,
+    "cases": [
+      {
+        "name": "nginxDeliversTwentyMillisFramesBeforeModelCompletionWithFirstTextP95UnderOneSecond",
+        "result": "skipped"
+      },
+      {
+        "name": "defaultHeartbeatKeepsRealNginxAliveAcrossNinetyFiveSecondToolGapAndLaterBody",
+        "result": "skipped"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.service.chat.ChatRequestRegistryTest",
+    "tests": 26,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.126,
+    "cases": [
+      {
+        "name": "sameIdWithDifferentPayloadIsDuplicate",
+        "result": "pass"
+      },
+      {
+        "name": "completionAndCancelHaveOnlyOneWinner",
+        "result": "pass"
+      },
+      {
+        "name": "invalidCommandIsRejectedBeforeRegistration",
+        "result": "pass"
+      },
+      {
+        "name": "cancellationCallbacksRunOutsideRegistryLock",
+        "result": "pass"
+      },
+      {
+        "name": "completingCannotBeCancelledAndKeepsLeaseUntilFinished",
+        "result": "pass"
+      },
+      {
+        "name": "cancelBeforeRegisterRejectsGeneration",
+        "result": "pass"
+      },
+      {
+        "name": "differentConversationCanRun",
+        "result": "pass"
+      },
+      {
+        "name": "canonicalConversationIdSharesSingleLeaseAcrossUuidCase",
+        "result": "pass"
+      },
+      {
+        "name": "requestIdRequiresCanonicalUuidString",
+        "result": "pass"
+      },
+      {
+        "name": "lateAttachmentAndCallbackDuringCleanupAreHandledOnce",
+        "result": "pass"
+      },
+      {
+        "name": "foreignIdCannotCancelOwner",
+        "result": "pass"
+      },
+      {
+        "name": "finishedCleanupDoesNotNotifyCancellation",
+        "result": "pass"
+      },
+      {
+        "name": "terminalStatesCannotBeRewrittenOrRetentionExtended",
+        "result": "pass"
+      },
+      {
+        "name": "throwingCleanupDoesNotLeakLeaseOrSkipOtherCallbacks",
+        "result": "pass"
+      },
+      {
+        "name": "concurrentRegistersAcquireOneLease",
+        "result": "pass"
+      },
+      {
+        "name": "oldCleanupCannotReleaseNewLease",
+        "result": "pass"
+      },
+      {
+        "name": "requestAndCommandStringRepresentationsNeverExposeMessage",
+        "result": "pass"
+      },
+      {
+        "name": "lateDisposableIsDisposed",
+        "result": "pass"
+      },
+      {
+        "name": "commandNormalizesOnlyCanonicalUuidConversationAndPreservesMessage",
+        "result": "pass"
+      },
+      {
+        "name": "singleFlightPerConversation",
+        "result": "pass"
+      },
+      {
+        "name": "cancellationBetweenCallbackStateReadsStillNotifiesOnceAndCleansTimers",
+        "result": "pass"
+      },
+      {
+        "name": "cancellationDisposesExistingResourcesOnlyOnce",
+        "result": "pass"
+      },
+      {
+        "name": "registeredCancelledRequestRemainsDuplicate",
+        "result": "pass"
+      },
+      {
+        "name": "immutableBusinessOutputsOnlyAllowSupportedTypes",
+        "result": "pass"
+      },
+      {
+        "name": "capacityAndTtlAreBounded",
+        "result": "pass"
+      },
+      {
+        "name": "concurrentFinishKeepsLeaseUntilResourceCleanupCompletes",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.service.chat.ChatStreamServiceTest",
+    "tests": 25,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.388,
+    "cases": [
+      {
+        "name": "ioFailureDoesNotWriteAgain",
+        "result": "pass"
+      },
+      {
+        "name": "shutdownCancelsRunningButDoesNotCancelCommittedTurn",
+        "result": "pass"
+      },
+      {
+        "name": "terminalRaceHasOneWinner",
+        "result": "pass"
+      },
+      {
+        "name": "ownershipFailureRejectsBeforeModelAndHistory",
+        "result": "pass"
+      },
+      {
+        "name": "shutdownClosesHealthyEmitterWhileCommitKeepsItsOutcome",
+        "result": "pass"
+      },
+      {
+        "name": "transportReadyWorkerRejectionImmediatelyCleansRegisteredRequest",
+        "result": "pass"
+      },
+      {
+        "name": "transportReadinessRejectionCompletesHealthyEmitter",
+        "result": "pass"
+      },
+      {
+        "name": "mysqlCommitPrecedesFinishedEvent",
+        "result": "pass"
+      },
+      {
+        "name": "repeatedCompletionDoesNotSaveAgain",
+        "result": "pass"
+      },
+      {
+        "name": "cancelBeforeSubscriptionDisposesLateHandle",
+        "result": "pass"
+      },
+      {
+        "name": "productionEmitterWaitsForMvcTransportReadiness",
+        "result": "pass"
+      },
+      {
+        "name": "completingWinsAndCancelReturnsCompleting",
+        "result": "pass"
+      },
+      {
+        "name": "metaPrecedesContent",
+        "result": "pass"
+      },
+      {
+        "name": "cancelWinsAndNeverPersists",
+        "result": "pass"
+      },
+      {
+        "name": "heartbeatContinuesDuringToolGapAndDoesNotResetGenerationDeadline",
+        "result": "pass"
+      },
+      {
+        "name": "disconnectCancelsUpstream",
+        "result": "pass"
+      },
+      {
+        "name": "disconnectDuringCommitPreservesDurableFinishedState",
+        "result": "pass"
+      },
+      {
+        "name": "overflowCancelsModelAndCancelDoesNotWaitForSendLock",
+        "result": "pass"
+      },
+      {
+        "name": "senderRejectionCompletesHealthyEmitterAndNeverWritesAgain",
+        "result": "pass"
+      },
+      {
+        "name": "cleanupStopsAllResources",
+        "result": "pass"
+      },
+      {
+        "name": "persistenceFailureSendsSafeError",
+        "result": "pass"
+      },
+      {
+        "name": "runtimeTerminalWriteFailureNeverRetriesOrLeaks",
+        "result": "pass"
+      },
+      {
+        "name": "typedGenerationErrorsUseContractCodes",
+        "result": "pass"
+      },
+      {
+        "name": "shutdownClosesHealthyEmitterEvenWhenQueuedTerminalSenderNeverRuns",
+        "result": "pass"
+      },
+      {
+        "name": "shutdownNeverCompletesEmitterAfterIoFailure",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.service.ChatHandlerHistoryTest",
+    "tests": 8,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.214,
+    "cases": [
+      {
+        "name": "buildMessages_shouldApplyBudgetBeforeFirstModelCall",
+        "result": "pass"
+      },
+      {
+        "name": "getConversationHistory_shouldReturnRedisHitWithoutDatabaseReload",
+        "result": "pass"
+      },
+      {
+        "name": "updateConversationHistory_shouldPersistRawTurnBeforeAtomicRedisAppend",
+        "result": "pass"
+      },
+      {
+        "name": "prepareToolResponseMessages_shouldTruncateRetrievalContextBeforeSecondModelCall",
+        "result": "pass"
+      },
+      {
+        "name": "getConversationHistory_shouldReloadAndCasRebuildWhenRedisMisses",
+        "result": "pass"
+      },
+      {
+        "name": "buildMessages_shouldTreatBoundedSummariesAsUntrustedMemoryAndKeepOneSystemMessage",
+        "result": "pass"
+      },
+      {
+        "name": "getConversationHistory_shouldSupportEmptyNewConversationOnRedisMiss",
+        "result": "pass"
+      },
+      {
+        "name": "getConversationHistory_shouldRepairMalformedRedisWorkingSetFromDatabase",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.service.ChatHandlerStreamingTest",
+    "tests": 31,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.624,
+    "cases": [
+      {
+        "name": "nullCachedContentDoesNotBlockGenerationWithValidDurableHistory",
+        "result": "pass"
+      },
+      {
+        "name": "cancelDuringSearchNeverStartsSecondModel",
+        "result": "pass"
+      },
+      {
+        "name": "incompleteSecondRoundFailsWithoutPersistingPartialAnswer",
+        "result": "pass"
+      },
+      {
+        "name": "malformedCachedMessageShapeFallsBackToDurableHistory(String)[1]",
+        "result": "pass"
+      },
+      {
+        "name": "malformedCachedMessageShapeFallsBackToDurableHistory(String)[2]",
+        "result": "pass"
+      },
+      {
+        "name": "malformedCachedMessageShapeFallsBackToDurableHistory(String)[3]",
+        "result": "pass"
+      },
+      {
+        "name": "malformedCachedMessageShapeFallsBackToDurableHistory(String)[4]",
+        "result": "pass"
+      },
+      {
+        "name": "malformedCachedMessageShapeFallsBackToDurableHistory(String)[5]",
+        "result": "pass"
+      },
+      {
+        "name": "malformedCachedMessageShapeFallsBackToDurableHistory(String)[6]",
+        "result": "pass"
+      },
+      {
+        "name": "malformedCachedMessageShapeFallsBackToDurableHistory(String)[7]",
+        "result": "pass"
+      },
+      {
+        "name": "malformedCachedMessageShapeFallsBackToDurableHistory(String)[8]",
+        "result": "pass"
+      },
+      {
+        "name": "malformedCachedMessageShapeFallsBackToDurableHistory(String)[9]",
+        "result": "pass"
+      },
+      {
+        "name": "malformedCachedMessageShapeFallsBackToDurableHistory(String)[10]",
+        "result": "pass"
+      },
+      {
+        "name": "malformedCachedMessageShapeFallsBackToDurableHistory(String)[11]",
+        "result": "pass"
+      },
+      {
+        "name": "explicitConversationIgnoresCurrentPointer",
+        "result": "pass"
+      },
+      {
+        "name": "incompleteFirstRoundNeverSearchesStartsSecondModelOrPersists",
+        "result": "pass"
+      },
+      {
+        "name": "postCommitRedisReadFailureRecoversOldCacheAfterConnectionReturns",
+        "result": "pass"
+      },
+      {
+        "name": "failedPostCommitAppendRecoversSurvivingOldCacheExactlyOnce",
+        "result": "pass"
+      },
+      {
+        "name": "validSummaryShapesRemainUsableWhenTheirSequenceCoverageIsCurrent(String)[1]",
+        "result": "pass"
+      },
+      {
+        "name": "validSummaryShapesRemainUsableWhenTheirSequenceCoverageIsCurrent(String)[2]",
+        "result": "pass"
+      },
+      {
+        "name": "validSummaryShapesRemainUsableWhenTheirSequenceCoverageIsCurrent(String)[3]",
+        "result": "pass"
+      },
+      {
+        "name": "redisRecoveryDuringNextGenerationDoesNotHidePreviouslyCommittedTurn(boolean)[1]",
+        "result": "pass"
+      },
+      {
+        "name": "redisRecoveryDuringNextGenerationDoesNotHidePreviouslyCommittedTurn(boolean)[2]",
+        "result": "pass"
+      },
+      {
+        "name": "mysqlFailurePropagates",
+        "result": "pass"
+      },
+      {
+        "name": "firstRoundContentArrivesBeforeModelCompletion",
+        "result": "pass"
+      },
+      {
+        "name": "redisFailureAfterCommitDoesNotAppendAgain",
+        "result": "pass"
+      },
+      {
+        "name": "publisherIsCold",
+        "result": "pass"
+      },
+      {
+        "name": "postCommitCacheMissRebuildsHistoryWithoutDuplicatingCommittedTurn",
+        "result": "pass"
+      },
+      {
+        "name": "modelAndToolFailuresHaveSafeDistinctCodes",
+        "result": "pass"
+      },
+      {
+        "name": "searchAndSecondModelStayInSameOrderedSubscription",
+        "result": "pass"
+      },
+      {
+        "name": "cancelDuringSecondModelCancelsCurrentHttp",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.service.ContextBudgetServiceTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.01,
+    "cases": [
+      {
+        "name": "fit_shouldTruncateOversizedToolResultWhenProtocolTailMustBePreserved",
+        "result": "pass"
+      },
+      {
+        "name": "fit_shouldDropACompleteTurnInsteadOfLeavingAnOrphanAssistantMessage",
+        "result": "pass"
+      },
+      {
+        "name": "fit_shouldDropOldestHistoryAndPreserveSystemAndProtocolTail",
+        "result": "pass"
+      },
+      {
+        "name": "fit_shouldRejectWhenRequiredMessagesAloneExceedBudget",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.service.ConversationCompressionServiceTest",
+    "tests": 11,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.341,
+    "cases": [
+      {
+        "name": "checkAndCompress_shouldTriggerAsync_whenTokensExceedSoftThresholdToken",
+        "result": "pass"
+      },
+      {
+        "name": "compressOnce_shouldRejectOversizedSummaryPromptBeforeCallingModel",
+        "result": "pass"
+      },
+      {
+        "name": "compressOnce_shouldDiscardStaleSummaryWhenRedisVersionChanged",
+        "result": "pass"
+      },
+      {
+        "name": "estimateTokens_shouldReturnPositiveForNonEmptyHistory",
+        "result": "pass"
+      },
+      {
+        "name": "replaceWorkingSet_shouldUseExpectedVersionAndAtomicTtlRefresh",
+        "result": "pass"
+      },
+      {
+        "name": "appendMessages_shouldAtomicallyAppendDatabaseSequencedMessagesAndVersion",
+        "result": "pass"
+      },
+      {
+        "name": "compressOnce_shouldWriteStructuredUntrustedSummaryWithSourceRange",
+        "result": "pass"
+      },
+      {
+        "name": "estimateTokens_shouldReturnZeroForEmptyHistory",
+        "result": "pass"
+      },
+      {
+        "name": "completedCompressionTask_shouldReleaseDedupSlotForTheNextCheck",
+        "result": "pass"
+      },
+      {
+        "name": "checkAndCompress_shouldTriggerSyncTruncate_atHardThreshold",
+        "result": "pass"
+      },
+      {
+        "name": "checkAndCompress_shouldNotTrigger_belowSoftThresholdToken",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.service.ConversationMessageServiceTest",
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.38,
+    "cases": [
+      {
+        "name": "getRawHistory_shouldReturnAppendOnlyMessagesInRepositoryOrder",
+        "result": "pass"
+      },
+      {
+        "name": "completedTurnTransactionHasTenSecondLimit",
+        "result": "pass"
+      },
+      {
+        "name": "priorDurableSequenceUsesConversationAndExclusiveUpperBoundWithoutAssumingAdjacentIds",
+        "result": "pass"
+      },
+      {
+        "name": "durableSequenceReturnsZeroForLegacyOnlyConversationAndLatestRawIdOtherwise",
+        "result": "pass"
+      },
+      {
+        "name": "appendTurn_shouldRejectMissingParentConversation",
+        "result": "pass"
+      },
+      {
+        "name": "appendTurn_shouldPersistRawMessagesAndExposeDatabaseIdsAsSequence",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.service.ConversationServiceHistoryTest",
+    "tests": 15,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.042,
+    "cases": [
+      {
+        "name": "legacyPositionSummaryRemainsUsableWithoutRawTurns",
+        "result": "pass"
+      },
+      {
+        "name": "legacyCacheWithoutSequencesRebuildsWhenRawTurnsExist",
+        "result": "pass"
+      },
+      {
+        "name": "chatHistoryRebuildRetriesCasWithFreshRawHistory",
+        "result": "pass"
+      },
+      {
+        "name": "historyReadDoesNotSwitchGlobalConversation",
+        "result": "pass"
+      },
+      {
+        "name": "historyCorruptCacheAndFailedReplacementStillReturnMergedHistory",
+        "result": "pass"
+      },
+      {
+        "name": "switchConversation_shouldMergeLegacySnapshotWithAppendOnlyRawHistoryAndCasRebuild",
+        "result": "pass"
+      },
+      {
+        "name": "priorDurableSequenceFailurePropagatesBeforeCacheAccess",
+        "result": "pass"
+      },
+      {
+        "name": "historyDatabaseFailureIsNotHiddenAsEmptyHistory",
+        "result": "pass"
+      },
+      {
+        "name": "committedTurnPreservesCurrentSummaryWithoutRawReloadAndDeduplicatesRepeatedMaintenance",
+        "result": "pass"
+      },
+      {
+        "name": "durableSequenceFailurePropagatesEvenWhenCacheCouldBeReadable",
+        "result": "pass"
+      },
+      {
+        "name": "historyRedisFailureFallsBackToMergedMysqlHistory",
+        "result": "pass"
+      },
+      {
+        "name": "committedTurnRetriesChangedCacheSnapshotBeforeWriting",
+        "result": "pass"
+      },
+      {
+        "name": "committedTurnKeepsLegacyHistoryWhenThisIsTheFirstRawTurn",
+        "result": "pass"
+      },
+      {
+        "name": "switchConversation_shouldRetryDatabaseReadWhenWorkingSetVersionConflicts",
+        "result": "pass"
+      },
+      {
+        "name": "deleteConversation_shouldDeleteRawMessagesAndBothRedisWorkingSetKeys",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.service.HybridSearchServiceLoggingTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.532,
+    "cases": [
+      {
+        "name": "embeddingParseFailureDoesNotEchoInputInLogs",
+        "result": "pass"
+      },
+      {
+        "name": "rerankParseFailureDoesNotEchoQueryOrCandidateInLogs",
+        "result": "pass"
+      },
+      {
+        "name": "permissionSearchFailureLogsExceptionTypeWithoutEchoedContents",
+        "result": "pass"
+      },
+      {
+        "name": "permissionSearchDoesNotLogQueryOrRawHitAtDebugLevel",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.service.ParseServiceIdempotencyTest",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.162,
+    "cases": [
+      {
+        "name": "firstChunkBatchDeletesExistingChunksBeforeSavingReplacementChunks",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.service.ParseServiceTest",
+    "tests": 6,
+    "failures": 0,
+    "errors": 6,
+    "skipped": 0,
+    "seconds": 6.314,
+    "cases": [
+      {
+        "name": "testSplitLongSentence_EmptyText",
+        "result": "error"
+      },
+      {
+        "name": "testSplitLongSentence_LongText",
+        "result": "error"
+      },
+      {
+        "name": "testSplitLongSentence_VerySmallChunkSize",
+        "result": "error"
+      },
+      {
+        "name": "testSplitLongSentence_MixedLanguage",
+        "result": "error"
+      },
+      {
+        "name": "testSplitLongSentence_ShortText",
+        "result": "error"
+      },
+      {
+        "name": "testSplitLongSentence_NormalChineseText",
+        "result": "error"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.service.ParseServiceUnitTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.279,
+    "cases": [
+      {
+        "name": "testSplitLongSentence_BasicFunctionality",
+        "result": "pass"
+      },
+      {
+        "name": "testSplitLongSentence_EdgeCases",
+        "result": "pass"
+      },
+      {
+        "name": "testSplitLongSentence_Performance",
+        "result": "pass"
+      },
+      {
+        "name": "testSplitLongSentence_ChunkSizeValidation",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.service.TokenCacheServiceTest",
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.112,
+    "cases": [
+      {
+        "name": "blacklistLookupFailureFailsClosed",
+        "result": "pass"
+      },
+      {
+        "name": "addingOlderTokenDoesNotShortenUserSetLifetime",
+        "result": "pass"
+      },
+      {
+        "name": "cacheWriteFailurePropagates",
+        "result": "pass"
+      },
+      {
+        "name": "graceWindowCacheLivesUntilExpPlusTenMinutes",
+        "result": "pass"
+      },
+      {
+        "name": "blacklistLivesBeyondJwtExpiry",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.service.UploadServicePerformanceTest",
+    "tests": 1,
+    "failures": 0,
+    "errors": 1,
+    "skipped": 0,
+    "seconds": 2.581,
+    "cases": [
+      {
+        "name": "testPerformanceComparison",
+        "result": "error"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.service.UserServiceTest",
+    "tests": 4,
+    "failures": 0,
+    "errors": 1,
+    "skipped": 0,
+    "seconds": 0.152,
+    "cases": [
+      {
+        "name": "testRegisterUser_Success",
+        "result": "error"
+      },
+      {
+        "name": "testRegisterUser_UsernameExists",
+        "result": "pass"
+      },
+      {
+        "name": "testAuthenticateUser_InvalidCredentials",
+        "result": "pass"
+      },
+      {
+        "name": "testAuthenticateUser_Success",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.service.VectorizationServiceIdempotencyTest",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.151,
+    "cases": [
+      {
+        "name": "vectorizeUsesFileMd5AndChunkIdAsElasticsearchDocumentId",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.SmartPaiApplicationTests",
+    "tests": 1,
+    "failures": 0,
+    "errors": 1,
+    "skipped": 0,
+    "seconds": 0.019,
+    "cases": [
+      {
+        "name": "contextLoads",
+        "result": "error"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.support.ChatStreamingBrowserApplicationTest",
+    "tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 2.718,
+    "cases": [
+      {
+        "name": "startsWithNoExternalInfrastructureAndPersistsOneOwnedNormalStream",
+        "result": "pass"
+      }
+    ]
+  },
+  {
+    "suite": "com.yizhaoqi.smartpai.utils.JwtUtilsRefreshTest",
+    "tests": 9,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.064,
+    "cases": [
+      {
+        "name": "invalidSignatureCannotRefresh",
+        "result": "pass"
+      },
+      {
+        "name": "directRefreshRejectsRevokedToken",
+        "result": "pass"
+      },
+      {
+        "name": "cacheWriteFailureCannotIssueFreshToken",
+        "result": "pass"
+      },
+      {
+        "name": "outsideGraceWindowRejected",
+        "result": "pass"
+      },
+      {
+        "name": "graceWindowCanRefreshIssuedToken",
+        "result": "pass"
+      },
+      {
+        "name": "generatedAccessTokenKeepsOneHourTtl",
+        "result": "pass"
+      },
+      {
+        "name": "validNearExpiryTokenCanRefresh",
+        "result": "pass"
+      },
+      {
+        "name": "cacheFailureCannotIssueFreshToken",
+        "result": "pass"
+      },
+      {
+        "name": "revokedExpiredTokenCannotRefresh",
+        "result": "pass"
+      }
+    ]
+  }
+]

@@ -2,40 +2,41 @@ package com.yizhaoqi.smartpai.service;
 
 import com.yizhaoqi.smartpai.exception.CustomException;
 import com.yizhaoqi.smartpai.model.User;
+import com.yizhaoqi.smartpai.model.OrganizationTag;
+import com.yizhaoqi.smartpai.repository.OrganizationTagRepository;
 import com.yizhaoqi.smartpai.repository.UserRepository;
 import com.yizhaoqi.smartpai.utils.PasswordUtil;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
 import java.util.Optional;
+import java.util.List;
 
-import static org.hamcrest.Matchers.any;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 /**
  * UserService 的测试类
  */
+@ExtendWith(MockitoExtension.class)
 class UserServiceTest {
     // 模拟 UserRepository 实例
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private OrganizationTagRepository organizationTagRepository;
+
+    @Mock
+    private OrgTagCacheService orgTagCacheService;
+
     // 注入模拟的 UserService 实例
     @InjectMocks
     private UserService userService;
-
-    /**
-     * 在每个测试方法执行前初始化模拟对象
-     */
-    @BeforeEach
-    void setUp() {
-        MockitoAnnotations.openMocks(this);
-    }
 
     /**
      * 测试用户注册成功的情况
@@ -44,6 +45,7 @@ class UserServiceTest {
     void testRegisterUser_Success() {
         // 假设用户名 "testuser" 在数据库中不存在
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.empty());
+        when(organizationTagRepository.existsByTagId("DEFAULT")).thenReturn(true);
 
         // 调用 userService 的 registerUser 方法进行用户注册
         userService.registerUser("testuser", "password123");
@@ -51,13 +53,23 @@ class UserServiceTest {
         // 创建 ArgumentCaptor 来捕获 save 方法的参数
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
 
-        // 验证 userRepository.save 被调用了一次，并捕获参数
-        verify(userRepository, times(1)).save(userCaptor.capture());
+        // 先保存用户，再保存私人组织标签分配后的用户，并捕获参数
+        verify(userRepository, times(2)).save(userCaptor.capture());
 
         // 获取捕获的 User 对象并进行断言
         User savedUser = userCaptor.getValue();
         assertNotNull(savedUser);
         assertEquals("testuser", savedUser.getUsername());
+        assertTrue(PasswordUtil.matches("password123", savedUser.getPassword()));
+        assertEquals(User.Role.USER, savedUser.getRole());
+        assertEquals("PRIVATE_testuser", savedUser.getPrimaryOrg());
+        assertEquals("PRIVATE_testuser", savedUser.getOrgTags());
+        ArgumentCaptor<OrganizationTag> tagCaptor = ArgumentCaptor.forClass(OrganizationTag.class);
+        verify(organizationTagRepository).save(tagCaptor.capture());
+        assertEquals("PRIVATE_testuser", tagCaptor.getValue().getTagId());
+        assertSame(savedUser, tagCaptor.getValue().getCreatedBy());
+        verify(orgTagCacheService).cacheUserOrgTags("testuser", List.of("PRIVATE_testuser"));
+        verify(orgTagCacheService).cacheUserPrimaryOrg("testuser", "PRIVATE_testuser");
     }
 
     /**

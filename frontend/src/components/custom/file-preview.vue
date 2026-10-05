@@ -49,10 +49,10 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { NButton, NSpin } from 'naive-ui';
-import SvgIcon from '@/components/custom/svg-icon.vue';
 import { VueMarkdownIt, VueMarkdownItProvider } from 'vue-markdown-shiki';
 import { request } from '@/service/request';
 import { getFileExt } from '@/utils/common';
+import SvgIcon from '@/components/custom/svg-icon.vue';
 
 interface Props {
   fileName: string;
@@ -121,13 +121,13 @@ async function loadPreviewContent() {
     });
 
     if (requestError) {
-      error.value = '预览失败：' + (requestError.message || '未知错误');
+      error.value = `预览失败：${requestError.message || '未知错误'}`;
     } else if (data) {
       content.value = data.content;
       contentType.value = (data.contentType as 'markdown' | 'text' | 'info') || 'text';
     }
   } catch (err: any) {
-    error.value = '预览失败：' + (err.message || '网络错误');
+    error.value = `预览失败：${err.message || '网络错误'}`;
   } finally {
     loading.value = false;
   }
@@ -154,7 +154,7 @@ async function downloadFile() {
     });
 
     if (requestError) {
-      window.$message?.error('下载失败：' + (requestError.message || '未知错误'));
+      window.$message?.error(`下载失败：${requestError.message || '未知错误'}`);
     } else if (data) {
       // 使用预签名URL下载文件
       const link = document.createElement('a');
@@ -166,7 +166,7 @@ async function downloadFile() {
       window.$message?.success('开始下载文件');
     }
   } catch (err: any) {
-    window.$message?.error('下载失败：' + (err.message || '网络错误'));
+    window.$message?.error(`下载失败：${err.message || '网络错误'}`);
   } finally {
     downloading.value = false;
   }

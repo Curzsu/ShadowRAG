@@ -6,10 +6,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.HeaderWriterFilter;
+import jakarta.servlet.DispatcherType;
 
 /**
  * 配置Spring Security的类
@@ -41,12 +44,20 @@ public class SecurityConfig {
         try {
             // 禁用CSRF保护
             http.csrf(csrf -> csrf.disable())
+                    // Finish security headers before MVC makes the SSE writer asynchronous.
+                    // Deferred headers can otherwise race Tomcat's response header storage.
+                    .headers(headers -> headers.withObjectPostProcessor(new ObjectPostProcessor<HeaderWriterFilter>() {
+                        @Override public <O extends HeaderWriterFilter> O postProcess(O filter) {
+                            filter.setShouldWriteHeadersEagerly(true);
+                            return filter;
+                        }
+                    }))
                     // 配置请求的授权规则
                     .authorizeHttpRequests(authorize -> authorize
+                            // Only container-internal async dispatch is exempt; external REQUEST stays protected.
+                            .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                             // 允许静态资源访问
-                            .requestMatchers("/", "/test.html", "/static/test.html", "/static/**", "/*.js", "/*.css", "/*.ico").permitAll()
-                            // 允许 WebSocket 连接
-                            .requestMatchers("/chat/**", "/ws/**").permitAll()
+                            .requestMatchers("/", "/test.html", "/static/test.html", "/static/**", "/*.js", "/chat-stream.mjs", "/*.css", "/*.ico").permitAll()
                             // 允许登录注册接口
                             .requestMatchers("/api/v1/users/register", "/api/v1/users/login").permitAll()
                             // 允许测试接口
@@ -57,8 +68,6 @@ public class SecurityConfig {
                             .requestMatchers("/api/v1/chat/conversation/**").hasAnyRole("USER", "ADMIN")
                             // 搜索接口 - 普通用户和管理员都可访问
                             .requestMatchers("/api/search/**").hasAnyRole("USER", "ADMIN")
-                            // 聊天相关接口 - WebSocket停止Token获取 (允许匿名访问)
-                            .requestMatchers("/api/chat/websocket-token").permitAll()
                             // 管理员专属接口 - 知识库管理、系统状态、用户活动监控
                             .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                             // 用户组织标签管理接口
@@ -69,6 +78,12 @@ public class SecurityConfig {
                     // 设置会话创建策略为STATELESS，表示不会创建会话，通常用于无状态的API应用
                     .sessionManagement(session -> session
                             .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                    .exceptionHandling(errors -> errors.authenticationEntryPoint((request, response, error) -> {
+                        response.setStatus(401);
+                        response.setCharacterEncoding("UTF-8");
+                        response.setContentType("application/json");
+                        response.getWriter().write("{\"code\":401,\"message\":\"请先登录\",\"data\":{\"errorCode\":\"UNAUTHENTICATED\"}}");
+                    }))
                     // 添加JWT认证过滤器
                     .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                     // 添加组织标签授权过滤器

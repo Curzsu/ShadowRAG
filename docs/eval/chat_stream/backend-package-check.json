@@ -1,0 +1,24 @@
+{
+  "jar": "SmartPAI-0.0.1-SNAPSHOT.jar",
+  "sha256": "35B7E103AC82F648DBE0C0CB07480F6AF6181BF59536E0DB46F651F6396214C1",
+  "oldWebSocketOrTestFixtureEntries": 0,
+  "streamService": true,
+  "resources": [
+    {
+      "entry": "BOOT-INF/classes/static/chat-stream.mjs",
+      "sha256": "90A6110648322562DCEA2E336583F36A1B7A61826E094BA4E34D95A2E1D06BC1",
+      "matchesSource": true
+    },
+    {
+      "entry": "BOOT-INF/classes/static/test.html",
+      "sha256": "4B33E50351D284971C19AD32F4754BB9F87D30426C624EDE11CFCF7FD0258AD0",
+      "matchesSource": true
+    },
+    {
+      "entry": "BOOT-INF/classes/test.html",
+      "sha256": "A3EAEA471CA28D052859DBEA3C3E46A206362C64662B1E91805A63683B57EF56",
+      "matchesSource": true
+    }
+  ],
+  "allChatTestFixtureEntries": 0
+}

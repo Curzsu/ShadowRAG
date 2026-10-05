@@ -5,6 +5,8 @@ import com.yizhaoqi.smartpai.model.Conversation;
 import com.yizhaoqi.smartpai.model.ConversationMessage;
 import com.yizhaoqi.smartpai.repository.ConversationMessageRepository;
 import com.yizhaoqi.smartpai.repository.ConversationRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +24,8 @@ public class ConversationMessageService {
 
     private final ConversationMessageRepository messageRepository;
     private final ConversationRepository conversationRepository;
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public ConversationMessageService(ConversationMessageRepository messageRepository,
                                       ConversationRepository conversationRepository) {
@@ -29,7 +33,7 @@ public class ConversationMessageService {
         this.conversationRepository = conversationRepository;
     }
 
-    @Transactional
+    @Transactional(timeout = 10)
     public List<Map<String, String>> appendTurn(String conversationId,
                                                  String userContent,
                                                  String assistantContent,
@@ -46,6 +50,27 @@ public class ConversationMessageService {
 
         List<ConversationMessage> saved = messageRepository.saveAll(List.of(userMessage, assistantMessage));
         return saved.stream().map(this::toHistoryMap).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public long getLatestSequenceId(String conversationId) {
+        Long latest = entityManager.createQuery(
+                        "select max(message.id) from ConversationMessage message where message.conversation.conversationId = :conversationId",
+                        Long.class)
+                .setParameter("conversationId", conversationId)
+                .getSingleResult();
+        return latest == null ? 0L : latest;
+    }
+
+    @Transactional(readOnly = true)
+    public long getLatestSequenceIdBefore(String conversationId, long exclusiveUpperBound) {
+        Long latest = entityManager.createQuery(
+                        "select max(message.id) from ConversationMessage message where message.conversation.conversationId = :conversationId and message.id < :exclusiveUpperBound",
+                        Long.class)
+                .setParameter("conversationId", conversationId)
+                .setParameter("exclusiveUpperBound", exclusiveUpperBound)
+                .getSingleResult();
+        return latest == null ? 0L : latest;
     }
 
     @Transactional(readOnly = true)

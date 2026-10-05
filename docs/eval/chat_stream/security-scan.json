@@ -1,0 +1,20 @@
+{
+  "recordedAt": "2026-10-05T15:52:28.5109386+08:00",
+  "providedApiKeyFiles": 0,
+  "scannedRoots": [
+    "src",
+    "frontend",
+    "docs",
+    "logs",
+    ".superpowers"
+  ],
+  "scope": "Text source/config/docs/logs and generated frontend JS/HTML included; dependency tree excluded",
+  "runtimeLogFilesScanned": 24,
+  "jwtMatchingRuntimeFiles": 0,
+  "promptOrToolMatchingRuntimeFiles": 0,
+  "legacyRuntimeMatches": 0,
+  "dedicatedJwtMatchingLiveLogs": 0,
+  "noProductionTestEndpoints": true,
+  "fixtureOnlyEnvironmentProxy": true,
+  "tlsVerificationRetained": true
+}

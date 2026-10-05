@@ -70,7 +70,7 @@ public class RerankerClient {
             logger.debug("Rerank 完成，返回 {} 个结果", results.size());
             return results;
         } catch (Exception e) {
-            logger.warn("Rerank 调用失败，将使用 RRF 原始排序: {}", e.getMessage());
+            logger.warn("Rerank 调用失败，将使用 RRF 原始排序，异常类型: {}", e.getClass().getSimpleName());
             return null;
         }
     }

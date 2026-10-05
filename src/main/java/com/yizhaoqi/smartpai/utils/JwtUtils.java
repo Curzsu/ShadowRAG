@@ -120,7 +120,7 @@ public class JwtUtils {
         } catch (SignatureException e) {
             logger.warn("Invalid token signature");
         } catch (Exception e) {
-            logger.error("Error validating token", e);
+            logger.warn("Token validation rejected");
         }
         return false;
     }
@@ -133,7 +133,7 @@ public class JwtUtils {
             Claims claims = extractClaimsIgnoreExpiration(token);
             return claims != null ? claims.getSubject() : null;
         } catch (Exception e) {
-            logger.error("Error extracting username from token: {}", token, e);
+            logger.warn("Cannot extract token username");
             return null;
         }
     }
@@ -146,7 +146,7 @@ public class JwtUtils {
             Claims claims = extractClaimsIgnoreExpiration(token);
             return claims != null ? claims.get("userId", String.class) : null;
         } catch (Exception e) {
-            logger.error("Error extracting userId from token: {}", token, e);
+            logger.warn("Cannot extract token userId");
             return null;
         }
     }
@@ -159,7 +159,7 @@ public class JwtUtils {
             Claims claims = extractClaimsIgnoreExpiration(token);
             return claims != null ? claims.get("role", String.class) : null;
         } catch (Exception e) {
-            logger.error("Error extracting role from token: {}", token, e);
+            logger.warn("Cannot extract token role");
             return null;
         }
     }
@@ -172,7 +172,7 @@ public class JwtUtils {
             Claims claims = extractClaimsIgnoreExpiration(token);
             return claims != null ? claims.get("orgTags", String.class) : null;
         } catch (Exception e) {
-            logger.error("Error extracting organization tags from token: {}", token, e);
+            logger.warn("Cannot extract token organization tags");
             return null;
         }
     }
@@ -185,7 +185,7 @@ public class JwtUtils {
             Claims claims = extractClaimsIgnoreExpiration(token);
             return claims != null ? claims.get("primaryOrg", String.class) : null;
         } catch (Exception e) {
-            logger.error("Error extracting primary organization from token: {}", token, e);
+            logger.warn("Cannot extract token primary organization");
             return null;
         }
     }
@@ -204,7 +204,7 @@ public class JwtUtils {
             
             return remainingTime > 0 && remainingTime < REFRESH_THRESHOLD;
         } catch (Exception e) {
-            logger.debug("Cannot check if token should refresh: {}", e.getMessage());
+            logger.debug("Cannot check token refresh eligibility");
             return false;
         }
     }
@@ -215,7 +215,7 @@ public class JwtUtils {
     public boolean canRefreshExpiredToken(String token) {
         try {
             Claims claims = extractClaimsIgnoreExpiration(token);
-            if (claims == null) return false;
+            if (claims == null || !isIssuedAndUnrevoked(claims)) return false;
             
             long expirationTime = claims.getExpiration().getTime();
             long currentTime = System.currentTimeMillis();
@@ -223,7 +223,7 @@ public class JwtUtils {
             
             return expiredTime > 0 && expiredTime < REFRESH_WINDOW;
         } catch (Exception e) {
-            logger.debug("Cannot check if expired token can refresh: {}", e.getMessage());
+            logger.debug("Cannot check expired token refresh eligibility");
             return false;
         }
     }
@@ -234,7 +234,9 @@ public class JwtUtils {
     public String refreshToken(String oldToken) {
         try {
             Claims claims = extractClaimsIgnoreExpiration(oldToken);
-            if (claims == null) return null;
+            if (claims == null || !isIssuedAndUnrevoked(claims)) return null;
+            if (claims.getExpiration() == null
+                    || System.currentTimeMillis() - claims.getExpiration().getTime() >= REFRESH_WINDOW) return null;
             
             String username = claims.getSubject();
             if (username == null || username.isEmpty()) return null;
@@ -244,9 +246,14 @@ public class JwtUtils {
             logger.info("Token refreshed successfully for user: {}", username);
             return newToken;
         } catch (Exception e) {
-            logger.error("Error refreshing token: {}", e.getMessage());
+            logger.warn("Token refresh rejected");
             return null;
         }
+    }
+
+    private boolean isIssuedAndUnrevoked(Claims claims) {
+        String tokenId = claims.get("tokenId", String.class);
+        return tokenId != null && !tokenId.isBlank() && tokenCacheService.isTokenValid(tokenId);
     }
     
     /**
@@ -263,7 +270,7 @@ public class JwtUtils {
             // 忽略过期异常，返回claims
             return e.getClaims();
         } catch (Exception e) {
-            logger.debug("Cannot extract claims from token: {}", e.getMessage());
+            logger.debug("Cannot extract token claims");
             return null;
         }
     }
@@ -356,7 +363,7 @@ public class JwtUtils {
         } catch (SignatureException e) {
             logger.warn("Invalid refresh token signature");
         } catch (Exception e) {
-            logger.error("Error validating refresh token", e);
+            logger.warn("Refresh token validation rejected");
         }
         return false;
     }
@@ -369,7 +376,7 @@ public class JwtUtils {
             Claims claims = extractClaimsIgnoreExpiration(refreshToken);
             return claims != null ? claims.get("refreshTokenId", String.class) : null;
         } catch (Exception e) {
-            logger.debug("Error extracting refreshTokenId from token", e);
+            logger.debug("Cannot extract refresh token identifier");
             return null;
         }
     }
@@ -389,7 +396,7 @@ public class JwtUtils {
             Claims claims = extractClaimsIgnoreExpiration(token);
             return claims != null ? claims.get("tokenId", String.class) : null;
         } catch (Exception e) {
-            logger.debug("Error extracting tokenId from token", e);
+            logger.debug("Cannot extract token identifier");
             return null;
         }
     }

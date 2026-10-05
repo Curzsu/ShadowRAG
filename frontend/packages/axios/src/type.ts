@@ -56,7 +56,7 @@ export interface RequestOption<ResponseData = any> {
    *
    * @param newToken The new token from response header
    */
-  onTokenRefresh?: (newToken: string) => void | Promise<void>;
+  onTokenRefresh?: (newToken: string, response?: AxiosResponse<ResponseData>) => void | Promise<void>;
 }
 
 interface ResponseMap {

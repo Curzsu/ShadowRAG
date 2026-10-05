@@ -1,9 +1,10 @@
-# CI / 测试环境配置（GitHub Actions 集成测试使用，SPRING_PROFILES_ACTIVE=test）
+# 可选的真实基础设施测试配置（SPRING_PROFILES_ACTIVE=test）
 # 要点：
 # 1. 把基础设施端点指向 CI sidecar 的 localhost 端口（本地 docker-compose 用 33060，
 #    但 CI 的 mysql service 暴露的是 3306）。
 # 2. 禁用需要 GPU 的服务（MinerU / Ollama Embedding / TEI Reranker），避免 CI 无法启动。
-# 3. ES / MinIO 客户端为懒加载，这两个 @SpringBootTest 用例不会真正连接，故不单独起容器。
+# 3. 完整应用启动会连接 ES / MinIO，必须另外准备这些服务；此文件不会自动启动依赖。
+# 默认 GitHub Actions 运行可独立测试，不加载此 profile；测试边界见 docs/ci.md。
 
 spring:
   datasource:

@@ -58,7 +58,7 @@ public class EmbeddingClient {
             logger.info("成功生成向量，总数量: {}", all.size());
             return all;
         } catch (Exception e) {
-            logger.error("调用向量化 API 失败: {}", e.getMessage(), e);
+            logger.error("调用向量化 API 失败，异常类型: {}", e.getClass().getSimpleName());
             throw new RuntimeException("向量生成失败", e);
         }
     }

@@ -12,7 +12,7 @@ ShadowRAG 是一个企业级 AI 知识管理系统，基于 RAG（检索增强�
 - **Agentic RAG**：LLM 通过 Function Calling 自主决定是否搜索知识库，两阶段工具调用流程
 - **混合检索 + 精排**：KNN 向量检索 + BM25 全文检索 → Java 端 RRF 融合 → Cross-Encoder 精排
 - **可恢复的长记忆压缩**：MySQL 追加式原始消息日志作为事实源，Redis 保存可丢弃的压缩工作集；Lua 原子追加与版本 CAS 防止并发覆盖，token 软硬阈值负责后台治理，每次模型调用前再做独立预算兜底
-- **AI 对话**：支持 OpenAI 兼容的 LLM 接口（GLM、DeepSeek 或本地 Ollama），通过 WebSocket 实时流式输出回答
+- **AI 对话**：支持 OpenAI 兼容的 LLM 接口（GLM、DeepSeek 或本地 Ollama），通过 POST SSE 实时流式输出回答
 - **多租户隔离**：基于组织标签的数据隔离，支持公开/私有文档权限控制
 - **异步处理**：Kafka 驱动的文档异步解析与向量化流水线
 - **文档解析**：MinerU 优先解析（支持 PDF/图片等复杂排版），Tika 自动回退
@@ -34,7 +34,7 @@ ShadowRAG 是一个企业级 AI 知识管理系统，基于 RAG（检索增强�
 | LLM | OpenAI 兼容接口（GLM / DeepSeek / 本地 Ollama） |
 | Embedding | Ollama bge-m3（1024 维） |
 | Reranker | HuggingFace TEI bge-reranker-v2-m3 |
-| 实时通信 | WebSocket |
+| 实时通信 | POST SSE + 独立 HTTP 取消 |
 | 响应式 | Spring WebFlux |
 | 中文处理 | HanLP 1.8.6 |
 
@@ -54,6 +54,29 @@ ShadowRAG 是一个企业级 AI 知识管理系统，基于 RAG（检索增强�
 
 ## 系统架构
 
+浏览器聊天使用同源 HTTP API：开发环境的主 API 地址为 `http://localhost:8081/api/v1`，生产为 `/api/v1`。JWT 放在 `Authorization` 请求头中。每轮提交显式会话 ID 和新的请求 UUID，服务端按认证用户与会话隔离，并限制每个会话同时一个生成请求。响应没有断点续传或自动重放。
+
+```sh
+# 先使用已有登录流程取得 CHAT_TOKEN，并创建或选择自己拥有的 CONVERSATION_ID。
+curl -N -X POST http://localhost:8081/api/v1/chat/stream \
+  -H "Authorization: Bearer $CHAT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"conversationId":"<CONVERSATION_ID>","requestId":"<NEW_REQUEST_UUID>","message":"你好"}'
+
+curl -X POST http://localhost:8081/api/v1/chat/requests/<NEW_REQUEST_UUID>/cancel \
+  -H "Authorization: Bearer $CHAT_TOKEN"
+```
+
+流依次发送 `meta`、`chunk` / `tool_progress` 和一次 `completion`；JSON envelope 包含 `type`、`requestId`、`conversationId`、连续的 `seq` 和 `data`，SSE `event` 与 `type` 相同、`id` 为 `seq`。失败时发送 `error` 再发送终态。只有 `completion.data.status=finished` 表示完整回答已保存；`cancelled`、`failed`、`timed_out` 和缺少 completion 的 EOF 保留页面上的局部文本，但不把它当作已保存回答。流开始前的鉴权、参数或容量错误返回普通 HTTP JSON。`New-Token` 仅更新同一个仍有效的登录会话，生成 POST 不重放。
+
+停止请求返回当前用户命名空间中的实际状态；`cancelled` 后关闭本地流，`completing` / `finished` 继续读取现有流至终态。取消失败时关闭本地连接并提示停止结果未确认。已经进入 `COMPLETING` 的数据库提交不会因断线撤销，提交成功但完成通知丢失时可以从历史恢复。
+
+部署使用 [Nginx 示例](docs/nginx.conf)，修改静态目录与后端地址。独立 stream location 关闭响应缓冲、缓存与 gzip，90 秒超时是两次读写之间的空闲期限；15 秒注释心跳维持工具等待，不能代替 300000 ms 总生成期限。emitter 为 320000 ms，为最多 10 秒数据库事务留出余量。`application.yml` 的 `chat.streaming` 可通过 `CHAT_*` 环境变量覆盖：活跃请求 100、总记录 10000、每用户记录 200、16 个 worker、1024 个排队任务、每请求 64 个待发送事件、终态保留 300000 ms；零、负数和冲突的期限在启动时拒绝。关闭应用停止新请求、取消运行中的生成，已进入提交的请求最多等待事务期限。
+
+首版只能部署为单个后端实例。随机分发到多实例前必须实现请求归属与取消路由、会话并发控制，或明确的请求亲和。浏览器 SSE 与未来 MCP 自身的 Streamable HTTP 是两条链路，本次不提供 MCP 功能。
+
+发布时配套更新前端、后端与代理，并刷新静态资源；发布前停止接收旧请求，正在进行的旧连接会断开。回滚必须一起回滚这三部分到同一版本，数据库结构不变。旧版本的鉴权与停止问题也会随回滚恢复。两份源码测试页共用 `/chat-stream.mjs`，提供登录、显式会话 ID、Authorization、问答、停止和原有历史查询；后端默认提供 `/test.html` 与 `/static/test.html`，源码根目录的旧测试页可单独用同源静态别名提供。
+
 ### RAG 核心流程
 
 文档上传后，会先经 Kafka 异步流水线完成 MinerU/Tika 解析、文本分块、向量化，并写入 Elasticsearch。下图聚焦一次用户提问的 Agentic RAG 调用过程：
@@ -63,7 +86,7 @@ sequenceDiagram
     autonumber
     actor U as 用户
     participant FE as Vue 前端
-    participant WS as WebSocket 接入
+    participant SSE as ChatStreamService
     participant AG as ChatHandler
     participant MEM as Redis / MySQL
     participant LLM as OpenAI 兼容 LLM
@@ -72,9 +95,9 @@ sequenceDiagram
     participant RR as Cross-Encoder
 
     U->>FE: 提交问题
-    FE->>WS: WebSocket 发送文本
-    WS->>AG: processMessage(userId, question)
-    AG->>MEM: 获取当前会话与历史
+    FE->>SSE: POST /api/v1/chat/stream（Authorization + 会话 ID + 请求 UUID）
+    SSE->>AG: generateReply(ChatCommand)
+    AG->>MEM: 校验会话归属并加载指定会话历史
     opt Redis 未命中或数据损坏
         MEM->>MEM: 从 MySQL 恢复并重建 Redis 工作集
     end
@@ -84,7 +107,8 @@ sequenceDiagram
     alt LLM 可以直接回答
         loop 流式输出
             LLM-->>AG: content delta
-            AG-->>FE: chunk
+            AG-->>SSE: ChatOutput chunk
+            SSE-->>FE: SSE chunk（连续 seq）
         end
     else LLM 决定检索知识库
         LLM-->>AG: tool_call(query)
@@ -102,13 +126,15 @@ sequenceDiagram
         AG->>LLM: 第二次流式请求（携带检索上下文）
         loop 流式输出
             LLM-->>AG: content delta
-            AG-->>FE: chunk
+            AG-->>SSE: ChatOutput chunk
+            SSE-->>FE: SSE chunk（连续 seq）
         end
     end
 
-    AG-->>FE: completion
+    SSE->>AG: persistCompletedTurn（赢得 COMPLETING 后）
+    AG->>MEM: 单事务提交 user / assistant，更新工作集
+    SSE-->>FE: completion finished（提交成功后）
     FE-->>U: 展示完整回答
-    AG->>MEM: 追加原始消息并更新工作集
     AG->>MEM: 按 token 阈值触发摘要或截断
 ```
 
@@ -179,12 +205,11 @@ ShadowRAG/
 ├── src/main/java/com/yizhaoqi/smartpai/   # 后端
 │   ├── SmartPaiApplication.java            # 应用入口
 │   ├── client/                             # 外部 API 客户端（DeepSeek, Embedding, MinerU）
-│   ├── config/                             # 配置类（Security, JWT, ES, Kafka, MinIO, Redis, WS）
+│   ├── config/                             # 配置类（Security, JWT, ES, Kafka, MinIO, Redis, SSE）
 │   ├── consumer/                           # Kafka 消费者（异步文档处理）
 │   ├── controller/                         # REST API 控制器
 │   ├── entity/                             # JPA 实体
 │   ├── exception/                          # 自定义异常
-│   ├── handler/                            # WebSocket 处理器（AI 对话）
 │   ├── model/                              # 领域模型 / DTO
 │   ├── repository/                         # 数据访问层
 │   ├── service/                            # 业务逻辑层
@@ -298,6 +323,7 @@ cd frontend && pnpm install && pnpm dev
 | `deepseek.api.url` | OpenAI 兼容的 LLM API 地址，支持 GLM、DeepSeek 或本地 Ollama |
 | `deepseek.api.model` | 模型名称，如 `glm-5`、`deepseek-chat` 或 `deepseek-r1:7b` |
 | `deepseek.api.key` | LLM API Key，建议通过 `DEEPSEEK_API_KEY` 或 `application-local.yml` 提供 |
+| `deepseek.api.proxy-url` | 可选 HTTP CONNECT 代理，如 `http://127.0.0.1:7890`，也可通过 `LLM_HTTP_PROXY` 设置；仅影响 LLM 请求，留空时直连 |
 | `embedding.api.url` | Embedding 服务地址（Ollama） |
 | `embedding.api.model` | Embedding 模型名称，默认 `bge-m3` |
 | `jwt.secret-key` | JWT 签名密钥，建议通过 `JWT_SECRET_KEY` 或 `application-local.yml` 提供 |
@@ -399,6 +425,8 @@ sequenceDiagram
 关键点：上传接口只负责合并文件并投递任务，耗时的解析、分块、向量化和索引均由 Kafka 消费者异步完成；`fileMd5` 既是消息 Key，也是各处理阶段关联同一文档的标识。
 
 ## 构建部署
+
+自动测试和构建使用 GitHub Actions，触发条件、测试范围及本地复现步骤见 [CI 说明](docs/ci.md)。
 
 ### 构建
 

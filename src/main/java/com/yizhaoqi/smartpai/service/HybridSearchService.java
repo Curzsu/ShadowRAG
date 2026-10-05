@@ -67,7 +67,7 @@ public class HybridSearchService {
      * @return 搜索结果列表
      */
     public List<SearchResult> searchWithPermission(String query, String userId, int topK) {
-        logger.debug("开始带权限搜索，查询: {}, 用户ID: {}", query, userId);
+        logger.debug("开始带权限搜索，用户ID: {}, topK: {}", userId, topK);
         
         try {
             // 获取用户有效的组织标签（包含层级关系）
@@ -128,13 +128,13 @@ public class HybridSearchService {
             attachFileNames(results);
             return results;
         } catch (Exception e) {
-            logger.error("带权限的搜索失败", e);
+            logger.error("带权限的搜索失败，异常类型: {}", e.getClass().getSimpleName());
             // 发生异常时尝试使用纯文本搜索作为后备方案
             try {
                 logger.info("尝试使用纯文本搜索作为后备方案");
                 return textOnlySearchWithPermission(query, getUserDbId(userId), getUserEffectiveOrgTags(userId), topK);
             } catch (Exception fallbackError) {
-                logger.error("后备搜索也失败", fallbackError);
+                logger.error("后备搜索也失败，异常类型: {}", fallbackError.getClass().getSimpleName());
                 return Collections.emptyList();
             }
         }
@@ -213,9 +213,8 @@ public class HybridSearchService {
             List<SearchResult> results = response.hits().hits().stream()
                     .map(hit -> {
                         assert hit.source() != null;
-                        logger.debug("纯文本搜索结果 - 文件: {}, 块: {}, 分数: {}, 内容: {}", 
-                            hit.source().getFileMd5(), hit.source().getChunkId(), hit.score(), 
-                            hit.source().getTextContent().substring(0, Math.min(50, hit.source().getTextContent().length())));
+                        logger.debug("纯文本搜索结果 - 文件: {}, 块: {}, 分数: {}",
+                            hit.source().getFileMd5(), hit.source().getChunkId(), hit.score());
                         return new SearchResult(
                                 hit.source().getFileMd5(),
                                 hit.source().getChunkId(),
@@ -232,7 +231,7 @@ public class HybridSearchService {
             attachFileNames(results);
             return results;
         } catch (Exception e) {
-            logger.error("纯文本搜索失败", e);
+            logger.error("纯文本搜索失败，异常类型: {}", e.getClass().getSimpleName());
             return new ArrayList<>();
         }
     }
@@ -423,7 +422,7 @@ public class HybridSearchService {
             }
             return list;
         } catch (Exception e) {
-            logger.error("生成向量失败", e);
+            logger.error("生成向量失败，异常类型: {}", e.getClass().getSimpleName());
             return null;
         }
     }
@@ -455,7 +454,7 @@ public class HybridSearchService {
             logger.debug("用户 {} 的有效组织标签: {}", user.getUsername(), effectiveTags);
             return effectiveTags;
         } catch (Exception e) {
-            logger.error("获取用户有效组织标签失败: {}", e.getMessage(), e);
+            logger.error("获取用户有效组织标签失败，用户ID: {}, 异常类型: {}", userId, e.getClass().getSimpleName());
             return Collections.emptyList(); // 返回空列表作为默认值
         }
     }
@@ -484,7 +483,7 @@ public class HybridSearchService {
                 return user.getId().toString(); // 返回用户的数据库ID
             }
         } catch (Exception e) {
-            logger.error("获取用户数据库ID失败: {}", e.getMessage(), e);
+            logger.error("获取用户数据库ID失败，用户ID: {}, 异常类型: {}", userId, e.getClass().getSimpleName());
             throw new RuntimeException("获取用户数据库ID失败", e);
         }
     }
@@ -563,7 +562,7 @@ public class HybridSearchService {
             // 填充文件名
             results.forEach(r -> r.setFileName(md5ToName.get(r.getFileMd5())));
         } catch (Exception e) {
-            logger.error("补充文件名失败", e);
+            logger.error("补充文件名失败，结果数量: {}, 异常类型: {}", results.size(), e.getClass().getSimpleName());
         }
     }
 }

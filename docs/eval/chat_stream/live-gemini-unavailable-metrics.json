@@ -1,0 +1,19 @@
+{
+  "supplier": "live-gemini",
+  "mode": "normal",
+  "activeRequests": 0,
+  "conversationLeases": 0,
+  "retainedRequests": 1,
+  "persistedTurns": 0,
+  "searchCalls": 0,
+  "supplierRequests": 0,
+  "supplierActive": 0,
+  "supplierDisconnected": 0,
+  "active": [],
+  "conversations": [
+    {
+      "messages": 0,
+      "conversationId": "dfff65f8-5dac-4131-ae03-a4edf786e5cb"
+    }
+  ]
+}

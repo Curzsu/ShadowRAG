@@ -1,6 +1,4 @@
 <script setup lang="ts">
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { nextTick } from 'vue';
 import { VueMarkdownIt } from 'vue-markdown-shiki';
 import { formatDate } from '@/utils/common';
 defineOptions({ name: 'ChatMessage' });
@@ -17,7 +15,7 @@ function handleCopy(content: string) {
 const chatStore = useChatStore();
 
 // 存储文件名和对应的事件处理
-const sourceFiles = ref<Array<{fileName: string, id: string}>>([]);
+const sourceFiles = ref<Array<{ fileName: string; id: string }>>([]);
 
 // 处理来源文件链接的函数
 function processSourceLinks(text: string): string {
@@ -41,12 +39,12 @@ function processSourceLinks(text: string): string {
 }
 
 /**
- * 将裸 URL 包装为 markdown 链接，防止 linkify 插件误将中文标点后的文本纳入链接范围
- * 例：（https://www.cnki.net/）的文本 → （[https://www.cnki.net/](https://www.cnki.net/)）的文本
+ * 将裸 URL 包装为 markdown 链接，防止 linkify 插件误将中文标点后的文本纳入链接范围 例：（https://www.cnki.net/）的文本 →
+ * （[https://www.cnki.net/](https://www.cnki.net/)）的文本
  */
 function wrapBareUrls(text: string): string {
   return text.replace(
-    /(?<![!\[(])(https?:\/\/[^\s<>"'（）【】《》「」""''、，。；：！？…·\u3000]+)/g,
+    /(?<![![(])(https?:\/\/[^\s<>"'（）【】《》「」""''、，。；：！？…·\u3000]+)/g,
     (_match, url: string) => {
       // 去掉末尾可能是句子标点而非 URL 组成部分的 ASCII 标点
       const cleaned = url.replace(/[.,;:!?)\]]+$/, '');
@@ -86,7 +84,6 @@ function handleContentClick(event: MouseEvent) {
 // 处理来源文件点击事件
 async function handleSourceFileClick(fileName: string) {
   const decodedFileName = decodeURIComponent(fileName);
-  console.log('点击了来源文件:', decodedFileName);
 
   try {
     window.$message?.loading(`正在获取文件下载链接: ${decodedFileName}`, {
@@ -98,8 +95,7 @@ async function handleSourceFileClick(fileName: string) {
     const { error, data } = await request<Api.Document.DownloadResponse>({
       url: 'documents/download',
       params: {
-        fileName: decodedFileName,
-        token: authStore.token
+        fileName: decodedFileName
       },
       baseURL: '/proxy-api'
     });
@@ -118,9 +114,8 @@ async function handleSourceFileClick(fileName: string) {
     } else {
       window.$message?.error('未能获取到下载链接');
     }
-  } catch (err) {
+  } catch {
     window.$message?.destroyAll();
-    console.error('文件下载失败:', err);
     window.$message?.error(`文件下载失败: ${decodedFileName}`);
   }
 }
@@ -149,11 +144,25 @@ async function handleSourceFileClick(fileName: string) {
     <NText v-if="msg.status === 'pending'">
       <icon-eos-icons:three-dots-loading class="ml-12 mt-2 text-8" />
     </NText>
-    <NText v-else-if="msg.status === 'error'" class="ml-12 mt-2 italic">服务器繁忙，请稍后再试</NText>
-    <div v-else-if="msg.role === 'assistant'" class="mt-2 pl-12" @click="handleContentClick">
+    <div v-if="msg.role === 'assistant' && content" class="mt-2 pl-12" @click="handleContentClick">
       <VueMarkdownIt :content="content" />
     </div>
     <NText v-else-if="msg.role === 'user'" class="ml-12 mt-2 text-4">{{ content }}</NText>
+    <NText
+      v-if="msg.toolProgress && ['pending', 'loading', 'cancelling'].includes(msg.status || '')"
+      class="ml-12 mt-2 text-3 color-gray-500"
+    >
+      {{ msg.toolProgress }}
+    </NText>
+    <NText v-if="msg.status === 'loading'" class="ml-12 mt-2 text-3 color-gray-500">正在生成</NText>
+    <NText v-if="msg.status === 'cancelling'" class="ml-12 mt-2 text-3 color-gray-500">正在停止</NText>
+    <NText v-if="msg.status === 'cancelled'" class="ml-12 mt-2 text-3 color-gray-500">已停止</NText>
+    <NText v-if="msg.status === 'finished' && msg.role === 'assistant'" class="ml-12 mt-2 text-3 color-gray-500">
+      已完成
+    </NText>
+    <NText v-if="msg.status === 'error'" class="ml-12 mt-2 italic">
+      {{ msg.errorReason || '生成失败，请重新发送' }}
+    </NText>
     <NDivider class="ml-12 w-[calc(100%-3rem)] mb-0! mt-2!" />
     <div class="ml-12 flex gap-4">
       <NButton quaternary @click="handleCopy(msg.content)">
