@@ -1,0 +1,38 @@
+{
+  "recordedAt": "2026-10-05T15:50:33.7889379+08:00",
+  "model": "gemini-3.1-flash-lite",
+  "provider": "Google official Gemini OpenAI-compatible API",
+  "transport": "existing localhost HTTP CONNECT proxy, TLS verification retained",
+  "stats": {
+    "supplier": "live-gemini",
+    "mode": "normal",
+    "activeRequests": 0,
+    "conversationLeases": 0,
+    "retainedRequests": 1,
+    "persistedTurns": 1,
+    "searchCalls": 0,
+    "supplierRequests": 0,
+    "supplierActive": 0,
+    "supplierDisconnected": 0,
+    "active": [],
+    "conversations": [
+      {
+        "messages": 2,
+        "conversationId": "57f5d5d0-13f7-42a0-bf4f-0ae6d6bb9bde"
+      }
+    ]
+  },
+  "historyMessages": 2,
+  "assistantCharacters": 212,
+  "assistantUtf8Sha256": "55A73C8C4B2E8A78E72F1DD7AB0156AB84FC5AE44F92BD735656CF9075903256",
+  "markdownHeading": true,
+  "markdownFence": true,
+  "browserFinished": true,
+  "browserHistoryRestored": true,
+  "viewport": {
+    "height": 900,
+    "width": 1280
+  },
+  "localStubCalls": 0,
+  "realDatabaseRedisSearch": false
+}

@@ -1,0 +1,25 @@
+{
+  "firstTextMillis" : [ 34, 38, 41, 41, 45, 46, 46, 46, 46, 47, 47, 47, 47, 47, 48, 50, 50, 52, 53, 60 ],
+  "upstreamIntervalMillis" : 20,
+  "requests" : 20,
+  "firstTextP95Millis" : 53,
+  "settledResources" : {
+    "retainedRecords" : 23,
+    "modelConnections" : 0,
+    "workerPoolSize" : 16,
+    "activeRequests" : 0,
+    "pendingEvents" : 0,
+    "subscriptions" : 0,
+    "timerQueue" : 1,
+    "streams" : 0,
+    "timerPoolSize" : 2,
+    "workerQueue" : 0,
+    "workerLargestPoolSize" : 16,
+    "leases" : 0
+  },
+  "chunksPerRequest" : 200,
+  "proxy" : "real-nginx",
+  "recordedAt" : "2026-10-05T03:20:50.605595300Z",
+  "javaVersion" : "21.0.7",
+  "operatingSystem" : "Windows 11"
+}

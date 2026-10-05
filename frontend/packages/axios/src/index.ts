@@ -34,10 +34,10 @@ function createCommonRequest<ResponseData = any>(
     const config: InternalAxiosRequestConfig = { ...conf };
 
     // set request id
-    let requestId = config.headers.get(REQUEST_ID_KEY) as string;
+    const requestId = config.headers.get(REQUEST_ID_KEY) as string;
     if (!requestId) {
-      const requestId = nanoid();
-      config.headers.set(REQUEST_ID_KEY, requestId);
+      const generatedRequestId = nanoid();
+      config.headers.set(REQUEST_ID_KEY, generatedRequestId);
     }
 
     // config abort controller
@@ -59,7 +59,7 @@ function createCommonRequest<ResponseData = any>(
       const newToken = response.headers['new-token'];
       if (newToken) {
         // 调用更新token的回调函数（如果提供了的话）
-        await opts.onTokenRefresh?.(newToken);
+        await opts.onTokenRefresh?.(newToken, response);
       }
 
       const responseType: ResponseType = (response.config?.responseType as ResponseType) || 'json';

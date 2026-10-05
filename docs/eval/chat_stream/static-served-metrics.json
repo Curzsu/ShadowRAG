@@ -1,0 +1,27 @@
+{
+  "supplier": "loopback",
+  "mode": "long",
+  "activeRequests": 0,
+  "conversationLeases": 0,
+  "retainedRequests": 4,
+  "persistedTurns": 3,
+  "searchCalls": 0,
+  "supplierRequests": 7,
+  "supplierActive": 0,
+  "supplierDisconnected": 4,
+  "active": [],
+  "conversations": [
+    {
+      "messages": 2,
+      "conversationId": "cd79f597-3d47-433e-be1d-bf12063925ec"
+    },
+    {
+      "messages": 2,
+      "conversationId": "8852653d-908c-48a3-8e71-9fa461eed92f"
+    },
+    {
+      "messages": 2,
+      "conversationId": "65a3d98d-29e0-4df9-a465-b60e7fc139be"
+    }
+  ]
+}

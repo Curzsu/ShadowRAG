@@ -29,6 +29,7 @@ public class TokenCacheService {
     private static final String USER_TOKENS_PREFIX = "jwt:user:";
     private static final String REFRESH_PREFIX = "jwt:refresh:";
     private static final String BLACKLIST_PREFIX = "jwt:blacklist:";
+    private static final long ACCESS_GRACE_MS = 600000;
     
     /**
      * 缓存有效token信息
@@ -42,9 +43,9 @@ public class TokenCacheService {
             tokenInfo.put("expireTime", expireTimeMs);
             
             // 计算Redis过期时间（比JWT过期时间稍长一点）
-            long ttlSeconds = (expireTimeMs - System.currentTimeMillis()) / 1000 + 300; // 多5分钟缓冲
+            long ttlMs = accessRecordTtl(expireTimeMs);
             
-            redisTemplate.opsForValue().set(key, tokenInfo, ttlSeconds, TimeUnit.SECONDS);
+            redisTemplate.opsForValue().set(key, tokenInfo, ttlMs, TimeUnit.MILLISECONDS);
             
             // 同时添加到用户token集合中
             addTokenToUser(userId, tokenId, expireTimeMs);
@@ -52,6 +53,7 @@ public class TokenCacheService {
             logger.debug("Token cached: {} for user: {}", tokenId, username);
         } catch (Exception e) {
             logger.error("Failed to cache token: {}", tokenId, e);
+            throw new IllegalStateException("Token cache unavailable", e);
         }
     }
     
@@ -72,6 +74,7 @@ public class TokenCacheService {
             logger.debug("Refresh token cached: {} for user: {}", refreshTokenId, userId);
         } catch (Exception e) {
             logger.error("Failed to cache refresh token: {}", refreshTokenId, e);
+            throw new IllegalStateException("Token cache unavailable", e);
         }
     }
     
@@ -143,14 +146,15 @@ public class TokenCacheService {
     public void blacklistToken(String tokenId, long expireTimeMs) {
         try {
             String key = BLACKLIST_PREFIX + tokenId;
-            long ttlSeconds = Math.max((expireTimeMs - System.currentTimeMillis()) / 1000, 0);
+            long ttlMs = accessRecordTtl(expireTimeMs);
             
-            if (ttlSeconds > 0) {
-                redisTemplate.opsForValue().set(key, System.currentTimeMillis(), ttlSeconds, TimeUnit.SECONDS);
+            if (ttlMs > 0) {
+                redisTemplate.opsForValue().set(key, System.currentTimeMillis(), ttlMs, TimeUnit.MILLISECONDS);
                 logger.debug("Token blacklisted: {}", tokenId);
             }
         } catch (Exception e) {
             logger.error("Failed to blacklist token: {}", tokenId, e);
+            throw new IllegalStateException("Token revocation unavailable", e);
         }
     }
     
@@ -163,7 +167,7 @@ public class TokenCacheService {
             return Boolean.TRUE.equals(redisTemplate.hasKey(key));
         } catch (Exception e) {
             logger.error("Failed to check token blacklist: {}", tokenId, e);
-            return false;
+            return true;
         }
     }
     
@@ -183,6 +187,7 @@ public class TokenCacheService {
             logger.debug("Token removed from cache: {}", tokenId);
         } catch (Exception e) {
             logger.error("Failed to remove token: {}", tokenId, e);
+            throw new IllegalStateException("Token revocation unavailable", e);
         }
     }
     
@@ -206,22 +211,28 @@ public class TokenCacheService {
             logger.info("All tokens removed for user: {}", userId);
         } catch (Exception e) {
             logger.error("Failed to remove all user tokens: {}", userId, e);
+            throw new IllegalStateException("Token revocation unavailable", e);
         }
     }
     
     /**
      * 添加token到用户集合
      */
-    private void addTokenToUser(String userId, String tokenId, long expireTimeMs) {
+    private synchronized void addTokenToUser(String userId, String tokenId, long expireTimeMs) {
         try {
             String key = USER_TOKENS_PREFIX + userId + ":tokens";
             redisTemplate.opsForSet().add(key, tokenId);
             
             // 设置过期时间
-            long ttlSeconds = (expireTimeMs - System.currentTimeMillis()) / 1000 + 300;
-            redisTemplate.expire(key, Duration.ofSeconds(ttlSeconds));
+            long ttlMs = accessRecordTtl(expireTimeMs);
+            Long existingTtlMs = redisTemplate.getExpire(key, TimeUnit.MILLISECONDS);
+            // Single-instance synchronized updates prevent an older token shortening this set.
+            if (existingTtlMs == null || existingTtlMs < ttlMs) {
+                redisTemplate.expire(key, Duration.ofMillis(ttlMs));
+            }
         } catch (Exception e) {
             logger.error("Failed to add token to user set: {} - {}", userId, tokenId, e);
+            throw new IllegalStateException("Token cache unavailable", e);
         }
     }
     
@@ -234,6 +245,7 @@ public class TokenCacheService {
             redisTemplate.opsForSet().remove(key, tokenId);
         } catch (Exception e) {
             logger.error("Failed to remove token from user set: {} - {}", userId, tokenId, e);
+            throw new IllegalStateException("Token revocation unavailable", e);
         }
     }
     
@@ -249,5 +261,9 @@ public class TokenCacheService {
             logger.error("Failed to get user active token count: {}", userId, e);
             return 0;
         }
+    }
+
+    private long accessRecordTtl(long expireTimeMs) {
+        return Math.max(1, expireTimeMs + ACCESS_GRACE_MS - System.currentTimeMillis());
     }
 }

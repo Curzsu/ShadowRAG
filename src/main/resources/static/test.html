@@ -336,7 +336,7 @@
             <div class="nav-item admin-only" onclick="showSection('admin')">管理功能</div>
             <div class="connection-status">
                 <span class="status-indicator offline"></span>
-                <span>未连接</span>
+                <span>等待发送</span>
             </div>
         </div>
 
@@ -361,11 +361,14 @@
             <!-- 智能对话部分 -->
             <div id="chat" class="section">
                 <h2>智能对话</h2>
+                <div class="form-group"><label>会话 ID：</label><input id="chat-conversation-id" placeholder="填写已有会话 UUID，或点击创建会话" onchange="abandonChat()" /><button onclick="createChatConversation()">创建会话</button></div>
+                <div class="form-group"><label>Authorization（留空使用登录凭证）：</label><input type="password" id="chat-authorization" placeholder="Bearer access-token" onchange="abandonChat()" /></div>
+                <p id="chat-status" role="status">等待发送</p>
                 <div class="chat-container">
                     <div id="chat-messages" class="chat-messages"></div>
                     <div class="chat-input">
                         <input type="text" id="message-input" placeholder="输入您的问题..." onkeypress="handleKeyPress(event)" />
-                        <button onclick="sendMessage()">发送</button>
+                        <button onclick="sendMessage()">发送</button><button onclick="stopChat()">停止</button>
                     </div>
                 </div>
             </div>
@@ -478,20 +481,22 @@
         </div>
     </div>
 
+    <script type="module">
+        import * as ChatStreamTransport from '/chat-stream.mjs';
+        window.ChatStreamTransport = ChatStreamTransport;
+    </script>
     <script>
         let token = localStorage.getItem('token');
         let isAdmin = false;
-        let ws = null;
-        let reconnectAttempts = 0;
-        const maxReconnectAttempts = 5;
-        let intentionalClosure = false;
-        let currentAssistantMessage = '';
+        let activeChat = null;
+        let authEpoch = 0;
+        let conversationOperation = 0;
+        let historyOperation = 0;
 
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
             updateUI();
             if (token) {
-                initializeWebSocket();
                 checkAdminStatus();
                 loadOrgTags();
                 loadUserFiles();
@@ -527,120 +532,131 @@
             event.target.classList.add('active');
         }
 
-        // WebSocket相关函数
-        function initializeWebSocket() {
-            if (ws) {
-                intentionalClosure = true;
-                ws.close();
-                intentionalClosure = false;
-            }
-
-            // 使用token作为路径参数
-            ws = new WebSocket(`ws://localhost:8081/chat/${token}`);
-            
-            ws.onopen = function() {
-                console.log('WebSocket连接已建立');
-                updateConnectionStatus(true);
-                reconnectAttempts = 0;
-            };
-
-            ws.onclose = function(event) {
-                updateConnectionStatus(false);
-                currentAssistantMessage = '';
-                
-                if (!intentionalClosure && event.code !== 1000 && reconnectAttempts < maxReconnectAttempts) {
-                    const timeout = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
-                    console.log(`连接已关闭，${timeout/1000}秒后重试...`);
-                    setTimeout(() => {
-                        reconnectAttempts++;
-                        initializeWebSocket();
-                    }, timeout);
-                }
-            };
-
-            ws.onerror = function(error) {
-                console.error('WebSocket错误:', error);
-                updateConnectionStatus(false);
-                currentAssistantMessage = '';
-            };
-
-            ws.onmessage = function(event) {
-                try {
-                    const response = JSON.parse(event.data);
-                    
-                    if (response.chunk) {
-                        if (currentAssistantMessage === '') {
-                            currentAssistantMessage = response.chunk;
-                            appendMessage('assistant', currentAssistantMessage, true);
-                        } else {
-                            currentAssistantMessage += response.chunk;
-                            updateLastMessage(currentAssistantMessage);
-                        }
-                    } else if (response.type === 'completion' && response.status === 'finished') {
-                        // 处理响应完成通知
-                        console.log('AI响应已完成:', response.message);
-                        // 可以在这里添加一些UI提示，比如显示"回答完成"状态
-                        showResponseStatus('回答完成', true);
-                        currentAssistantMessage = '';
-                    } else if (response.error) {
-                        appendMessage('assistant', '错误: ' + response.error);
-                        currentAssistantMessage = '';
-                    } else {
-                        let message = response.message || response;
-                        if (typeof message === 'string') {
-                            appendMessage('assistant', message);
-                        } else if (typeof message === 'object') {
-                            appendMessage('assistant', JSON.stringify(message, null, 2));
-                        }
-                        currentAssistantMessage = '';
-                    }
-                } catch (error) {
-                    console.error('消息处理错误:', error);
-                    appendMessage('assistant', '消息处理出错，请重试');
-                    currentAssistantMessage = '';
+        // POST SSE chat: each answer owns its UI element and independent cancellation.
+        function chatOptions() {
+            const loginToken = token;
+            const epoch = authEpoch;
+            const field = document.getElementById('chat-authorization');
+            const explicitAuthorization = field.value.trim();
+            const authorization = explicitAuthorization || (token ? `Bearer ${token}` : '');
+            return {
+                baseURL: '/api/v1',
+                getAuthorization: () => authorization,
+                isCurrentAuthorization: () => authEpoch === epoch && token === loginToken && field.value.trim() === explicitAuthorization,
+                onNewToken(newToken) {
+                    if (authEpoch !== epoch || token !== loginToken || field.value.trim() !== explicitAuthorization) return;
+                    if (explicitAuthorization) field.value = `Bearer ${newToken}`;
+                    else if (loginToken) { token = newToken; localStorage.setItem('token', token); }
                 }
             };
         }
 
-        function updateConnectionStatus(isConnected) {
-            const indicator = document.querySelector('.status-indicator');
-            const statusText = document.querySelector('.connection-status span:last-child');
-            
-            if (isConnected) {
-                indicator.classList.remove('offline');
-                indicator.classList.add('online');
-                statusText.textContent = '已连接';
-            } else {
-                indicator.classList.remove('online');
-                indicator.classList.add('offline');
-                statusText.textContent = '未连接';
-            }
+        function updateChatStatus(message) {
+            document.getElementById('chat-status').textContent = message;
         }
 
-        // 发送消息
-        function sendMessage() {
-            const input = document.getElementById('message-input');
-            const message = input.value.trim();
-            
-            if (!message) {
-                return;
-            }
+        function abandonChat() {
+            conversationOperation += 1;
+            historyOperation += 1;
+            const request = activeChat;
+            activeChat = null;
+            if (!request) return;
+            window.ChatStreamTransport.cancelChatRequest(request.requestId, request.options).catch(() => {});
+            request.controller.abort();
+            updateChatStatus('连接已关闭');
+        }
 
-            if (!ws || ws.readyState !== WebSocket.OPEN) {
-                showResponse('chat-response', 'WebSocket未连接，请等待重连...', false);
-                return;
-            }
-
+        async function stopChat() {
+            const request = activeChat;
+            if (!request) return;
+            updateChatStatus('正在停止');
             try {
-                appendMessage('user', message);
-                ws.send(message);
-                input.value = '';
-                currentAssistantMessage = '';
+                const result = await window.ChatStreamTransport.cancelChatRequest(request.requestId, request.options);
+                if (activeChat !== request) return;
+                if (result.status === 'cancelled') {
+                    activeChat = null;
+                    request.controller.abort();
+                    updateChatStatus('已停止，局部回答未保存');
+                } else if (result.status === 'completing' || result.status === 'finished') {
+                    updateChatStatus('正在确认完成结果');
+                } else {
+                    activeChat = null;
+                    request.controller.abort();
+                    updateChatStatus(`请求已结束：${result.status}`);
+                }
             } catch (error) {
-                console.error('发送消息失败:', error);
-                showResponse('chat-response', '发送消息失败，请重试', false);
+                if (activeChat !== request) return;
+                activeChat = null;
+                request.controller.abort();
+                updateChatStatus('连接已关闭，停止结果未确认');
             }
         }
+
+        async function createChatConversation() {
+            abandonChat();
+            const operation = conversationOperation;
+            const selectedId = document.getElementById('chat-conversation-id').value;
+            const options = chatOptions();
+            const isCurrent = () => operation === conversationOperation && options.isCurrentAuthorization()
+                && document.getElementById('chat-conversation-id').value === selectedId;
+            try {
+                const response = await fetch('/api/v1/chat/conversation/new', { method: 'POST', headers: { Authorization: options.getAuthorization() } });
+                const data = await response.json();
+                if (!isCurrent()) return;
+                if (!response.ok || data.code !== 200 || typeof data.data?.conversationId !== 'string') throw new Error(data.message || '创建会话失败');
+                const refreshed = response.headers.get('New-Token');
+                if (refreshed) options.onNewToken(refreshed);
+                document.getElementById('chat-conversation-id').value = data.data.conversationId;
+                updateChatStatus('会话已创建');
+            } catch (error) { if (isCurrent()) updateChatStatus(error.message); }
+        }
+        async function sendMessage() {
+            const input = document.getElementById('message-input');
+            const message = input.value;
+            const conversationId = document.getElementById('chat-conversation-id').value.trim();
+            if (!message.trim()) return;
+            if (activeChat) { updateChatStatus('请等待本轮完成或先停止'); return; }
+            if (!conversationId) { updateChatStatus('请先创建会话或填写会话 ID'); return; }
+            conversationOperation += 1;
+            historyOperation += 1;
+            const controller = new AbortController();
+            const request = { requestId: crypto.randomUUID(), conversationId, controller, options: chatOptions(), text: '' };
+            appendMessage('user', message);
+            const answer = document.createElement('div');
+            answer.className = 'message assistant';
+            answer.style.whiteSpace = 'pre-wrap';
+            document.getElementById('chat-messages').appendChild(answer);
+            request.answer = answer;
+            activeChat = request;
+            input.value = '';
+            updateChatStatus('正在生成');
+            try {
+                const result = await window.ChatStreamTransport.streamChat({ requestId: request.requestId, conversationId, message }, {
+                    ...request.options,
+                    signal: controller.signal,
+                    onEvent(envelope) {
+                        if (activeChat !== request) return;
+                        if (envelope.type === 'chunk') {
+                            request.text += envelope.data.chunk;
+                            answer.textContent = request.text;
+                        } else if (envelope.type === 'tool_progress') {
+                            updateChatStatus(envelope.data.status === 'started' ? '正在检索知识库' : '检索完成，正在生成');
+                        } else if (envelope.type === 'error') {
+                            updateChatStatus(envelope.data.message);
+                        }
+                    }
+                });
+                if (activeChat === request) {
+                    updateChatStatus({ finished: '回答完成，已保存', cancelled: '已停止，局部回答未保存', failed: '生成失败，局部回答未保存', timed_out: '生成超时，局部回答未保存' }[result.status]);
+                }
+            } catch (error) {
+                if (activeChat === request) updateChatStatus(error.name === 'AbortError' ? '连接已关闭' : `生成中断：${error.message}（局部回答未保存）`);
+            } finally {
+                if (activeChat === request) activeChat = null;
+            }
+        }
+
+        window.addEventListener('pagehide', abandonChat);
 
         // 处理回车键
         function handleKeyPress(event) {
@@ -650,40 +666,15 @@
         }
 
         // 添加消息到聊天框
-        function appendMessage(sender, content, isStream = false) {
+        function appendMessage(sender, content) {
             const messagesDiv = document.getElementById('chat-messages');
-            
-            if (!isStream) {
-                currentAssistantMessage = '';
-            }
-            
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${sender}`;
-            
-            if (typeof content === 'string') {
-                content = content.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
-                content = content.replace(/\n/g, '<br>');
-                messageDiv.innerHTML = content;
-            } else if (content.message) {
-                messageDiv.innerHTML = content.message.replace(/\n/g, '<br>');
-            } else {
-                messageDiv.innerHTML = JSON.stringify(content, null, 2).replace(/\n/g, '<br>');
-            }
-            
+            messageDiv.style.whiteSpace = 'pre-wrap';
+            messageDiv.textContent = typeof content === 'string' ? content : JSON.stringify(content);
             messagesDiv.appendChild(messageDiv);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
-
-        function updateLastMessage(content) {
-            const messagesDiv = document.getElementById('chat-messages');
-            const lastMessage = messagesDiv.lastElementChild;
-            if (lastMessage) {
-                content = content.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
-                content = content.replace(/\n/g, '<br>');
-                lastMessage.innerHTML = content;
-            }
-        }
-
         // 检查管理员状态
         async function checkAdminStatus() {
             try {
@@ -763,11 +754,12 @@
                 
                 const data = await response.json();
                 if (data.code === 200) {
+                    abandonChat();
+                    authEpoch += 1;
                     token = data.data.token;
                     localStorage.setItem('token', token);
                     await checkAdminStatus();
-                    initializeWebSocket();
-                    loadOrgTags();
+                        loadOrgTags();
                     loadUserFiles();
                     showResponse('auth-response', '登录成功', true);
                     updateUI();
@@ -781,13 +773,13 @@
 
         // 退出登录
         function logout() {
+            abandonChat();
+            authEpoch += 1;
+            document.getElementById('chat-authorization').value = '';
             token = null;
             localStorage.removeItem('token');
             isAdmin = false;
-            if (ws) {
-                intentionalClosure = true;
-                ws.close();
-            }
+
             updateUI();
             showResponse('auth-response', '已退出登录', true);
         }
@@ -1043,32 +1035,57 @@
             }
         }
 
-        // 获取对话历史
+        // Read owned conversation metadata, then explicitly select one to load its history.
         async function getConversations() {
-            const startDate = document.getElementById('start-date').value;
-            const endDate = document.getElementById('end-date').value;
-            
+            const operation = ++historyOperation;
+            const options = chatOptions();
+            const isCurrent = () => operation === historyOperation && options.isCurrentAuthorization();
+            const history = document.getElementById('history-response');
             try {
-                let url = '/api/v1/users/conversations';
-                const params = new URLSearchParams();
-                if (startDate) params.append('start_date', startDate);
-                if (endDate) params.append('end_date', endDate);
-                if (params.toString()) url += '?' + params.toString();
-                
-                const response = await fetch(url, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
+                const response = await fetch('/api/v1/chat/conversation/list', { headers: { Authorization: options.getAuthorization() } });
                 const data = await response.json();
-                document.getElementById('history-response').innerHTML = 
-                    `<pre>${JSON.stringify(data, null, 2)}</pre>`;
-            } catch (error) {
-                showResponse('history-response', `获取对话历史失败: ${error.message}`, false);
-            }
+                if (!isCurrent()) return;
+                if (!response.ok || data.code !== 200 || !Array.isArray(data.data)) throw new Error(data.message || '获取会话列表失败');
+                const refreshed = response.headers.get('New-Token');
+                if (refreshed) options.onNewToken(refreshed);
+                history.replaceChildren();
+                const start = document.getElementById('start-date').value;
+                const end = document.getElementById('end-date').value;
+                const selected = data.data.filter(item => !item.createdAt || ((!start || new Date(item.createdAt) >= new Date(start)) && (!end || new Date(item.createdAt) <= new Date(end))));
+                for (const conversation of selected) {
+                    if (typeof conversation.conversationId !== 'string') continue;
+                    const button = document.createElement('button');
+                    button.textContent = conversation.title || conversation.conversationId;
+                    button.onclick = () => selectChatConversation(conversation.conversationId);
+                    history.appendChild(button);
+                }
+                if (!history.children.length) history.textContent = '没有符合条件的会话';
+            } catch (error) { if (isCurrent()) history.textContent = `获取会话列表失败：${error.message}`; }
         }
 
+        async function selectChatConversation(conversationId) {
+            abandonChat();
+            const operation = conversationOperation;
+            const historyId = ++historyOperation;
+            const options = chatOptions();
+            document.getElementById('chat-conversation-id').value = conversationId;
+            const isCurrent = () => operation === conversationOperation && historyId === historyOperation
+                && options.isCurrentAuthorization() && document.getElementById('chat-conversation-id').value === conversationId;
+            updateChatStatus('正在读取历史');
+            try {
+                const response = await fetch(`/api/v1/chat/conversation/${encodeURIComponent(conversationId)}/switch`, { method: 'POST', headers: { Authorization: options.getAuthorization() } });
+                const data = await response.json();
+                if (!isCurrent()) return;
+                if (!response.ok || data.code !== 200 || data.data?.conversationId !== conversationId || !Array.isArray(data.data.messages)) throw new Error(data.message || '获取会话历史失败');
+                const refreshed = response.headers.get('New-Token');
+                if (refreshed) options.onNewToken(refreshed);
+                document.getElementById('chat-messages').replaceChildren();
+                for (const message of data.data.messages) {
+                    if (typeof message.content === 'string') appendMessage(message.role === 'user' ? 'user' : 'assistant', message.content);
+                }
+                updateChatStatus('历史已加载，可以继续提问');
+            } catch (error) { if (isCurrent()) updateChatStatus(`读取历史失败：${error.message}`); }
+        }
         // 获取所有用户
         async function getAllUsers() {
             try {
@@ -1271,10 +1288,7 @@
 
         // 页面关闭时主动断开连接
         window.addEventListener('beforeunload', function() {
-            if (ws) {
-                intentionalClosure = true;
-                ws.close();
-            }
+
         });
     </script>
 </body>

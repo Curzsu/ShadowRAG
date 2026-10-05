@@ -1,7 +1,9 @@
 import type { AxiosResponse } from 'axios';
+import { AxiosHeaders } from 'axios';
 import type { RequestOption } from '@sa/axios';
 import { BACKEND_ERROR_CODE, createFlatRequest } from '@sa/axios';
 import { useAuthStore } from '@/store/modules/auth';
+import { createAuthResponseGuard } from '@/store/modules/auth/auth-session';
 import { getServiceBaseURL } from '@/utils/service';
 import { $t } from '@/locales';
 import { getAuthorization, handleExpiredRequest, showErrorMsg } from './shared';
@@ -11,7 +13,9 @@ const isHttpProxy = import.meta.env.DEV && import.meta.env.VITE_HTTP_PROXY === '
 const { baseURL } = getServiceBaseURL(import.meta.env, isHttpProxy);
 
 function getFlatRequest(options: Partial<RequestOption<App.Service.Response>> = {}) {
-  const request = createFlatRequest<App.Service.Response, RequestInstanceState>(
+  const authGuard = createAuthResponseGuard(() => useAuthStore().getLoginEpoch());
+  const state: RequestInstanceState = { refreshTokenFn: null, errMsgStack: [] };
+  const rawRequest = createFlatRequest<App.Service.Response, RequestInstanceState>(
     {
       baseURL,
       headers: {
@@ -20,16 +24,11 @@ function getFlatRequest(options: Partial<RequestOption<App.Service.Response>> = 
     },
     {
       async onRequest(config) {
-        const Authorization = getAuthorization();
-        Object.assign(config.headers, { Authorization });
-
+        authGuard.capture(config, config.authSessionEpoch);
         return config;
       },
-      onTokenRefresh(newToken) {
-        // 无感知token刷新：自动更新本地存储的token
-        const authStore = useAuthStore();
-        authStore.setToken(newToken);
-        console.log('🔄 Token automatically refreshed');
+      onTokenRefresh(newToken, response) {
+        if (authGuard.isCurrent(response?.config)) useAuthStore().setToken(newToken);
       },
       isBackendSuccess(response) {
         // when the backend response code is "0000"(default), it means the request is success
@@ -37,19 +36,19 @@ function getFlatRequest(options: Partial<RequestOption<App.Service.Response>> = 
         return String(response.data.code) === import.meta.env.VITE_SERVICE_SUCCESS_CODE;
       },
       async onBackendFail(response, instance) {
-        console.log('%c [ 👉 onBackendFail 👈 ]-35', 'font-size:16px; background:#3cd735; color:#80ff79;', response);
+        if (!authGuard.isCurrent(response.config)) return null;
         const authStore = useAuthStore();
         const responseCode = String(response.data.code);
 
         function handleLogout() {
-          authStore.resetStore();
+          if (authGuard.isCurrent(response.config)) authStore.resetStore();
         }
 
         function logoutAndCleanup() {
           handleLogout();
           window.removeEventListener('beforeunload', handleLogout);
 
-          request.state.errMsgStack = request.state.errMsgStack.filter(msg => msg !== response.data.message);
+          state.errMsgStack = state.errMsgStack.filter(msg => msg !== response.data.message);
         }
 
         // when the backend response code is in `logoutCodes`, it means the user will be logged out and redirected to login page
@@ -61,8 +60,8 @@ function getFlatRequest(options: Partial<RequestOption<App.Service.Response>> = 
 
         // when the backend response code is in `modalLogoutCodes`, it means the user will be logged out by displaying a modal
         const modalLogoutCodes = import.meta.env.VITE_SERVICE_MODAL_LOGOUT_CODES?.split(',') || [];
-        if (modalLogoutCodes.includes(responseCode) && !request.state.errMsgStack?.includes(response.data.message)) {
-          request.state.errMsgStack = [...(request.state.errMsgStack || []), response.data.message];
+        if (modalLogoutCodes.includes(responseCode) && !state.errMsgStack?.includes(response.data.message)) {
+          state.errMsgStack = [...(state.errMsgStack || []), response.data.message];
 
           // prevent the user from refreshing the page
           window.addEventListener('beforeunload', handleLogout);
@@ -88,8 +87,8 @@ function getFlatRequest(options: Partial<RequestOption<App.Service.Response>> = 
         // the api `refreshToken` can not return error code in `expiredTokenCodes`, otherwise it will be a dead loop, should return `logoutCodes` or `modalLogoutCodes`
         const expiredTokenCodes = import.meta.env.VITE_SERVICE_EXPIRED_TOKEN_CODES?.split(',') || [];
         if (expiredTokenCodes.includes(responseCode)) {
-          const success = await handleExpiredRequest(request.state);
-          if (success) {
+          const success = await handleExpiredRequest(state);
+          if (success && authGuard.isCurrent(response.config)) {
             const Authorization = getAuthorization();
             Object.assign(response.config.headers, { Authorization });
 
@@ -105,12 +104,10 @@ function getFlatRequest(options: Partial<RequestOption<App.Service.Response>> = 
       onError(error) {
         // when the request is fail, you can show error message
 
-        if (error.code === 'ERR_CANCELED') return;
+        if (error.code === 'ERR_CANCELED' || !authGuard.isCurrent(error.config)) return;
 
-        // handle 403 Forbidden error - user needs to login
-        if (error.response?.status === 403) {
-          const authStore = useAuthStore();
-          authStore.resetStore();
+        // Protected endpoints return 401 for an invalid login; keep 403 handling for existing callers.
+        if (authGuard.handleHttpAuthFailure(error.config, error.response?.status, () => useAuthStore().resetStore())) {
           return;
         }
 
@@ -135,11 +132,24 @@ function getFlatRequest(options: Partial<RequestOption<App.Service.Response>> = 
           return;
         }
 
-        showErrorMsg(request.state, message);
+        showErrorMsg(state, message);
       },
       ...options
     }
   );
+
+  rawRequest.state = state;
+
+  // Capture identity and credentials at invocation, before Axios' asynchronous interceptors.
+  const request = Object.assign((config: Parameters<typeof rawRequest>[0]) => {
+    const headers = AxiosHeaders.from(config.headers as Parameters<typeof AxiosHeaders.from>[0]);
+    if (!headers.has('Authorization')) headers.set('Authorization', getAuthorization());
+    return rawRequest({
+      ...config,
+      headers,
+      authSessionEpoch: config.authSessionEpoch ?? useAuthStore().getLoginEpoch()
+    });
+  }, rawRequest) as typeof rawRequest;
 
   return request;
 }

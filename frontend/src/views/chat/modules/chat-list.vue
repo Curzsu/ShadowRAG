@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onBeforeRouteLeave } from 'vue-router';
 import { NScrollbar } from 'naive-ui';
 import { VueMarkdownItProvider } from 'vue-markdown-shiki';
 import ChatMessage from './chat-message.vue';
@@ -23,14 +24,23 @@ function scrollToBottom() {
   }, 100);
 }
 
-// 页面加载时：如果有当前会话则加载历史，否则自动创建
+// Empty views create their conversation on first send.
 onMounted(async () => {
   chatStore.scrollToBottom = scrollToBottom;
   if (conversationId.value) {
     await chatStore.switchConversation(conversationId.value);
-  } else {
-    await chatStore.createConversation();
   }
+});
+
+function dispose() {
+  chatStore.disposeActiveRequest('dispose');
+  chatStore.scrollToBottom = null;
+}
+onBeforeRouteLeave(dispose);
+onBeforeUnmount(dispose);
+onDeactivated(dispose);
+onActivated(() => {
+  chatStore.scrollToBottom = scrollToBottom;
 });
 </script>
 
@@ -39,12 +49,12 @@ onMounted(async () => {
     <NScrollbar ref="scrollbarRef" class="h-0 flex-auto">
       <div class="p-4">
         <VueMarkdownItProvider>
-          <ChatMessage v-for="(item, index) in list" :key="index" :msg="item" />
+          <ChatMessage v-for="item in list" :key="item.messageId" :msg="item" />
         </VueMarkdownItProvider>
 
         <!-- 空状态 -->
         <div v-if="list.length === 0" class="flex flex-col items-center justify-center py-20 text-gray-400">
-          <icon-mdi-chat-outline class="text-48px mb-4" />
+          <icon-mdi-chat-outline class="mb-4 text-48px" />
           <p class="text-14px">开始新对话吧</p>
         </div>
       </div>

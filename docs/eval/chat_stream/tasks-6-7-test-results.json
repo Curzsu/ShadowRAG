@@ -1,0 +1,264 @@
+{
+  "updatedOn": "2026-10-05",
+  "baselineCommit": "6cb1e866a503af568bb58d8913c73dfb8154243a",
+  "branch": "codex/backend-chat-sse",
+  "workingTree": "uncommitted",
+  "reviewedSourceSha256": {
+    "src/test/java/com/yizhaoqi/smartpai/controller/ChatStreamingLoadTest.java": "DB6B7660E044E3D32BC85C45A06BF40085C988DE3152BC4FA075DD6DD34BF248",
+    "src/test/java/com/yizhaoqi/smartpai/controller/ChatStreamingProxyTest.java": "D0AC685F3F1940685219D41AA6CF5D11B8FE94FD7764F964E80195B7A1AE38AE",
+    "src/test/java/com/yizhaoqi/smartpai/support/ChatStreamingAcceptanceSupport.java": "F3A8EB911C4D35B711812E2A626241FED38ACCD3CAEF983D9B46AEAEA8B6FF04",
+    "src/test/java/com/yizhaoqi/smartpai/support/ChatStreamingAcceptanceFixture.java": "43A36ED557C1F319AC5130AB83A1D21EB78C85032723A1EDF21CE84AA93CB7EB",
+    "frontend/src/service/api/chat-stream.ts": "04DE4FCAD883A61F3FBF9377D4126FCC4BBB36A3A29F6B3242F1D873D85E9223",
+    "frontend/src/store/modules/chat/chat-session.ts": "9FCE231B71E1A794D488A193A4360B82F30AA65A8E600B9C36A15A1815AB9693",
+    "src/main/resources/static/chat-stream.mjs": "90A6110648322562DCEA2E336583F36A1B7A61826E094BA4E34D95A2E1D06BC1",
+    "src/main/resources/test.html": "A3EAEA471CA28D052859DBEA3C3E46A206362C64662B1E91805A63683B57EF56",
+    "src/main/resources/static/test.html": "4B33E50351D284971C19AD32F4754BB9F87D30426C624EDE11CFCF7FD0258AD0"
+  },
+  "deliveryStatus": "COMPLETE_CONTROLLED_ACCEPTANCE_WITH_EXISTING_BASELINE_ERRORS_AND_INFRA_LIMITS",
+  "environment": {
+    "os": "Windows 11",
+    "javaRuntime": "21.0.7",
+    "compilerRelease": 17,
+    "maven": "3.9.11",
+    "springBoot": "3.4.2",
+    "tomcat": "10.1.34",
+    "nginx": "1.30.5 official Windows binary",
+    "model": "real local HTTP SSE stub",
+    "databaseRedisSearch": "test doubles",
+    "productionTestEndpointsAdded": false
+  },
+  "backendRelevant": {
+    "tests": 180,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "result": "BUILD SUCCESS",
+    "finishedAt": "2026-10-05T11:38:22+08:00",
+    "log": "../../../.superpowers/sdd/2026-10-03-websocket-to-sse-refactor/task-7-backend-regression.log"
+  },
+  "backendFull": {
+    "command": "mvn test",
+    "tests": 205,
+    "failures": 0,
+    "errors": 9,
+    "skipped": 2,
+    "result": "BUILD FAILURE",
+    "finishedAt": "2026-10-05T11:41:01+08:00",
+    "log": "../../../.superpowers/sdd/2026-10-03-websocket-to-sse-refactor/task-7-full-backend.log",
+    "existingErrors": [
+      "ParseServiceTest: six external application-context errors",
+      "UploadServicePerformanceTest: external application-context error",
+      "SmartPaiApplicationTests: external application-context error",
+      "UserServiceTest.testRegisterUser_Success: missing OrganizationTagRepository mock"
+    ],
+    "skippedReason": "ChatStreamingProxyTest requires explicit chat.acceptance.proxy-url; both cases separately passed real Nginx",
+    "historicalBaseline": {
+      "tests": 61,
+      "failures": 0,
+      "errors": 14
+    },
+    "historicalTasks1To3Full": {
+      "tests": 198,
+      "failures": 0,
+      "errors": 9
+    },
+    "sanitizedSuiteMetadata": "backend-suite-metadata.json"
+  },
+  "proxyHttpHeaderSelector": {
+    "command": "mvn -Dtest=ChatStreamingProxyTest,ChatStreamingHttpTest,ChatStreamingHeaderOrderTest -Dchat.acceptance.backend-port=18082 -Dchat.acceptance.proxy-url=http://127.0.0.1:18080 test",
+    "tests": 12,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "proxyCases": 2,
+    "httpCases": 9,
+    "headerOrderCases": 1,
+    "log": "../../../.superpowers/sdd/2026-10-03-websocket-to-sse-refactor/task-7-proxy-green.log"
+  },
+  "frontend": {
+    "chatTests": {
+      "tests": 79,
+      "passed": 79,
+      "failed": 0
+    },
+    "staticPageHelper": {
+      "tests": 22,
+      "passed": 22,
+      "failed": 0
+    },
+    "uppercaseUuidRed": {
+      "tests": 79,
+      "passed": 76,
+      "failed": 3
+    },
+    "staticPageRed": {
+      "tests": 21,
+      "passed": 9,
+      "failed": 12
+    },
+    "typecheckExitCode": 0,
+    "readonlyLintExitCode": 0,
+    "productionBuildExitCode": 0,
+    "markdownPatchSha256": "79696f7959649f299bd0a025ffa2b548869f0c8178da9f0127a2b35d4e02c969",
+    "dependencyVersionsUpgraded": false,
+    "historicalTasks4To5": {
+      "tests": 54,
+      "passed": 54,
+      "typecheckExistingDiagnostics": 6
+    }
+  },
+  "metrics": {
+    "load": "task-7-load-metrics.json",
+    "resources": "task-7-resource-metrics.json",
+    "proxyFrames": "task-7-proxy-frame-metrics.json",
+    "proxyDefaultHeartbeat": "task-7-proxy-heartbeat-metrics.json",
+    "disconnect": "task-7-disconnect-metrics.json",
+    "latestDirectFirstTextP95Millis": 149,
+    "proxyFirstTextP95Millis": 53,
+    "defaultToolGapMillis": 95000,
+    "defaultHeartbeatMillis": 15000,
+    "disconnectCancelMillis": 95,
+    "disconnectSocketMillis": 123,
+    "disconnectTestHeartbeatMillis": 50,
+    "thresholdIsProviderSla": false
+  },
+  "peerReview": {
+    "task6": "PASS_AFTER_FIXES",
+    "closedImportantFindings": 3,
+    "remainingCriticalOrImportant": 0,
+    "deferredMinor": "Unused ChatHandler.parseSearchQuery",
+    "independentAuthorship": true,
+    "freshContext": false,
+    "review": "../../../.superpowers/sdd/2026-10-03-websocket-to-sse-refactor/task-6-review.md",
+    "task7IndependentVerdict": "PASS",
+    "task7Review": "../../../.superpowers/sdd/2026-10-03-websocket-to-sse-refactor/task-7-review.md",
+    "assembledProduction": "APPROVED_NO_OPEN_P0_P1_P2",
+    "assembledReview": "../../../.superpowers/sdd/2026-10-03-websocket-to-sse-refactor/tasks-1-7-independent-production-review.md"
+  },
+  "acceptance": {
+    "PASS": [
+      "A01",
+      "A02",
+      "A03",
+      "A04",
+      "A05",
+      "A06",
+      "A07",
+      "A08",
+      "A09",
+      "A10",
+      "A11",
+      "A12",
+      "A13",
+      "A14",
+      "A15",
+      "A16",
+      "A17",
+      "A18",
+      "A19",
+      "A20",
+      "A21",
+      "A22",
+      "A23",
+      "A24",
+      "A25",
+      "A26",
+      "A27",
+      "A28",
+      "A29",
+      "A30",
+      "A31",
+      "A32",
+      "A33",
+      "A34",
+      "A35",
+      "A36"
+    ],
+    "PARTIAL_PENDING_BROWSER": [],
+    "matrix": "README.md",
+    "browserThisStage": "PASS_CONTROLLED_LOOPBACK_BOUNDARIES",
+    "developmentProxyAndMarkdown": "PASS",
+    "liveGemini": "PASS_NORMAL_ANSWER_AND_HISTORY_TEST_STORAGE_BOUNDARIES",
+    "realMySqlRedisElasticsearch": "NOT_RUN",
+    "finalReleaseChecks": "PASS_SOURCE_PACKAGE_SECURITY_AND_OWNED_PROCESS_CLEANUP",
+    "browserEvidence": "browser-acceptance.md",
+    "liveEvidence": "live-gemini.md",
+    "reproduction": "reproduce.md"
+  },
+  "publication": {
+    "committed": false,
+    "pushed": false,
+    "deployed": false
+  },
+  "finalBuilds": {
+    "frontendProductionExitCode": 0,
+    "backendPackageExitCode": 0,
+    "backendPackageFinishedAt": "2026-10-05T15:20:28+08:00",
+    "backendArtifactInspection": "PASS",
+    "artifactEvidence": "backend-package-check.json"
+  },
+  "additionalBrowserFixtureProxyChecks": {
+    "tests": 13,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "finishedAt": "2026-10-05T15:31:46+08:00",
+    "scope": "Test-only HTTP CONNECT proxy validation12 plus existingsmoke1; separate from180/205 snapshots",
+    "log": "../../../.superpowers/sdd/2026-10-03-websocket-to-sse-refactor/browser-fixture-proxy-green.log"
+  },
+  "liveGemini": {
+    "model": "gemini-3.1-flash-lite",
+    "metrics": "live-gemini-metrics.json",
+    "recordedAt": "2026-10-05T15:50:33.7889379+08:00",
+    "browserFinished": true,
+    "browserHistoryRestored": true,
+    "markdownHeading": true,
+    "markdownFence": true,
+    "copyControlVisible": true,
+    "persistedTurns": 1,
+    "historyMessages": 2,
+    "assistantCharacters": 212,
+    "localStubCalls": 0,
+    "activeRequests": 0,
+    "conversationLeases": 0,
+    "firstDirectAttempt": "TIMED_OUT_120_SECONDS_NO_SAVE",
+    "gemini38Attempt": "HTTP503_NO_SAVE",
+    "realDatabaseRedisSearch": false,
+    "transport": "Test-only explicit HTTP CONNECT, TLS verification retained",
+    "independentSuccessfulRuns": 2,
+    "firstRunMetrics": "live-gemini-first-metrics.json",
+    "firstRunAssistantCharacters": 257,
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "screenshot": "live-gemini-browser.jpg",
+    "historyScreenshot": "live-gemini-history.jpg",
+    "countsScope": "Latest independent fixture run; first and final persistedTurns1 are not combined"
+  },
+  "finalSecurityScan": {
+    "evidence": "security-scan.json",
+    "recordedAt": "2026-10-05T15:52:28.5109386+08:00",
+    "providedApiKeyFiles": 0,
+    "runtimeLogFilesScanned": 24,
+    "jwtMatchingRuntimeFiles": 0,
+    "promptOrToolMatchingRuntimeFiles": 0,
+    "legacyRuntimeMatches": 0,
+    "dedicatedJwtMatchingLiveLogs": 0,
+    "scope": "Text source/config/docs/logs and generated frontend JS/HTML; dependency tree excluded"
+  },
+  "cleanup": {
+    "evidence": "test-environment-cleanup.json",
+    "recordedAt": "2026-10-05T15:52:43.9951322+08:00",
+    "portsNotListening": [
+      18080,
+      18082,
+      18083,
+      18084,
+      19527
+    ],
+    "temporaryTabsClosed": true,
+    "viewportReset": true,
+    "temporaryKeyProcessesTerminated": true
+  }
+}

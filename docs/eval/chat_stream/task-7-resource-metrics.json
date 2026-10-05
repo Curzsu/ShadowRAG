@@ -1,0 +1,39 @@
+{
+  "peakTimersAfterResponse" : 1,
+  "afterTtl" : {
+    "pendingEvents" : 0,
+    "activeRequests" : 0,
+    "workerPoolSize" : 16,
+    "modelConnections" : 0,
+    "retainedRecords" : 0,
+    "leases" : 0,
+    "workerLargestPoolSize" : 16,
+    "workerQueue" : 0,
+    "timerPoolSize" : 2,
+    "streams" : 0,
+    "timerQueue" : 1,
+    "subscriptions" : 0
+  },
+  "persistedTurns" : 1000,
+  "peakPendingAfterResponse" : 0,
+  "users" : 10,
+  "serialRequests" : 1000,
+  "modelRequests" : 1000,
+  "beforeTtl" : {
+    "pendingEvents" : 0,
+    "activeRequests" : 0,
+    "workerPoolSize" : 16,
+    "modelConnections" : 0,
+    "retainedRecords" : 1000,
+    "leases" : 0,
+    "workerLargestPoolSize" : 16,
+    "workerQueue" : 0,
+    "timerPoolSize" : 2,
+    "streams" : 0,
+    "timerQueue" : 1,
+    "subscriptions" : 0
+  },
+  "recordedAt" : "2026-10-05T03:40:45.193331500Z",
+  "javaVersion" : "21.0.7",
+  "operatingSystem" : "Windows 11"
+}

@@ -3,7 +3,6 @@ package com.yizhaoqi.smartpai.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yizhaoqi.smartpai.client.DeepSeekClient;
 import com.yizhaoqi.smartpai.config.AiProperties;
-import com.yizhaoqi.smartpai.model.Conversation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -68,7 +67,6 @@ class ChatHandlerHistoryTest {
 
     @Test
     void updateConversationHistory_shouldPersistRawTurnBeforeAtomicRedisAppend() throws Exception {
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         List<Map<String, String>> appended = List.of(
                 Map.of("seq", "101", "role", "user", "content", "问题", "timestamp", "2026-08-19T18:00:00"),
                 Map.of("seq", "102", "role", "assistant", "content", "回答", "timestamp", "2026-08-19T18:00:01")
@@ -76,32 +74,16 @@ class ChatHandlerHistoryTest {
         when(conversationMessageService.appendTurn(
                 eq("conv-1"), eq("问题"), eq("回答"), any(LocalDateTime.class)))
                 .thenReturn(appended);
-        when(valueOperations.get("conversation:conv-1"))
-                .thenReturn(objectMapper.writeValueAsString(appended));
+        when(conversationService.cacheCommittedTurn("alice", "conv-1", appended)).thenReturn(appended);
 
         handler.updateConversationHistory("conv-1", "alice", "问题", "回答");
 
-        InOrder order = inOrder(conversationMessageService, compressionService);
+        InOrder order = inOrder(conversationMessageService, conversationService, compressionService);
         order.verify(conversationMessageService).appendTurn(
                 eq("conv-1"), eq("问题"), eq("回答"), any(LocalDateTime.class));
-        order.verify(compressionService).appendMessages("conv-1", appended);
+        order.verify(conversationService).cacheCommittedTurn("alice", "conv-1", appended);
         order.verify(compressionService).checkAndCompress("conv-1", appended);
         verify(valueOperations, never()).set(eq("conversation:conv-1"), any(), any(java.time.Duration.class));
-    }
-
-    @Test
-    void getOrCreateConversationId_shouldCreateDatabaseParentBeforeFirstModelCall() {
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.get("user:alice:current_conversation")).thenReturn(null);
-        Conversation conversation = new Conversation();
-        conversation.setConversationId("db-conv-1");
-        when(conversationService.createConversation("alice")).thenReturn(conversation);
-
-        String conversationId = handler.getOrCreateConversationId("alice");
-
-        assertEquals("db-conv-1", conversationId);
-        verify(conversationService).createConversation("alice");
-        verify(valueOperations, never()).set(eq("user:alice:current_conversation"), any(), any(java.time.Duration.class));
     }
 
     @Test
@@ -116,7 +98,7 @@ class ChatHandlerHistoryTest {
         List<Map<String, String>> result = handler.getConversationHistory("conv-1", "alice");
 
         assertEquals(cached, result);
-        verify(conversationService, never()).switchConversation("alice", "conv-1");
+        verify(conversationService, never()).loadHistoryForChat("alice", "conv-1");
     }
 
     @Test
@@ -127,24 +109,24 @@ class ChatHandlerHistoryTest {
                 Map.of("seq", "21", "role", "user", "content", "restored question"),
                 Map.of("seq", "22", "role", "assistant", "content", "restored answer")
         );
-        when(conversationService.switchConversation("alice", "conv-1")).thenReturn(restored);
+        when(conversationService.loadHistoryForChat("alice", "conv-1")).thenReturn(restored);
 
         List<Map<String, String>> result = handler.getConversationHistory("conv-1", "alice");
 
         assertEquals(restored, result);
-        verify(conversationService).switchConversation("alice", "conv-1");
+        verify(conversationService).loadHistoryForChat("alice", "conv-1");
     }
 
     @Test
     void getConversationHistory_shouldSupportEmptyNewConversationOnRedisMiss() {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get("conversation:new-conv")).thenReturn(null);
-        when(conversationService.switchConversation("alice", "new-conv")).thenReturn(List.of());
+        when(conversationService.loadHistoryForChat("alice", "new-conv")).thenReturn(List.of());
 
         List<Map<String, String>> result = handler.getConversationHistory("new-conv", "alice");
 
         assertTrue(result.isEmpty());
-        verify(conversationService).switchConversation("alice", "new-conv");
+        verify(conversationService).loadHistoryForChat("alice", "new-conv");
     }
 
     @Test
@@ -154,12 +136,12 @@ class ChatHandlerHistoryTest {
         List<Map<String, String>> restored = List.of(
                 Map.of("seq", "31", "role", "user", "content", "database history")
         );
-        when(conversationService.switchConversation("alice", "conv-1")).thenReturn(restored);
+        when(conversationService.loadHistoryForChat("alice", "conv-1")).thenReturn(restored);
 
         List<Map<String, String>> result = handler.getConversationHistory("conv-1", "alice");
 
         assertEquals(restored, result);
-        verify(conversationService).switchConversation("alice", "conv-1");
+        verify(conversationService).loadHistoryForChat("alice", "conv-1");
     }
 
     @Test

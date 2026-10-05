@@ -1,0 +1,19 @@
+{
+  "supplier": "loopback",
+  "mode": "long",
+  "activeRequests": 0,
+  "conversationLeases": 0,
+  "retainedRequests": 2,
+  "persistedTurns": 1,
+  "searchCalls": 0,
+  "supplierRequests": 2,
+  "supplierActive": 0,
+  "supplierDisconnected": 1,
+  "active": [],
+  "conversations": [
+    {
+      "messages": 2,
+      "conversationId": "a8613eda-f7fb-4c92-9d7d-297a73d88108"
+    }
+  ]
+}

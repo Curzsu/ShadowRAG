@@ -1,2 +1,5 @@
 packages:
   - "packages/*"
+
+patchedDependencies:
+  vue-markdown-shiki@2.0.0: patches/vue-markdown-shiki@2.0.0.patch

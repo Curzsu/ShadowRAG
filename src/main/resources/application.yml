@@ -88,6 +88,8 @@ elasticsearch:
 logging:
   level:
     org.springframework.web: DEBUG
+    # Body-value diagnostics can expose prompts and tool output; retain other web diagnostics.
+    org.springframework.web.HttpLogging: INFO
     org.springframework.boot.autoconfigure.web.servlet: DEBUG
     org.springframework.security: DEBUG
     com.yizhaoqi.smartpai.service: DEBUG
@@ -108,6 +110,7 @@ deepseek:
       url: https://ark.cn-beijing.volces.com/api/coding/v3
       key: "${DEEPSEEK_API_KEY:}"
       model: glm-5-3-flash
+      proxy-url: "${LLM_HTTP_PROXY:}" # 可选 HTTP CONNECT 代理，仅用于 LLM 请求
 
 mineru:
   api:
@@ -181,3 +184,17 @@ ai:
       max-size: 4
       queue-capacity: 50
       thread-name-prefix: "compression-"
+
+# Per-instance limits for POST SSE chat; heartbeat does not reset generation timeout.
+chat:
+  streaming:
+    generation-timeout-ms: ${CHAT_GENERATION_TIMEOUT_MS:300000}
+    emitter-timeout-ms: ${CHAT_EMITTER_TIMEOUT_MS:320000}
+    heartbeat-interval-ms: ${CHAT_HEARTBEAT_INTERVAL_MS:15000}
+    terminal-retention-ms: ${CHAT_TERMINAL_RETENTION_MS:300000}
+    max-active-requests: ${CHAT_MAX_ACTIVE_REQUESTS:100}
+    max-retained-requests: ${CHAT_MAX_RETAINED_REQUESTS:10000}
+    max-retained-per-user: ${CHAT_MAX_RETAINED_PER_USER:200}
+    worker-threads: ${CHAT_WORKER_THREADS:16}
+    worker-queue-capacity: ${CHAT_WORKER_QUEUE_CAPACITY:1024}
+    max-pending-events: ${CHAT_MAX_PENDING_EVENTS:64}
