@@ -520,6 +520,12 @@
                         if (envelope.type === 'chunk') {
                             request.text += envelope.data.chunk;
                             answer.textContent = request.text;
+                        } else if (envelope.type === 'round_end') {
+                            if (envelope.data.kind === 'intermediate') {
+                                if (request.text) appendMessage('assistant', '[检索说明]' + request.text);
+                                request.text = '';
+                                answer.textContent = '';
+                            }
                         } else if (envelope.type === 'tool_progress') {
                             updateChatStatus(envelope.data.status === 'started' ? '正在检索知识库' : '检索完成，正在生成');
                         } else if (envelope.type === 'error') {

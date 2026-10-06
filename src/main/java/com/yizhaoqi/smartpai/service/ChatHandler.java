@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yizhaoqi.smartpai.client.DeepSeekClient;
-import com.yizhaoqi.smartpai.entity.SearchResult;
 import com.yizhaoqi.smartpai.model.chat.ChatCommand;
 import com.yizhaoqi.smartpai.model.chat.ChatOutput;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,11 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import com.yizhaoqi.smartpai.config.AiProperties;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.yizhaoqi.smartpai.client.ModelRoundResult;
 import java.util.function.Consumer;
-import java.util.concurrent.CancellationException;
-import java.net.http.HttpTimeoutException;
 
 /**
  * 聊天处理服务
@@ -36,8 +31,6 @@ public class ChatHandler {
     
     private static final Logger logger = LoggerFactory.getLogger(ChatHandler.class);
     private final StringRedisTemplate redisTemplate;
-    private final HybridSearchService searchService;
-    private final DeepSeekClient deepSeekClient;
     private final ObjectMapper objectMapper;
     private final AiProperties aiProperties;
     private final ConversationCompressionService compressionService;
@@ -48,40 +41,24 @@ public class ChatHandler {
 
 
 
-    /**
-     * 搜索知识库工具定义（OpenAI Function Calling 格式）
-     */
-    private static final List<Map<String, Object>> SEARCH_TOOL = List.of(
-        Map.of(
-            "type", "function",
-            "function", Map.of(
-                "name", "search_knowledge_base",
-                "description", "仅用于检索用户明确指向的已上传文件、当前知识库、内部制度或项目文档中的事实。"
-                        + "只有可靠回答必须依赖这些私有或指定资料时才调用。对于通用知识、技术原理、行业惯例、"
-                        + "计算、写作和一般建议不要调用；问题仅出现‘文档、报告、制度、流程、基金’等名词，"
-                        + "但未要求读取具体资料时，也不要调用。",
-                "parameters", Map.of(
-                    "type", "object",
-                    "properties", Map.of(
-                        "query", Map.of(
-                            "type", "string",
-                            "description", "搜索查询语句，用于在知识库中检索相关文档内容"
-                        )
-                    ),
-                    "required", List.of("query")
-                )
-            )
-        )
-    );
+    private final AgentLoopService agentLoop;
+    public ChatHandler(StringRedisTemplate redisTemplate, HybridSearchService searchService,
+                       DeepSeekClient deepSeekClient, ObjectMapper objectMapper, AiProperties aiProperties,
+                       ConversationCompressionService compressionService, ConversationMessageService conversationMessageService,
+                       ContextBudgetService contextBudgetService, TokenEstimator tokenEstimator, ConversationService conversationService) {
+        this(redisTemplate, searchService, deepSeekClient, objectMapper, aiProperties, compressionService,
+                conversationMessageService, contextBudgetService, tokenEstimator, conversationService,
+                new AgentLoopService(deepSeekClient, new KnowledgeBaseSearchTool(searchService, objectMapper, aiProperties),
+                        objectMapper, aiProperties, contextBudgetService, tokenEstimator));
+    }
 
     @Autowired
     public ChatHandler(StringRedisTemplate redisTemplate, HybridSearchService searchService,
                        DeepSeekClient deepSeekClient, ObjectMapper objectMapper, AiProperties aiProperties,
                        ConversationCompressionService compressionService, ConversationMessageService conversationMessageService,
-                       ContextBudgetService contextBudgetService, TokenEstimator tokenEstimator, ConversationService conversationService) {
+                       ContextBudgetService contextBudgetService, TokenEstimator tokenEstimator, ConversationService conversationService,
+                       AgentLoopService agentLoop) {
         this.redisTemplate = redisTemplate;
-        this.searchService = searchService;
-        this.deepSeekClient = deepSeekClient;
         this.objectMapper = objectMapper;
         this.aiProperties = aiProperties;
         this.compressionService = compressionService;
@@ -89,8 +66,8 @@ public class ChatHandler {
         this.contextBudgetService = contextBudgetService;
         this.tokenEstimator = tokenEstimator;
         this.conversationService = conversationService;
+        this.agentLoop = agentLoop;
     }
-
     public static final class GenerationException extends RuntimeException {
         private final String errorCode;
         public GenerationException(String errorCode, String safeMessage, Throwable cause) {
@@ -102,69 +79,18 @@ public class ChatHandler {
 
     /** Runs on the generation pool. The stream owner arbitrates termination and persistence. */
     public void generateReply(ChatCommand command, ChatRequestContext context, Consumer<ChatOutput> output) {
-        checkRunning(context);
-        List<Map<String,Object>> originalMessages;
+        AgentLoopService.checkRunning(context);
+        List<Map<String,Object>> messages;
         try {
-            originalMessages = buildMessagesForAgenticRAG(
+            messages = buildMessagesForAgenticRAG(
                     conversationService.loadHistoryForChat(command.username(), command.conversationId()), command.message());
         } catch (RuntimeException error) {
-            checkRunning(context);
+            AgentLoopService.checkRunning(context);
             throw new GenerationException("HISTORY_ERROR", "会话历史加载失败，请稍后重试", error);
         }
-        checkRunning(context);
-        ModelRoundResult first;
-        try {
-            first = deepSeekClient.streamWithTools(originalMessages, SEARCH_TOOL, context, delta -> {
-                if (delta.kind() == com.yizhaoqi.smartpai.client.ModelDelta.Kind.CONTENT)
-                    output.accept(new ChatOutput("chunk", Map.of("chunk", delta.value())));
-            });
-        } catch (RuntimeException error) {
-            checkRunning(context);
-            throw new GenerationException("MODEL_ERROR", "模型服务暂时不可用，请稍后重试", error);
-        }
-        checkRunning(context);
-        if (first.toolCallId().isEmpty() && first.toolArgumentsJson().isEmpty()) return;
-        output.accept(toolProgress("started"));
-        List<Map<String,Object>> secondMessages;
-        try {
-            if (first.toolCallId().isEmpty()) throw new IllegalArgumentException("Missing search tool id");
-            JsonNode parsed = objectMapper.readTree(first.toolArgumentsJson());
-            if (parsed == null || !parsed.isObject()) throw new IllegalArgumentException("Invalid search arguments");
-            JsonNode queryNode = parsed.get("query");
-            if (queryNode != null && !queryNode.isTextual()) throw new IllegalArgumentException("Invalid search query");
-            String query = queryNode == null ? "" : queryNode.textValue();
-            if (query.isBlank()) query = command.message();
-            checkRunning(context);
-            List<SearchResult> results = searchService.searchWithPermission(query, command.username(), 10);
-            checkRunning(context);
-            String searchContext = buildContext(results);
-            if (searchContext.isEmpty()) searchContext = "（未找到相关文档）";
-            secondMessages = prepareToolResponseMessages(originalMessages, first.toolCallId(), first.toolArgumentsJson(), searchContext);
-        } catch (Exception error) {
-            checkRunning(context);
-            throw new GenerationException("TOOL_ERROR", "知识库检索失败，请稍后重试", error);
-        }
-        checkRunning(context);
-        output.accept(toolProgress("finished"));
-        try {
-            deepSeekClient.streamResponse(secondMessages, context,
-                    chunk -> output.accept(new ChatOutput("chunk", Map.of("chunk", chunk))));
-        } catch (RuntimeException error) {
-            checkRunning(context);
-            throw new GenerationException("MODEL_ERROR", "模型服务暂时不可用，请稍后重试", error);
-        }
-        checkRunning(context);
+        AgentLoopService.checkRunning(context);
+        agentLoop.generate(command, context, messages, output);
     }
-
-    private static void checkRunning(ChatRequestContext context) {
-        try { context.generationResources().checkRunning(); }
-        catch (HttpTimeoutException error) { throw new GenerationException("STREAM_TIMEOUT", "回答生成超时，请稍后重试", error); }
-    }
-
-    private ChatOutput toolProgress(String status) {
-        return new ChatOutput("tool_progress", Map.of("tool", "search_knowledge_base", "status", status));
-    }
-
     public void persistCompletedTurn(ChatCommand command, String fullText) {
         conversationService.requireOwnedConversation(command.username(), command.conversationId());
         updateConversationHistory(command.conversationId(), command.username(), command.message(), fullText);
@@ -223,35 +149,6 @@ public class ChatHandler {
         return contextBudgetService.fit(messages, reservedOutputTokens(), searchToolTokens(), 1);
     }
 
-    List<Map<String, Object>> prepareToolResponseMessages(
-            List<Map<String, Object>> originalMessages,
-            String toolCallId,
-            String toolCallArgsJson,
-            String searchContext) {
-        List<Map<String, Object>> messagesWithTool = new ArrayList<>(originalMessages);
-
-        Map<String, Object> assistantToolCall = new LinkedHashMap<>();
-        assistantToolCall.put("role", "assistant");
-        assistantToolCall.put("tool_calls", List.of(Map.of(
-                "id", toolCallId,
-                "type", "function",
-                "function", Map.of(
-                        "name", "search_knowledge_base",
-                        "arguments", toolCallArgsJson
-                )
-        )));
-        messagesWithTool.add(assistantToolCall);
-
-        Map<String, Object> toolResult = new LinkedHashMap<>();
-        toolResult.put("role", "tool");
-        toolResult.put("tool_call_id", toolCallId);
-        toolResult.put("content", searchContext);
-        messagesWithTool.add(toolResult);
-
-        // 保护 current user + assistant tool_call + tool result；若检索结果过大则二分截断 tool content。
-        return contextBudgetService.fit(messagesWithTool, reservedOutputTokens(), 0, 3);
-    }
-
     private int reservedOutputTokens() {
         Integer configured = aiProperties.getGeneration().getMaxTokens();
         return configured == null ? 2000 : Math.max(0, configured);
@@ -259,28 +156,11 @@ public class ChatHandler {
 
     private int searchToolTokens() {
         try {
-            return tokenEstimator.countText(objectMapper.writeValueAsString(SEARCH_TOOL));
+            return tokenEstimator.countText(objectMapper.writeValueAsString(KnowledgeBaseSearchTool.DEFINITIONS));
         } catch (JsonProcessingException e) {
             logger.warn("序列化工具定义失败，使用字符串估算 token: {}", e.getMessage());
-            return tokenEstimator.countText(SEARCH_TOOL.toString());
+            return tokenEstimator.countText(KnowledgeBaseSearchTool.DEFINITIONS.toString());
         }
-    }
-
-    /**
-     * 从 tool_call arguments JSON 中提取 query 字段。
-     * 如果解析失败，返回 null（调用方会回退到原始用户消息）。
-     */
-    private String parseSearchQuery(String argumentsJson) {
-        try {
-            JsonNode argsNode = objectMapper.readTree(argumentsJson);
-            String query = argsNode.path("query").asText("");
-            if (!query.isEmpty()) {
-                return query;
-            }
-        } catch (Exception e) {
-            logger.warn("解析 tool_call arguments 失败: {}", e.getMessage());
-        }
-        return null;
     }
 
     List<Map<String, String>> getConversationHistory(String conversationId, String userId) {
@@ -309,21 +189,6 @@ public class ChatHandler {
         } catch (Exception e) {
             logger.warn("Conversation cache update failed after database commit: conversationId={}", conversationId);
         }
-    }
-
-    private String buildContext(List<SearchResult> searchResults) {
-        if (searchResults == null || searchResults.isEmpty()) {
-            return "";
-        }
-
-        StringBuilder context = new StringBuilder();
-        for (int i = 0; i < searchResults.size(); i++) {
-            SearchResult result = searchResults.get(i);
-            String snippet = result.getTextContent();
-            String fileLabel = result.getFileName() != null ? result.getFileName() : "unknown";
-            context.append(String.format("[%d] (%s) %s\n", i + 1, fileLabel, snippet));
-        }
-        return context.toString();
     }
 
 }

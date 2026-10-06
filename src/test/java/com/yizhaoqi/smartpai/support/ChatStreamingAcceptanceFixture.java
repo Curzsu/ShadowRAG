@@ -44,6 +44,8 @@ public class ChatStreamingAcceptanceFixture {
     }
 
     public static final class State {
+        public record SearchCall(String query,String username,int limit) { }
+        public final List<SearchCall> searchCalls=new CopyOnWriteArrayList<>();
         public final Map<String, List<String>> persisted = new ConcurrentHashMap<>();
         public final AtomicInteger subscriptions = new AtomicInteger();
         public final AtomicInteger peakSubscriptions = new AtomicInteger();
@@ -62,11 +64,16 @@ public class ChatStreamingAcceptanceFixture {
             var request = mapper.readTree(session.requestBody());
             String marker = "";
             boolean secondRound = false;
+            int toolResults=0;
             for (var message : request.path("messages")) {
                 if ("user".equals(message.path("role").asText())) marker = message.path("content").asText();
-                if ("tool".equals(message.path("role").asText())) secondRound = true;
+                if ("tool".equals(message.path("role").asText())) { secondRound = true; toolResults++; }
             }
-            if (marker.startsWith("gap:") && !secondRound) {
+            if(marker.startsWith("react:")) {
+                if(toolResults==0) { session.content("先查询报告A"); session.tool("react-a","{\"query\":\"report A\"}"); }
+                else if(toolResults==1) { session.content("继续查询报告B"); session.tool("react-b","{\"query\":\"report B\"}"); }
+                else session.content("收入由100增至120");
+            } else if (marker.startsWith("gap:") && !secondRound) {
                 session.tool("acceptance-search", "{\"query\":\"local acceptance documents\"}");
             } else {
                 int count = marker.startsWith("load:") ? 200 : 1;
@@ -91,7 +98,10 @@ public class ChatStreamingAcceptanceFixture {
         });
         HybridSearchService search = mock(HybridSearchService.class);
         when(search.searchWithPermission(anyString(), anyString(), eq(10))).thenAnswer(call -> {
+            state.searchCalls.add(new State.SearchCall(call.getArgument(0),call.getArgument(1),call.getArgument(2)));
             Thread.sleep(state.toolGapMillis);
+            if("report A".equals(call.getArgument(0))) return List.of(new com.yizhaoqi.smartpai.entity.SearchResult("report-a",1,"收入100",1.0,"A.pdf"));
+            if("report B".equals(call.getArgument(0))) return List.of(new com.yizhaoqi.smartpai.entity.SearchResult("report-b",1,"收入120",1.0,"B.pdf"));
             return List.of();
         });
         ObjectMapper mapper = new ObjectMapper();

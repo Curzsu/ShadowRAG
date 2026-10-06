@@ -60,6 +60,8 @@ public abstract class ChatStreamingAcceptanceSupport {
         String eventName = "";
         long sequence = 0;
         int completions = 0;
+        int endedRound=0;
+        boolean finalRound=false;
         try (var reader = new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -78,6 +80,8 @@ public abstract class ChatStreamingAcceptanceSupport {
                     case "meta" -> assertEquals(1, sequence);
                     case "chunk" -> {
                         assertEquals(0, completions, "No chunk after terminal");
+                        assertFalse(finalRound,"No chunk after final round");
+                        assertEquals(endedRound+1,event.path("data").path("roundId").asInt());
                         text.append(event.path("data").path("chunk").asText());
                         chunkTimes.add(elapsed);
                     }
@@ -85,9 +89,17 @@ public abstract class ChatStreamingAcceptanceSupport {
                     case "completion" -> {
                         completions++;
                         assertEquals("finished", event.path("data").path("status").asText());
+                        assertTrue(finalRound,"Successful ReAct must confirm a final round");
                         assertEquals(List.of(text.toString()), state.persisted.get(conversation), "One durable turn before terminal");
                     }
                     case "tool_progress" -> { }
+                    case "round_end" -> {
+                        assertFalse(finalRound); assertEquals(++endedRound,event.path("data").path("roundId").asInt());
+                        String kind=event.path("data").path("kind").asText();
+                        assertTrue(Set.of("intermediate","final").contains(kind));
+                        if("intermediate".equals(kind)) text.setLength(0);
+                        else finalRound=true;
+                    }
                     default -> fail("Unexpected event: " + eventName);
                 }
             }

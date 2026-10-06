@@ -1,0 +1,26 @@
+{
+  "modelCalls" : 3,
+  "searchCalls" : 2,
+  "rounds" : 3,
+  "persistedTurns" : 1,
+  "settledResources" : {
+    "subscriptions" : 0,
+    "leases" : 0,
+    "timerPoolSize" : 2,
+    "workerQueue" : 0,
+    "generationLargestPoolSize" : 1,
+    "generationQueue" : 0,
+    "workerLargestPoolSize" : 7,
+    "generationActive" : 0,
+    "workerPoolSize" : 7,
+    "activeRequests" : 0,
+    "streams" : 0,
+    "retainedRecords" : 1,
+    "pendingEvents" : 0,
+    "modelConnections" : 0,
+    "timerQueue" : 1
+  },
+  "recordedAt" : "2026-10-06T07:02:14.529921700Z",
+  "javaVersion" : "21.0.7",
+  "operatingSystem" : "Windows 11"
+}

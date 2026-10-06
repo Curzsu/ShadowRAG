@@ -9,7 +9,7 @@ ShadowRAG 是一个企业级 AI 知识管理系统，基于 RAG（检索增强�
 ## 功能特性
 
 - **文档管理**：支持多种格式文档上传，自动解析与索引，支持分片上传和断点续传
-- **Agentic RAG**：LLM 通过 Function Calling 自主决定是否搜索知识库，两阶段工具调用流程
+- **Agentic RAG / ReAct**：LLM 通过 Function Calling 自主决定是否搜索知识库，支持改写查询、连续检索和同轮多次搜索，有界循环后生成最终答案
 - **混合检索 + 精排**：KNN 向量检索 + BM25 全文检索 → Java 端 RRF 融合 → Cross-Encoder 精排
 - **可恢复的长记忆压缩**：MySQL 追加式原始消息日志作为事实源，Redis 保存可丢弃的压缩工作集；Lua 原子追加与版本 CAS 防止并发覆盖，token 软硬阈值负责后台治理，每次模型调用前再做独立预算兜底
 - **AI 对话**：支持 OpenAI 兼容的 LLM 接口（GLM、DeepSeek 或本地 Ollama），通过 POST SSE 实时流式输出回答
@@ -67,11 +67,11 @@ curl -X POST http://localhost:8081/api/v1/chat/requests/<NEW_REQUEST_UUID>/cance
   -H "Authorization: Bearer $CHAT_TOKEN"
 ```
 
-流依次发送 `meta`、`chunk` / `tool_progress` 和一次 `completion`；JSON envelope 包含 `type`、`requestId`、`conversationId`、连续的 `seq` 和 `data`，SSE `event` 与 `type` 相同、`id` 为 `seq`。失败时发送 `error` 再发送终态。只有 `completion.data.status=finished` 表示完整回答已保存；`cancelled`、`failed`、`timed_out` 和缺少 completion 的 EOF 保留页面上的局部文本，但不把它当作已保存回答。流开始前的鉴权、参数或容量错误返回普通 HTTP JSON。`New-Token` 仅更新同一个仍有效的登录会话，生成 POST 不重放。
+流依次发送 `meta`、各轮 `chunk` / `round_end` / `tool_progress` 和一次 `completion`；JSON envelope 包含 `type`、`requestId`、`conversationId`、连续的 `seq` 和 `data`，SSE `event` 与 `type` 相同、`id` 为 `seq`。`chunk` 带递增的 `roundId`；`round_end.kind=intermediate` 将当前正文归入检索说明，`kind=final` 确认最终答案；工具进度用 `roundId`、`callId` 区分调用。前端实时显示当前正文，在“查看检索过程”中保留中间说明；数据库只保存 final 正文。失败时发送 `error` 再发送终态。只有 `completion.data.status=finished` 表示完整回答已保存；`cancelled`、`failed`、`timed_out` 和缺少 completion 的 EOF 不表示已保存。流开始前的鉴权、参数或容量错误返回普通 HTTP JSON。`New-Token` 仅更新同一个仍有效的登录会话，生成 POST 不重放。
 
 聊天编排与 DeepSeek 模型/摘要客户端使用普通 Java 方法：生成线程通过 JDK HttpClient 的输入流逐段读取模型 SSE，增量回调进入有界队列，由独立发送线程按顺序写入 SseEmitter。取消同时撤销请求、关闭模型响应流和取消生成任务；全部轮次与排队共享总期限。正文、工具参数、模型 SSE 行/帧及摘要 JSON 都有限额。模型缺少 `[DONE]`、截断或流损坏时，不继续检索，也不保存半截答案。
 
-当前仍保留最多一次知识库搜索的两阶段流程。Embedding、Reranker、MinerU 客户端仍使用 WebClient，因此尚未删除 WebFlux/Reactor 依赖；完整 ReAct 与 MCP 未实施。去除 Flux 的聊天验收记录见 [阶段3验收](docs/eval/chat_stream/remove-flux-phase-3-acceptance.md)。
+聊天已接入普通 Java ReAct 循环：`ChatHandler` 准备历史，`AgentLoopService` 交替请求模型与执行 `KnowledgeBaseSearchTool`。搜索身份来自服务端认证用户，每轮携带完整的 assistant/tool 消息配对；旧历史按完整回合删除，各工具正文共同截断并保留来源索引。默认最多 3 轮工具、6 次实际搜索，连续相同调用第 3 次拦截，预留 10 秒收尾；触发预算后关闭工具，只请求一次带“部分完成”标记的答案，默认最多 4 次模型请求。`ai.agent` 可通过 `AI_AGENT_MAX_TOOL_ROUNDS`、`AI_AGENT_MAX_TOOL_CALLS`、`AI_AGENT_REPEATED_CALL_LIMIT`、`AI_AGENT_FINALIZATION_RESERVE_MS`、`AI_AGENT_MAX_TOOL_RESULT_CHARS` 覆盖；工具结果默认 16384 字符，非法预算在启动时拒绝。验收见 [ReAct R1～R3](docs/eval/chat_stream/knowledge-base-react-acceptance.md)。Embedding、Reranker、MinerU 客户端仍使用 WebClient，WebFlux/Reactor 依赖仍保留，MCP 暂未实施。此前聊天去除 Flux 的记录见 [阶段3验收](docs/eval/chat_stream/remove-flux-phase-3-acceptance.md)。
 
 停止请求返回当前用户命名空间中的实际状态；`cancelled` 后关闭本地流，`completing` / `finished` 继续读取现有流至终态。取消失败时关闭本地连接并提示停止结果未确认。已经进入 `COMPLETING` 的数据库提交不会因断线撤销，提交成功但完成通知丢失时可以从历史恢复。
 
@@ -91,7 +91,7 @@ sequenceDiagram
     actor U as 用户
     participant FE as Vue 前端
     participant SSE as ChatStreamService
-    participant AG as ChatHandler
+    participant AG as ChatHandler / AgentLoopService
     participant MEM as Redis / MySQL
     participant LLM as OpenAI 兼容 LLM
     participant HS as HybridSearchService
@@ -106,7 +106,8 @@ sequenceDiagram
         MEM->>MEM: 从 MySQL 恢复并重建 Redis 工作集
     end
     AG->>AG: 构造消息并执行上下文预算
-    AG->>LLM: 第一次流式请求（携带知识库搜索工具）
+    loop 模型与工具交替执行，共用取消与总期限
+    AG->>LLM: 流式请求（有工具预算时携带搜索工具）
 
     alt LLM 可以直接回答
         loop 流式输出
@@ -114,9 +115,12 @@ sequenceDiagram
             AG-->>SSE: ChatOutput chunk
             SSE-->>FE: SSE chunk（连续 seq）
         end
+        AG-->>SSE: round_end final
     else LLM 决定检索知识库
-        LLM-->>AG: tool_call(query)
-        AG->>HS: searchWithPermission(query, userId, 10)
+        LLM-->>AG: 完整 tool_calls 列表
+        AG-->>SSE: round_end intermediate
+        loop 串行执行每个调用，并回填原 callId
+        AG->>HS: searchWithPermission(query, username, 10)
         HS->>IDX: 生成查询向量
         HS->>IDX: KNN + BM25（共用权限过滤）
         IDX-->>HS: 两路候选结果
@@ -126,13 +130,10 @@ sequenceDiagram
             RR-->>HS: 重排结果
         end
         HS-->>AG: 带来源的检索结果
-        AG->>AG: 组装 tool result 并再次执行预算
-        AG->>LLM: 第二次流式请求（携带检索上下文）
-        loop 流式输出
-            LLM-->>AG: content delta
-            AG-->>SSE: ChatOutput chunk
-            SSE-->>FE: SSE chunk（连续 seq）
         end
+        AG->>AG: 追加全部 tool 结果，重新检查上下文与执行预算
+    end
+    Note over AG,LLM: 无调用则退出；预算触发则关闭工具收尾一次
     end
 
     SSE->>AG: persistCompletedTurn（赢得 COMPLETING 后）
@@ -142,7 +143,7 @@ sequenceDiagram
     AG->>MEM: 按 token 阈值触发摘要或截断
 ```
 
-关键点：只有当第一次 LLM 调用返回 `search_knowledge_base` 工具调用时，系统才会执行权限过滤后的混合检索和第二次 LLM 调用；否则模型直接流式回答。
+关键点：是否继续检索由模型完整响应中的 `tool_calls` 决定，通用问题可以零搜索直接回答。中间正文实时显示但不拼入最终答案；工具执行与消息配对完成后，才发起下一次模型请求。所有轮次共用同一份取消上下文和总期限。
 
 ### 长记忆压缩流程
 
@@ -193,8 +194,8 @@ sequenceDiagram
     end
     AG->>AG: 摘要按非可信历史记忆合并
     AG->>BUD: 第一次 LLM 调用前预算
-    opt 知识库检索完成
-        AG->>BUD: 第二次调用前预算并按需截断 tool result
+    loop 每次 ReAct 模型调用前
+        AG->>BUD: 保护当前 user 与全部工具配对，裁剪旧历史和所有 tool 正文
     end
 ```
 

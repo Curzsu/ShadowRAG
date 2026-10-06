@@ -36,6 +36,34 @@ class ChatStreamServiceTest {
         for(int i=0;i<4;i++) assertEquals(i+1,recorded.get().events().get(i).seq());
         verify(handler).persistCompletedTurn(command,"onetwo");
     }
+    @Test void intermediateRoundsAreStreamedButOnlyConfirmedFinalAnswerIsSaved() throws Exception {
+        GenerationScript.stub(handler,command,GenerationScript.just(
+                new ChatOutput("chunk",Map.of("roundId",1,"chunk","先查报告A")),
+                new ChatOutput("round_end",Map.of("roundId",1,"kind","intermediate")),
+                new ChatOutput("chunk",Map.of("roundId",2,"chunk","再查报告B")),
+                new ChatOutput("round_end",Map.of("roundId",2,"kind","intermediate")),
+                new ChatOutput("chunk",Map.of("roundId",3,"chunk","最终")),
+                new ChatOutput("chunk",Map.of("roundId",3,"chunk","答案")),
+                new ChatOutput("round_end",Map.of("roundId",3,"kind","final"))));
+        service.open(command); recorded.get().awaitTerminal(); verify(handler).persistCompletedTurn(command,"最终答案");
+        verify(handler,never()).persistCompletedTurn(command,"先查报告A再查报告B最终答案");
+        assertEquals(List.of("meta","chunk","round_end","chunk","round_end","chunk","chunk","round_end","completion"),
+                recorded.get().events().stream().map(ChatEventEnvelope::type).toList());
+        for(int i=0;i<9;i++) assertEquals(i+1,recorded.get().events().get(i).seq());
+    }
+    @Test void missingFinalConfirmationAndRepeatedOrRegressedRoundsNeverPersist() throws Exception {
+        var invalid=List.of(
+                List.of(new ChatOutput("chunk",Map.of("roundId",1,"chunk","draft"))),
+                List.of(new ChatOutput("round_end",Map.of("roundId",1,"kind","intermediate")),new ChatOutput("round_end",Map.of("roundId",1,"kind","final"))),
+                List.of(new ChatOutput("chunk",Map.of("roundId",2,"chunk","skipped")),new ChatOutput("round_end",Map.of("roundId",2,"kind","final"))),
+                List.of(new ChatOutput("round_end",Map.of("roundId",1,"kind","final")),new ChatOutput("chunk",Map.of("roundId",2,"chunk","after final"))));
+        for(var outputs:invalid) {
+            var cmd=new ChatCommand("alice",UUID.randomUUID().toString(),UUID.randomUUID(),"test");
+            GenerationScript.stub(handler,cmd,GenerationScript.just(outputs.toArray(ChatOutput[]::new)));
+            service.open(cmd); recorded.get().awaitTerminal(); verify(handler,never()).persistCompletedTurn(eq(cmd),anyString());
+            assertEquals("failed",recorded.get().eventsOfType("completion").get(0).data().get("status"));
+        }
+    }
     @Test void mysqlCommitPrecedesFinishedEvent() throws Exception {
         GenerationScript.stub(handler, command, GenerationScript.just(chunk("answer")));
         doAnswer(invocation -> { assertTrue(recorded.get().eventsOfType("completion").isEmpty()); return null; }).when(handler).persistCompletedTurn(command,"answer");
@@ -61,9 +89,29 @@ class ChatStreamServiceTest {
         verify(handler,times(1)).persistCompletedTurn(command,"answer"); assertEquals(1,recorded.get().eventsOfType("completion").size());
     }
     @Test void disconnectCancelsUpstream() throws Exception {
-        AtomicBoolean cancelled=new AtomicBoolean(); GenerationScript.stub(handler, command, GenerationScript.never().onCancel(() -> cancelled.set(true)));
+        AtomicBoolean cancelled=new AtomicBoolean(); CountDownLatch started=new CountDownLatch(1);
+        GenerationScript.stub(handler, command, GenerationScript.never().onStart(started::countDown).onCancel(() -> cancelled.set(true)));
         service.open(command); await(() -> registry.activeRequestCount()==1); await(() -> recorded.get().eventsOfType("meta").size()==1);
+        assertTrue(started.await(5,TimeUnit.SECONDS));
         recorded.get().disconnect(); await(() -> registry.activeRequestCount()==0); await(cancelled::get); verify(handler,never()).persistCompletedTurn(any(),anyString());
+    }
+    @Test void disconnectBeforeGenerationStartsRemovesQueuedTaskWithoutInvokingUpstream() throws Exception {
+        CountDownLatch occupied=new CountDownLatch(4),release=new CountDownLatch(1);
+        var pool=(ThreadPoolExecutor)generators;
+        try {
+            for(int i=0;i<4;i++) pool.execute(() -> {
+                occupied.countDown();
+                try { release.await(); } catch(InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+            });
+            assertTrue(occupied.await(5,TimeUnit.SECONDS));
+            service.open(command); await(() -> recorded.get().eventsOfType("meta").size()==1);
+            assertEquals(1,pool.getQueue().size());
+            recorded.get().disconnect(); await(() -> registry.activeRequestCount()==0);
+            assertEquals(0,pool.getQueue().size()); assertEquals(0,registry.conversationLeaseCount());
+            assertEquals(0,service.activeStreamCount());
+        } finally { release.countDown(); }
+        await(() -> pool.getActiveCount()==0);
+        verify(handler,never()).generateReply(any(),any(),any()); verify(handler,never()).persistCompletedTurn(any(),anyString());
     }
     @Test void ioFailureDoesNotWriteAgain() throws Exception {
         GenerationScript.Controlled sink=new GenerationScript.Controlled(); GenerationScript.stub(handler, command, sink);

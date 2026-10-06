@@ -1,5 +1,4 @@
-// Standalone browser transport mirrors frontend/utils/sse and service/api/chat-stream.
-// Keep the HTTP/envelope contract in sync; static-chat-stream.test.ts exercises this artifact.
+// Generated from frontend SSE transport by frontend/scripts/sync-chat-transport.mjs.
 export function createSseParser(onFrame, maxEventChars = 262144) {
     if (!Number.isSafeInteger(maxEventChars) || maxEventChars < 1)
         throw new Error('Invalid SSE event buffer limit');
@@ -115,7 +114,7 @@ const errorCodes = new Set([
     'STREAM_OVERFLOW',
     'INTERNAL_ERROR'
 ]);
-const knownTypes = new Set(['meta', 'chunk', 'tool_progress', 'error', 'completion']);
+const knownTypes = new Set(['meta', 'chunk', 'round_end', 'tool_progress', 'error', 'completion']);
 function record(value) {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -176,15 +175,30 @@ function validateFrame(frame, input) {
     validatePayload(envelope.type, envelope.data);
     return envelope;
 }
+function validateRoundPayload(type, data) {
+    if (['chunk', 'round_end', 'tool_progress'].includes(type) &&
+        data.roundId !== undefined &&
+        (!Number.isSafeInteger(data.roundId) || data.roundId < 1))
+        protocol('Invalid round id');
+    if (type === 'round_end' && (data.roundId === undefined || !['intermediate', 'final'].includes(data.kind)))
+        protocol('Invalid round end payload');
+}
+function validateToolPayload(data) {
+    if (data.roundId !== undefined &&
+        (typeof data.callId !== 'string' || !data.callId.trim() || data.callId.length > 4096))
+        protocol('Invalid tool call id');
+    if (data.tool !== 'search_knowledge_base' || !['started', 'finished'].includes(data.status)) {
+        protocol('Invalid tool progress payload');
+    }
+}
 function validatePayload(type, data) {
     if (type === 'meta' && Object.keys(data).length !== 0)
         protocol('Invalid meta payload');
     if (type === 'chunk' && typeof data.chunk !== 'string')
         protocol('Invalid chunk payload');
-    if (type === 'tool_progress' &&
-        (data.tool !== 'search_knowledge_base' || !['started', 'finished'].includes(data.status))) {
-        protocol('Invalid tool progress payload');
-    }
+    validateRoundPayload(type, data);
+    if (type === 'tool_progress')
+        validateToolPayload(data);
     if (type === 'error' &&
         (typeof data.code !== 'string' || !errorCodes.has(data.code) || typeof data.message !== 'string')) {
         protocol('Invalid error payload');
@@ -214,10 +228,65 @@ async function startStream(input, options) {
         throw new ChatStreamError('interrupted', 'Chat stream connection interrupted');
     }
 }
+function createRoundProtocol() {
+    let roundMode = false;
+    let legacy = false;
+    let endedRound = 0;
+    let activeRound = 0;
+    let finalRound = false;
+    const calls = new Map();
+    function contentRound(event) {
+        const { type, data } = event;
+        if (type === 'chunk' && data.roundId === undefined) {
+            if (roundMode)
+                protocol('Mixed round protocol');
+            legacy = true;
+            return;
+        }
+        const id = data.roundId;
+        if (legacy ||
+            finalRound ||
+            id !== endedRound + 1 ||
+            (activeRound !== 0 && activeRound !== id) ||
+            [...calls.values()].some(status => status !== 'finished'))
+            protocol('Invalid round order');
+        roundMode = true;
+        activeRound = id;
+        calls.clear();
+        if (type === 'round_end') {
+            endedRound = id;
+            activeRound = 0;
+            finalRound = data.kind === 'final';
+        }
+    }
+    function toolRound(data) {
+        if (data.roundId === undefined) {
+            if (roundMode)
+                protocol('Missing tool round');
+            return;
+        }
+        if (!roundMode || finalRound || activeRound !== 0 || data.roundId !== endedRound)
+            protocol('Invalid tool round');
+        const call = data.callId;
+        if (data.status === 'started' ? calls.has(call) : calls.get(call) !== 'started')
+            protocol('Invalid tool progress order');
+        calls.set(call, data.status);
+    }
+    return (event) => {
+        if (event.type === 'chunk' || event.type === 'round_end')
+            contentRound(event);
+        else if (event.type === 'tool_progress')
+            toolRound(event.data);
+        else if (event.type === 'completion' && event.data.status === 'finished' && roundMode && !finalRound) {
+            protocol('Finished without final round');
+        }
+    };
+}
 function createReceiver(input, onEvent) {
     let terminal;
     let lastSeq = 0;
     let failureCode;
+    const roundProtocol = createRoundProtocol();
     return {
         getStatus: () => terminal,
         onFrame(frame) {
@@ -236,6 +305,7 @@ function createReceiver(input, onEvent) {
                 protocol('Invalid completion after error');
             }
             lastSeq = event.seq;
+            roundProtocol(event);
             if (event.type === 'error')
                 failureCode = event.data.code;
             if (event.type === 'completion')

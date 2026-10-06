@@ -195,6 +195,8 @@ declare namespace Api {
       status?: 'pending' | 'loading' | 'cancelling' | 'finished' | 'cancelled' | 'error';
       errorReason?: string;
       toolProgress?: string;
+      roundDraft?: string;
+      intermediateRounds?: Array<{ roundId: number; content: string }>;
       timestamp?: string;
     }
 
