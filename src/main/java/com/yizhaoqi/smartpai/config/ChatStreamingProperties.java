@@ -18,6 +18,8 @@ public class ChatStreamingProperties {
     private int maxRetainedPerUser = 200;
     private int workerThreads = 16;
     private int workerQueueCapacity = 1024;
+    private int generationWorkerThreads = 16;
+    private int generationWorkerQueueCapacity = 64;
     private int maxPendingEvents = 64;
 
     /** Called after configuration binding and by explicitly constructed services/tests. */
@@ -26,7 +28,7 @@ public class ChatStreamingProperties {
         if (generationTimeoutMs <= 0 || emitterTimeoutMs <= 0 || heartbeatIntervalMs <= 0
                 || terminalRetentionMs <= 0 || maxActiveRequests <= 0 || maxRetainedRequests <= 0
                 || maxRetainedPerUser <= 0 || workerThreads <= 0 || workerQueueCapacity <= 0
-                || maxPendingEvents <= 0) {
+                || generationWorkerThreads <= 0 || generationWorkerQueueCapacity <= 0 || maxPendingEvents <= 0) {
             throw new IllegalArgumentException("Chat streaming limits must be positive");
         }
         // Subtraction avoids overflowing generationTimeoutMs + the transaction allowance.

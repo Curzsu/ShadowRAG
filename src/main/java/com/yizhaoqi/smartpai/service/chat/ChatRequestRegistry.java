@@ -62,7 +62,8 @@ public class ChatRequestRegistry {
                 throw error("CONVERSATION_BUSY", HttpStatus.CONFLICT, "当前会话正在生成回答");
             }
             requireCapacity(command.username(), true);
-            ChatRequestContext context = new ChatRequestContext(command);
+            ChatRequestContext context = new ChatRequestContext(command, System.nanoTime()
+                    + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(properties.getGenerationTimeoutMs()));
             active.put(requestKey, context);
             leases.put(conversationKey, context);
             return context;
@@ -91,7 +92,7 @@ public class ChatRequestRegistry {
                 if (cancelled.tryTransition(state, State.CANCELLED)) break;
             }
         }
-        // Both subscription disposal and callbacks can invoke arbitrary code; never hold lock.
+        // Network cleanup and callbacks can invoke arbitrary code; never hold lock.
         finish(cancelled, State.CANCELLED);
         return new CancelResult(requestId, State.CANCELLED, true);
     }
@@ -114,7 +115,7 @@ public class ChatRequestRegistry {
             finalizing.add(context);
         }
         try {
-            context.dispose();
+            context.releaseResources();
         } finally {
             synchronized (lock) {
                 if (active.get(requestKey) == context) {

@@ -1,4 +1,5 @@
 package com.yizhaoqi.smartpai.controller;
+import com.yizhaoqi.smartpai.support.GenerationScript;
 
 import com.yizhaoqi.smartpai.service.ChatHandler;
 import com.yizhaoqi.smartpai.support.ChatStreamingTestApplication;
@@ -20,7 +21,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.servlet.AsyncHandlerInterceptor;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-import reactor.core.publisher.Flux;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -59,7 +59,7 @@ class ChatStreamingHeaderOrderTest {
         };
         writers.add(observe);
         try {
-            when(handler.generateReply(any())).thenReturn(Flux.empty());
+            GenerationScript.stubAny(handler, GenerationScript.empty());
             String body = "{\"conversationId\":\"" + UUID.randomUUID() + "\",\"requestId\":\""
                     + UUID.randomUUID() + "\",\"message\":\"header-order-probe\"}";
             HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1/chat/stream"))

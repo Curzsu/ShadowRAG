@@ -1,0 +1,9 @@
+{
+  "upstreamProbeIntervalMillis" : 10,
+  "recordedAt" : "2026-10-06T04:32:55.664154800Z",
+  "modelSocketDisconnectAfterClientCloseMillis" : 134,
+  "subscriptionCancelAfterClientCloseMillis" : 104,
+  "heartbeatIntervalMillis" : 50,
+  "persistedTurns" : 0,
+  "activeRequestsAfterDisconnect" : 0
+}

@@ -11,10 +11,10 @@ import com.yizhaoqi.smartpai.config.AiProperties;
 import java.time.Duration;
 import com.yizhaoqi.smartpai.utils.JwtUtils;
 import org.junit.jupiter.api.*;
+import com.yizhaoqi.smartpai.support.GenerationScript;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import reactor.core.publisher.Flux;
 import java.net.URI;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
@@ -40,7 +40,7 @@ class ChatStreamingHttpTest {
     }
     @Test void removedChatWebsocketCannotHandshakeOrIssueCommandTokenOverRealHttp() throws Exception {
         String token = jwt.generateToken("alice");
-        when(handler.generateReply(any())).thenReturn(Flux.empty());
+        GenerationScript.stubAny(handler, GenerationScript.empty());
         assertEquals(200, client.send(request(token), HttpResponse.BodyHandlers.ofString()).statusCode(),
                 "The dedicated token must authenticate a current stream before probing removed routes");
         clearInvocations(handler);
@@ -70,7 +70,7 @@ class ChatStreamingHttpTest {
         verifyNoInteractions(handler);
     }
     @Test void realAsyncCompletionRetainsSseAndDoesNotBecome401() throws Exception {
-        when(handler.generateReply(any())).thenReturn(Flux.just(new ChatOutput("chunk",Map.of("chunk","中文😀"))));
+        GenerationScript.stubAny(handler, GenerationScript.just(new ChatOutput("chunk",Map.of("chunk","中文😀"))));
         var response=client.send(request(jwt.generateToken("alice")),HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         assertEquals(200,response.statusCode()); assertTrue(response.headers().firstValue("content-type").orElse("").contains("text/event-stream"));
         List<com.fasterxml.jackson.databind.JsonNode> events = new ArrayList<>();
@@ -86,7 +86,7 @@ class ChatStreamingHttpTest {
         verify(handler,times(1)).persistCompletedTurn(any(),eq("中文😀"));
     }
     @Test void postCommitErrorStaysSse() throws Exception {
-        when(handler.generateReply(any())).thenReturn(Flux.error(new IllegalStateException("private model credentials")));
+        GenerationScript.stubAny(handler, GenerationScript.error(new IllegalStateException("private model credentials")));
         var response=client.send(request(jwt.generateToken("alice")),HttpResponse.BodyHandlers.ofString());
         assertEquals(200,response.statusCode()); assertTrue(response.body().contains("event:error")); assertTrue(response.body().contains("\"status\":\"failed\"")); assertFalse(response.body().contains("credentials"));
     }
@@ -96,10 +96,11 @@ class ChatStreamingHttpTest {
             var modelClient=new DeepSeekClient(model.url(),"dedicated-test-key","test-model",new AiProperties(),new ObjectMapper());
             CountDownLatch cancelled=new CountDownLatch(1);
             var cancelledAt = new java.util.concurrent.atomic.AtomicLong();
-            when(handler.generateReply(any())).thenAnswer(invocation -> modelClient.streamResponse(List.of(Map.of("role","user","content","dedicated test")))
-                .map(value -> new ChatOutput("chunk",Map.of("chunk",value))).doOnCancel(() -> {
-                    cancelledAt.compareAndSet(0, System.nanoTime()); cancelled.countDown();
-                }));
+            GenerationScript.stubAny(handler, (context, out) -> {
+                context.onCancel(() -> { cancelledAt.compareAndSet(0, System.nanoTime()); cancelled.countDown(); });
+                modelClient.streamResponse(List.of(Map.of("role","user","content","dedicated test")), context,
+                        value -> out.accept(new ChatOutput("chunk",Map.of("chunk",value))));
+            });
             var response=client.send(request(jwt.generateToken("alice")),HttpResponse.BodyHandlers.ofInputStream()); assertEquals(200,response.statusCode());
             var input=response.body(); StringBuilder received=new StringBuilder();
             long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(5);
@@ -111,7 +112,7 @@ class ChatStreamingHttpTest {
             assertEquals(0,registry.activeRequestCount()); verify(handler,never()).persistCompletedTurn(any(),anyString());
             assertEquals(1, model.requests());
             var metricsDirectory = java.nio.file.Path.of(System.getProperty("chat.acceptance.metrics-dir",
-                    ".superpowers/sdd/2026-10-03-websocket-to-sse-refactor"));
+                    ".superpowers/sdd/2026-10-06-remove-flux-chat"));
             java.nio.file.Files.createDirectories(metricsDirectory);
             new ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(metricsDirectory.resolve("task-7-disconnect-metrics.json").toFile(),
                     Map.of("heartbeatIntervalMillis", 50, "upstreamProbeIntervalMillis", 10,
@@ -124,7 +125,7 @@ class ChatStreamingHttpTest {
         String secret="dGVzdC1zZWNyZXQta2V5LWZvci1qd3QtdG9rZW4tZ2VuZXJhdGlvbi1hbmQtdmVyaWZpY2F0aW9u";
         String expired=io.jsonwebtoken.Jwts.builder().setSubject("alice").claim("tokenId","dedicated-grace-test")
             .setExpiration(new Date(System.currentTimeMillis()-60000)).signWith(io.jsonwebtoken.security.Keys.hmacShaKeyFor(Base64.getDecoder().decode(secret)),io.jsonwebtoken.SignatureAlgorithm.HS256).compact();
-        when(handler.generateReply(any())).thenReturn(Flux.empty());
+        GenerationScript.stubAny(handler, GenerationScript.empty());
         var response=client.send(request(expired),HttpResponse.BodyHandlers.ofString()); assertEquals(200,response.statusCode());
         String fresh=response.headers().firstValue("New-Token").orElseThrow(); assertTrue(jwt.validateToken(fresh));
     }    @Test void nonCanonicalRequestUuidRepresentationRejected() throws Exception {
@@ -139,9 +140,9 @@ class ChatStreamingHttpTest {
         verifyNoInteractions(handler);
     }    @Test void foreignPrincipalCancelCannotStopOwnersHttpStream() throws Exception {
         String requestId=UUID.randomUUID().toString(), conversationId=UUID.randomUUID().toString();
-        reactor.core.publisher.Sinks.Many<ChatOutput> sink=reactor.core.publisher.Sinks.many().unicast().onBackpressureBuffer();
+        GenerationScript.Controlled sink=new GenerationScript.Controlled();
         CountDownLatch subscribed=new CountDownLatch(1);
-        when(handler.generateReply(any())).thenReturn(sink.asFlux().doOnSubscribe(subscription -> subscribed.countDown()));
+        GenerationScript.stubAny(handler, sink.onStart(() -> subscribed.countDown()));
         String body="{\"conversationId\":\""+conversationId+"\",\"requestId\":\""+requestId+"\",\"message\":\"dedicated test\"}";
         var aliceRequest=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/v1/chat/stream"))
                 .header("Content-Type","application/json").header("Authorization","Bearer "+jwt.generateToken("alice"))
@@ -177,9 +178,12 @@ class ChatStreamingHttpTest {
             model.enqueue(session -> { session.content(answerOne); session.data("[DONE]"); });
             model.enqueue(session -> { session.content(answerTwo); session.data("[DONE]"); });
             var modelClient=new DeepSeekClient(model.url(),"dedicated-test-key","test-model",new AiProperties(),new ObjectMapper());
-            when(handler.generateReply(any())).thenAnswer(invocation -> modelClient.streamResponse(List.of(Map.of("role","user","content",privatePrompt)))
-                    .concatWith(modelClient.streamResponse(List.of(Map.of("role","tool","content",privateToolResult))))
-                    .map(value -> new ChatOutput("chunk",Map.of("chunk",value))));
+            GenerationScript.stubAny(handler, (context, out) -> {
+                modelClient.streamResponse(List.of(Map.of("role","user","content",privatePrompt)), context,
+                        value -> out.accept(new ChatOutput("chunk",Map.of("chunk",value))));
+                modelClient.streamResponse(List.of(Map.of("role","tool","content",privateToolResult)), context,
+                        value -> out.accept(new ChatOutput("chunk",Map.of("chunk",value))));
+            });
             String token=jwt.generateToken("alice");
             String body=new ObjectMapper().writeValueAsString(Map.of("conversationId",UUID.randomUUID().toString(),"requestId",requestId,"message",privatePrompt));
             var request=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/v1/chat/stream"))
