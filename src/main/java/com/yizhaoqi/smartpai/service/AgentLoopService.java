@@ -65,8 +65,7 @@ public class AgentLoopService {
             if(result.toolCalls().isEmpty()) return;
             var assistant=new LinkedHashMap<String,Object>(); assistant.put("role","assistant"); assistant.put("content",result.content());
             if(result.reasoningContent()!=null && !result.reasoningContent().isEmpty()) assistant.put("reasoning_content",result.reasoningContent());
-            assistant.put("tool_calls",result.toolCalls().stream().map(call -> Map.of("id",call.id(),"type","function",
-                    "function",Map.of("name",call.name(),"arguments",call.argumentsJson()))).toList());
+            assistant.put("tool_calls",result.toolCalls().stream().map(ModelToolCall::assistantToolCall).toList());
             messages.add(assistant); rounds++;
             for(var call:result.toolCalls()) {
                 checkRunning(context); String content;

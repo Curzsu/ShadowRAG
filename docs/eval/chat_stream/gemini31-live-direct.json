@@ -1,0 +1,12 @@
+{
+  "scenario" : "direct",
+  "model" : "gemini-3.1-flash-lite",
+  "realSupplier" : true,
+  "syntheticRetrieval" : true,
+  "modelRequests" : 1,
+  "queries" : [ ],
+  "roundKinds" : [ "final" ],
+  "answer" : "联调成功。",
+  "elapsedMillis" : 1228,
+  "recordedAt" : "2026-10-06T08:14:25.637158600Z"
+}

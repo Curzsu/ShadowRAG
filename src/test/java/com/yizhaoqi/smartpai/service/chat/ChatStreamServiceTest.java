@@ -174,12 +174,13 @@ class ChatStreamServiceTest {
         assertEquals(0,service.activeStreamCount()); assertEquals(0,service.pendingEventCount());
     }
     @Test void shutdownCancelsRunningButDoesNotCancelCommittedTurn() throws Exception {
-        CountDownLatch commit=new CountDownLatch(1), release=new CountDownLatch(1); AtomicBoolean cancelled=new AtomicBoolean();
-        GenerationScript.stub(handler, command, GenerationScript.never().onCancel(() -> cancelled.set(true)));
-        service.open(command); await(() -> recorded.get().eventsOfType("meta").size()==1);
+        CountDownLatch started=new CountDownLatch(1), commit=new CountDownLatch(1), release=new CountDownLatch(1); AtomicBoolean cancelled=new AtomicBoolean();
+        GenerationScript.stub(handler, command, GenerationScript.never().onStart(started::countDown).onCancel(() -> cancelled.set(true)));
         ChatCommand committing=new ChatCommand("bob",UUID.randomUUID().toString(),UUID.randomUUID(),"test");
         GenerationScript.stub(handler, committing, GenerationScript.just(chunk("committed")));
         doAnswer(i -> { commit.countDown(); release.await(5,TimeUnit.SECONDS); return null; }).when(handler).persistCompletedTurn(committing,"committed");
+        // Finish stubbing before worker threads call the shared mock.
+        service.open(command); assertTrue(started.await(5,TimeUnit.SECONDS)); await(() -> recorded.get().eventsOfType("meta").size()==1);
         service.open(committing); RecordingSseEmitter completed=recorded.get(); assertTrue(commit.await(5,TimeUnit.SECONDS));
         var shutdown=CompletableFuture.runAsync(service::close); await(cancelled::get); release.countDown(); shutdown.get(5,TimeUnit.SECONDS); completed.awaitTerminal();
         assertEquals("finished",completed.eventsOfType("completion").get(0).data().get("status")); verify(handler,never()).persistCompletedTurn(eq(command),anyString());

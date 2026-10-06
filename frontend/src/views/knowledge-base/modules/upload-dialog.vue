@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { NUploadDragger } from 'naive-ui';
 import { uploadAccept } from '@/constants/common';
 
 defineOptions({
@@ -96,7 +97,12 @@ function onUpdate(option: unknown) {
           :multiple="false"
           :default-upload="false"
         >
-          <NButton>上传文件</NButton>
+          <NUploadDragger>
+            <div class="py-16px">
+              <div class="text-16px">点击或拖动文件到此区域上传</div>
+              <div class="mt-8px text-12px text-gray-400">仅支持一个文件，格式与原上传入口一致</div>
+            </div>
+          </NUploadDragger>
         </NUpload>
       </NFormItem>
     </NForm>
