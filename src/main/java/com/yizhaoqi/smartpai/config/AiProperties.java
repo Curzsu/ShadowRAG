@@ -15,6 +15,25 @@ public class AiProperties {
     private Prompt prompt = new Prompt();
     private Generation generation = new Generation();
     private Context context = new Context();
+    private Agent agent = new Agent();
+
+    @Data
+    public static class Agent {
+        private int maxToolRounds = 3;
+        private int maxToolCalls = 6;
+        private int repeatedCallLimit = 3;
+        private long finalizationReserveMs = 10000;
+        private int maxToolResultChars = 16384;
+        public void validate() {
+            if(maxToolRounds<1 || maxToolRounds>16 || maxToolCalls<1 || maxToolCalls>64
+                    || repeatedCallLimit<1 || repeatedCallLimit>64 || finalizationReserveMs<1
+                    || maxToolResultChars<1024 || maxToolResultChars>1048576)
+                throw new IllegalArgumentException("Agent budgets must be positive and bounded");
+        }
+    }
+
+    @jakarta.annotation.PostConstruct
+    public void validate() { agent.validate(); }
 
     @Data
     public static class Prompt {

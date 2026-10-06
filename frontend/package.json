@@ -42,7 +42,8 @@
     "preview": "vite preview",
     "release": "sa release",
     "typecheck": "vue-tsc --noEmit --skipLibCheck",
-    "test:chat": "tsx --test src/utils/sse.test.ts src/service/api/chat-stream.test.ts src/store/modules/chat/chat-session.test.ts src/service/api/static-chat-stream.test.ts",
+    "sync:chat-transport": "node scripts/sync-chat-transport.mjs",
+    "test:chat": "tsx --test src/utils/sse.test.ts src/service/api/chat-stream.test.ts src/store/modules/chat/chat-session.test.ts src/store/modules/chat/chat-rounds.test.ts src/service/api/static-chat-stream.test.ts",
     "update-pkg": "sa update-pkg"
   },
   "dependencies": {

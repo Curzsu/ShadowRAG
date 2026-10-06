@@ -64,6 +64,7 @@ class ChatHandlerStreamingTest {
         assertEquals(0, server.requests());
         server.enqueue(s -> { s.content("answer"); s.data("[DONE]"); });
         ChatGenerationProbe.create(reply).assertNext(out -> assertEquals("answer", out.data().get("chunk")))
+                .assertNext(out -> assertEquals(Map.of("roundId",1,"kind","final"),out.data()))
                 .expectComplete().verify(Duration.ofSeconds(5));
     }
     @Test void firstRoundContentArrivesBeforeModelCompletion() {
@@ -86,7 +87,7 @@ class ChatHandlerStreamingTest {
         server.enqueue(s -> { s.tool("call-1", "{\"query\":\"private document\"}"); s.data("[DONE]"); });
         server.enqueue(s -> s.content("partial"));
         when(search.searchWithPermission(anyString(), eq("alice"), eq(10))).thenReturn(List.of());
-        ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out)).expectNextCount(2)
+        ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out)).expectNextCount(3)
                 .assertNext(out -> assertEquals("partial", out.data().get("chunk")))
                 .expectErrorSatisfies(error -> assertEquals("MODEL_ERROR", ((ChatHandler.GenerationException) error).getErrorCode()))
                 .verify(Duration.ofSeconds(5));
@@ -94,7 +95,7 @@ class ChatHandlerStreamingTest {
     }
     @Test void explicitConversationIgnoresCurrentPointer() {
         server.enqueue(s -> { s.content("answer"); s.data("[DONE]"); });
-        ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out)).expectNextCount(1).expectComplete().verify(Duration.ofSeconds(5));
+        ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out)).expectNextCount(2).expectComplete().verify(Duration.ofSeconds(5));
         verify(conversations).loadHistoryForChat("alice", "explicit-conversation");
         verify(conversations, never()).getCurrentConversationId(anyString());
         verify(conversations, never()).switchConversation(anyString(), anyString());
@@ -108,9 +109,11 @@ class ChatHandlerStreamingTest {
         });
         ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out))
                 .assertNext(out -> assertEquals("preface", out.data().get("chunk")))
-                .assertNext(out -> assertEquals(Map.of("tool", "search_knowledge_base", "status", "started"), out.data()))
-                .assertNext(out -> assertEquals(Map.of("tool", "search_knowledge_base", "status", "finished"), out.data()))
+                .assertNext(out -> assertEquals(Map.of("roundId",1,"kind","intermediate"),out.data()))
+                .assertNext(out -> assertEquals(Map.of("tool", "search_knowledge_base", "status", "started","roundId",1,"callId","call-1"), out.data()))
+                .assertNext(out -> assertEquals(Map.of("tool", "search_knowledge_base", "status", "finished","roundId",1,"callId","call-1"), out.data()))
                 .assertNext(out -> assertEquals("answer", out.data().get("chunk")))
+                .assertNext(out -> assertEquals(Map.of("roundId",2,"kind","final"),out.data()))
                 .expectComplete().verify(Duration.ofSeconds(5));
         assertTrue(searchThread.get().startsWith("test-chat-worker"));
         verifyNoInteractions(messages);
@@ -134,8 +137,9 @@ class ChatHandlerStreamingTest {
         release.countDown();
         assertTrue(returned.await(2, TimeUnit.SECONDS));
         assertTrue(generation.exited.await(2, TimeUnit.SECONDS));
-        assertEquals(1, outputs.size());
-        assertEquals("started", outputs.get(0).data().get("status"));
+        assertEquals(2, outputs.size());
+        assertEquals("intermediate", outputs.get(0).data().get("kind"));
+        assertEquals("started", outputs.get(1).data().get("status"));
         assertEquals(0, server.secondModelCalls());
         verifyNoInteractions(messages);
     }
@@ -143,7 +147,7 @@ class ChatHandlerStreamingTest {
         server.enqueue(s -> { s.tool("call-1", "{\"query\":\"private document\"}"); s.data("[DONE]"); });
         server.enqueue(s -> { s.content("partial"); s.probeUntilDisconnected(); });
         when(search.searchWithPermission(anyString(), eq("alice"), eq(10))).thenReturn(List.of());
-        ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out)).expectNextCount(2)
+        ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out)).expectNextCount(3)
                 .assertNext(out -> assertEquals("partial", out.data().get("chunk")))
                 .thenCancel().verify(Duration.ofSeconds(5));
         assertTrue(server.awaitDisconnect(Duration.ofSeconds(1)));
@@ -218,7 +222,7 @@ class ChatHandlerStreamingTest {
         ChatCommand second = new ChatCommand("alice", command.conversationId(), UUID.randomUUID(), "second question");
         ChatHandler restarted = storage.handler();
         server.enqueue(s -> { s.content("second answer"); s.data("[DONE]"); });
-        ChatGenerationProbe.<ChatOutput>create((context, out) -> restarted.generateReply(second, context, out)).expectNextCount(1)
+        ChatGenerationProbe.<ChatOutput>create((context, out) -> restarted.generateReply(second, context, out)).expectNextCount(2)
                 .expectComplete().verify(Duration.ofSeconds(5));
         assertEquals(originalCache, storage.cache.get());
         storage.cacheUnavailable.set(false);
@@ -265,6 +269,7 @@ class ChatHandlerStreamingTest {
         server.enqueue(s -> { s.content("answer"); s.data("[DONE]"); });
         ChatGenerationProbe.<ChatOutput>create((context, out) -> storage.handler().generateReply(command, context, out))
                 .assertNext(out -> assertEquals("answer", out.data().get("chunk")))
+                .assertNext(out -> assertEquals(Map.of("roundId",1,"kind","final"),out.data()))
                 .expectComplete().verify(Duration.ofSeconds(5));
         assertEquals(storage.durable.get(), storage.reader().loadHistoryForChat("alice", command.conversationId()));
         verify(storage.messages, never()).appendTurn(anyString(), anyString(), anyString(), any());
@@ -347,7 +352,7 @@ class ChatHandlerStreamingTest {
                     compression, messages, new ContextBudgetService(config, estimator), estimator, reader());
         }
     }
-    @Test void modelAndToolFailuresHaveSafeDistinctCodes() {
+    @Test void modelFailureIsFatalButRecoverableToolErrorRemainsSafe() {
         server.enqueue(s -> s.data("{\"error\":\"supplier-secret\"}"));
         ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out)).expectErrorSatisfies(error -> {
             assertEquals("MODEL_ERROR", ((ChatHandler.GenerationException) error).getErrorCode());
@@ -355,9 +360,9 @@ class ChatHandlerStreamingTest {
         }).verify(Duration.ofSeconds(5));
         server.enqueue(s -> { s.tool("call-1", "{\"query\":\"private document\"}"); s.data("[DONE]"); });
         when(search.searchWithPermission(anyString(), anyString(), anyInt())).thenThrow(new IllegalStateException("search-secret"));
-        ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out)).expectNextCount(1).expectErrorSatisfies(error -> {
-            assertEquals("TOOL_ERROR", ((ChatHandler.GenerationException) error).getErrorCode());
-            assertFalse(error.getMessage().contains("search-secret"));
-        }).verify(Duration.ofSeconds(5));
+        server.enqueue(s -> { assertTrue(s.requestBody().contains("SEARCH_ERROR")); assertFalse(s.requestBody().contains("search-secret"));
+            s.content("可恢复回答"); s.data("[DONE]"); });
+        ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out)).expectNextCount(5)
+                .expectComplete().verify(Duration.ofSeconds(5));
     }
 }

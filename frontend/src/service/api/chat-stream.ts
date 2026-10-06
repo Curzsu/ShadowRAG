@@ -64,7 +64,7 @@ const errorCodes = new Set<string>([
   'STREAM_OVERFLOW',
   'INTERNAL_ERROR'
 ]);
-const knownTypes = new Set(['meta', 'chunk', 'tool_progress', 'error', 'completion']);
+const knownTypes = new Set(['meta', 'chunk', 'round_end', 'tool_progress', 'error', 'completion']);
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -130,15 +130,33 @@ function validateFrame(frame: SseFrame, input: ChatStreamInput): ChatEventEnvelo
   return envelope as unknown as ChatEventEnvelope;
 }
 
+function validateRoundPayload(type: string, data: Record<string, unknown>) {
+  if (
+    ['chunk', 'round_end', 'tool_progress'].includes(type) &&
+    data.roundId !== undefined &&
+    (!Number.isSafeInteger(data.roundId) || (data.roundId as number) < 1)
+  )
+    protocol('Invalid round id');
+  if (type === 'round_end' && (data.roundId === undefined || !['intermediate', 'final'].includes(data.kind as string)))
+    protocol('Invalid round end payload');
+}
+
+function validateToolPayload(data: Record<string, unknown>) {
+  if (
+    data.roundId !== undefined &&
+    (typeof data.callId !== 'string' || !data.callId.trim() || data.callId.length > 4096)
+  )
+    protocol('Invalid tool call id');
+  if (data.tool !== 'search_knowledge_base' || !['started', 'finished'].includes(data.status as string)) {
+    protocol('Invalid tool progress payload');
+  }
+}
+
 function validatePayload(type: string, data: Record<string, unknown>) {
   if (type === 'meta' && Object.keys(data).length !== 0) protocol('Invalid meta payload');
   if (type === 'chunk' && typeof data.chunk !== 'string') protocol('Invalid chunk payload');
-  if (
-    type === 'tool_progress' &&
-    (data.tool !== 'search_knowledge_base' || !['started', 'finished'].includes(data.status as string))
-  ) {
-    protocol('Invalid tool progress payload');
-  }
+  validateRoundPayload(type, data);
+  if (type === 'tool_progress') validateToolPayload(data);
   if (
     type === 'error' &&
     (typeof data.code !== 'string' || !errorCodes.has(data.code) || typeof data.message !== 'string')
@@ -172,10 +190,63 @@ async function startStream(input: ChatStreamInput, options: ChatTransportOptions
   }
 }
 
+function createRoundProtocol() {
+  let roundMode = false;
+  let legacy = false;
+  let endedRound = 0;
+  let activeRound = 0;
+  let finalRound = false;
+  const calls = new Map<string, string>();
+  function contentRound(event: ChatEventEnvelope) {
+    const { type, data } = event;
+    if (type === 'chunk' && data.roundId === undefined) {
+      if (roundMode) protocol('Mixed round protocol');
+      legacy = true;
+      return;
+    }
+    const id = data.roundId as number;
+    if (
+      legacy ||
+      finalRound ||
+      id !== endedRound + 1 ||
+      (activeRound !== 0 && activeRound !== id) ||
+      [...calls.values()].some(status => status !== 'finished')
+    )
+      protocol('Invalid round order');
+    roundMode = true;
+    activeRound = id;
+    calls.clear();
+    if (type === 'round_end') {
+      endedRound = id;
+      activeRound = 0;
+      finalRound = data.kind === 'final';
+    }
+  }
+  function toolRound(data: Record<string, unknown>) {
+    if (data.roundId === undefined) {
+      if (roundMode) protocol('Missing tool round');
+      return;
+    }
+    if (!roundMode || finalRound || activeRound !== 0 || data.roundId !== endedRound) protocol('Invalid tool round');
+    const call = data.callId as string;
+    if (data.status === 'started' ? calls.has(call) : calls.get(call) !== 'started')
+      protocol('Invalid tool progress order');
+    calls.set(call, data.status as string);
+  }
+  return (event: ChatEventEnvelope) => {
+    if (event.type === 'chunk' || event.type === 'round_end') contentRound(event);
+    else if (event.type === 'tool_progress') toolRound(event.data);
+    else if (event.type === 'completion' && event.data.status === 'finished' && roundMode && !finalRound) {
+      protocol('Finished without final round');
+    }
+  };
+}
+
 function createReceiver(input: ChatStreamInput, onEvent: ChatTransportOptions['onEvent']) {
   let terminal: ChatTerminalStatus | undefined;
   let lastSeq = 0;
   let failureCode: string | undefined;
+  const roundProtocol = createRoundProtocol();
   return {
     getStatus: () => terminal,
     onFrame(frame: SseFrame) {
@@ -192,6 +263,7 @@ function createReceiver(input: ChatStreamInput, onEvent: ChatTransportOptions['o
         protocol('Invalid completion after error');
       }
       lastSeq = event.seq;
+      roundProtocol(event);
       if (event.type === 'error') failureCode = event.data.code as string;
       if (event.type === 'completion') terminal = event.data.status as ChatTerminalStatus;
       if (knownTypes.has(event.type)) onEvent(event);

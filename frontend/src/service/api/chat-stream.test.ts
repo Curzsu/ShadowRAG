@@ -21,6 +21,47 @@ function frame(type: string, seq: number, data: Record<string, unknown> = {}) {
 }
 const completion = (seq = 1, status = 'finished') => frame('completion', seq, { status });
 
+test('react rounds and tool progress reach the consumer in order', async () => {
+  const { options, events } = setup(async () =>
+    response(
+      frame('meta', 1) +
+        frame('chunk', 2, { roundId: 1, chunk: '检索说明' }) +
+        frame('round_end', 3, { roundId: 1, kind: 'intermediate' }) +
+        frame('tool_progress', 4, { roundId: 1, callId: 'a', tool: 'search_knowledge_base', status: 'started' }) +
+        frame('tool_progress', 5, { roundId: 1, callId: 'a', tool: 'search_knowledge_base', status: 'finished' }) +
+        frame('chunk', 6, { roundId: 2, chunk: '答案' }) +
+        frame('round_end', 7, { roundId: 2, kind: 'final' }) +
+        completion(8)
+    )
+  );
+  assert.deepEqual(await streamChat(input, options), { status: 'finished' });
+  assert.deepEqual(
+    events.map(e => e.type),
+    ['meta', 'chunk', 'round_end', 'tool_progress', 'tool_progress', 'chunk', 'round_end', 'completion']
+  );
+});
+test('react rejects invalid or unfinished round protocols and cancels the request', async () => {
+  const invalid = [
+    frame('chunk', 1, { roundId: 1, chunk: 'draft' }) + completion(2),
+    frame('chunk', 1, { roundId: 2, chunk: 'skip' }),
+    frame('round_end', 1, { roundId: 1, kind: 'intermediate' }) + frame('round_end', 2, { roundId: 1, kind: 'final' }),
+    frame('round_end', 1, { roundId: 1, kind: 'final' }) + frame('chunk', 2, { roundId: 2, chunk: 'late' }),
+    frame('chunk', 1, { roundId: -1, chunk: 'bad' }),
+    frame('round_end', 1, { roundId: 1, kind: 'unknown' }),
+    frame('round_end', 1, { roundId: 1, kind: 'intermediate' }) +
+      frame('tool_progress', 2, { roundId: 1, callId: 'a', tool: 'search_knowledge_base', status: 'finished' }),
+    frame('chunk', 1, { chunk: 'old' }) + frame('round_end', 2, { roundId: 1, kind: 'final' })
+  ];
+  for (const text of invalid) {
+    const { options, calls } = invalidStream(text);
+    await assert.rejects(
+      streamChat(input, options),
+      (error: unknown) => error instanceof ChatStreamError && error.kind === 'protocol'
+    );
+    assert.equal(calls(), 2);
+  }
+});
+
 function response(text: string, headers: HeadersInit = {}) {
   return new Response(text, { headers: { 'Content-Type': 'text/event-stream;charset=UTF-8', ...headers } });
 }

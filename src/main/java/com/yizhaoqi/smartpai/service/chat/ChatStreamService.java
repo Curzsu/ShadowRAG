@@ -207,7 +207,7 @@ public class ChatStreamService implements AutoCloseable {
         final AtomicReference<ScheduledFuture<?>> deadline = new AtomicReference<>();
         final AtomicReference<ScheduledFuture<?>> heartbeat = new AtomicReference<>();
         final CountDownLatch removed = new CountDownLatch(1);
-        final StringBuilder delivered = new StringBuilder();
+        final ChatRoundAccumulator delivered = new ChatRoundAccumulator();
         final long startedAt = System.nanoTime();
         volatile boolean modelDone;
         volatile boolean heartbeatPending;
@@ -349,14 +349,15 @@ public class ChatStreamService implements AutoCloseable {
                     synchronized (pending) { next = pending.pollFirst(); }
                     if (next != null) {
                         if (context.state() != RUNNING) continue;
+                        delivered.accept(next);
                         send(next.type(), next.data());
                         if ("chunk".equals(next.type())) {
-                            delivered.append((String) next.data().get("chunk"));
-                            deliveredCharacters = delivered.length();
+                            deliveredCharacters += ((String) next.data().get("chunk")).length();
                             if (firstChunkAt < 0) firstChunkAt = System.nanoTime();
                         }
                         continue;
                     }
+                    if (modelDone) delivered.requireFinal();
                     if (modelDone && context.tryTransition(RUNNING, COMPLETING)) {
                         cancel(deadline);
                         context.releaseResources();
@@ -405,7 +406,7 @@ public class ChatStreamService implements AutoCloseable {
 
         void persist() {
             try {
-                handler.persistCompletedTurn(context.command(), delivered.toString());
+                handler.persistCompletedTurn(context.command(), delivered.answer());
                 durableCommitted = true;
                 context.tryTransition(COMPLETING, FINISHED);
             } catch (RuntimeException error) {
