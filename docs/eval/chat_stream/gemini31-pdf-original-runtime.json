@@ -1,0 +1,21 @@
+{
+  "scenario": "uploaded-pdf-original-prompt",
+  "model": "gemini-3.1-flash-lite",
+  "httpStatus": 200,
+  "conversationId": "6cfcb6e1-f21f-4200-9677-ddce3b4a5979",
+  "requestId": "e722cd77-3e5d-4e37-8b93-3f87484aa91c",
+  "prompt": "请调用知识库检索工具辅助回答",
+  "toolStarts": 0,
+  "toolFinishes": 0,
+  "roundKinds": [
+    "final"
+  ],
+  "terminalStatus": "finished",
+  "errorCodes": [],
+  "finalCharacters": 239,
+  "exactFinalSavedCount": 1,
+  "hasSourceCitation": false,
+  "signatureInAnswer": false,
+  "elapsedMillis": 5727,
+  "recordedAt": "2026-10-06T08:23:10.8476938Z"
+}

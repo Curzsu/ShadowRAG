@@ -1,0 +1,12 @@
+{
+  "scenario" : "two-searches",
+  "model" : "gemini-3.1-flash-lite",
+  "realSupplier" : true,
+  "syntheticRetrieval" : true,
+  "modelRequests" : 3,
+  "queries" : [ "报告A", "报告B" ],
+  "roundKinds" : [ "intermediate", "intermediate", "final" ],
+  "answer" : "2025年收入100万(来源#1: 报告A.pdf)，2026年120万(来源#2: 报告B.pdf)，同比增长20%。",
+  "elapsedMillis" : 4266,
+  "recordedAt" : "2026-10-06T08:14:24.352924800Z"
+}

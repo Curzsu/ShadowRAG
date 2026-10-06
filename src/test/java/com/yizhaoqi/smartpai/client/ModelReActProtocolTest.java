@@ -124,4 +124,55 @@ class ModelReActProtocolTest {
             assertThrows(IOException.class,() -> read(server,new ModelHttpProperties(),new ArrayList<>()));
         }
     }
+
+    @Test void malformedOrConflictingThoughtSignaturesFailWithoutExecutingCalls() throws Exception {
+        var valid=wholeCall("google-a","A");
+        for(Object extra:List.of("wrong-shape",Map.of("google","wrong-shape"),
+                Map.of("google",Map.of("thought_signature",123)),Map.of("google",Map.of("thought_signature"," ")),
+                Map.of("google",Map.of("thought_signature","x".repeat(1048577))))) {
+            try(var server=new MockModelSseServer()) {
+                var broken=new LinkedHashMap<>(valid); broken.put("extra_content",extra);
+                server.enqueue(s -> { s.data(frame(Map.of("tool_calls",List.of(broken)))); s.data("[DONE]"); });
+                var p=new ModelHttpProperties(); p.setMaxSseLineBytes(2097152); p.setMaxSseFrameBytes(2097152);
+                assertThrows(IOException.class,() -> read(server,p,new ArrayList<>()));
+            }
+        }
+        try(var server=new MockModelSseServer()) {
+            var signed=new LinkedHashMap<>(call(0,"a","search_knowledge_base","{}"));
+            signed.put("extra_content",Map.of("google",Map.of("thought_signature","first")));
+            var conflicting=Map.of("index",0,"extra_content",Map.of("google",Map.of("thought_signature","different")));
+            server.enqueue(s -> { s.data(frame(Map.of("tool_calls",List.of(signed))));
+                s.data(frame(Map.of("tool_calls",List.of(conflicting)))); s.data("[DONE]"); });
+            assertThrows(IOException.class,() -> read(server,new ModelHttpProperties(),new ArrayList<>()));
+        }
+    }
+
+    @Test void indexedInterleavedSignaturesKeepCallIdentityWithoutBecomingContent() throws Exception {
+        try(var server=new MockModelSseServer()) {
+            var signedB=new LinkedHashMap<>(call(1,"b","search_knowledge_base","{\"query\":\"B\"}"));
+            signedB.put("extra_content",Map.of("google",Map.of("thought_signature","signature-B")));
+            server.enqueue(s -> {
+                s.data(frame(Map.of("tool_calls",List.of(signedB,call(0,"a","search_knowledge_base","{\"query\":\"A\"}")))));
+                s.data(frame(Map.of("tool_calls",List.of(Map.of("index",0,"extra_content",Map.of("google",Map.of("thought_signature","signature-A"))),
+                        Map.of("index",1,"extra_content",Map.of("google",Map.of("thought_signature","signature-B")))))));
+                s.data("[DONE]");
+            });
+            var output=new ArrayList<ModelDelta>(); var result=read(server,new ModelHttpProperties(),output);
+            assertEquals(List.of("a","b"),result.toolCalls().stream().map(ModelToolCall::id).toList());
+            assertEquals(List.of("signature-A","signature-B"),result.toolCalls().stream().map(ModelToolCall::thoughtSignature).toList());
+            assertFalse(output.toString().contains("signature-"));
+        }
+    }
+
+    @Test void signatureBudgetAppliesAcrossAllCallsAndConfigurationRequiresPositiveLimit() throws Exception {
+        var p=new ModelHttpProperties(); p.setMaxToolSignatureChars(10);
+        try(var server=new MockModelSseServer()) {
+            var first=new LinkedHashMap<>(wholeCall("a","A"));
+            var second=new LinkedHashMap<>(wholeCall("b","B"));
+            for(var call:List.of(first,second)) call.put("extra_content",Map.of("google",Map.of("thought_signature","123456")));
+            server.enqueue(s -> { s.data(frame(Map.of("tool_calls",List.of(first,second)))); s.data("[DONE]"); });
+            assertThrows(IOException.class,() -> read(server,p,new ArrayList<>()));
+        }
+        p.setMaxToolSignatureChars(0); assertThrows(IllegalArgumentException.class,p::validate);
+    }
 }
