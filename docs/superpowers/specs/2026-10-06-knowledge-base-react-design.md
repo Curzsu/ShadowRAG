@@ -1,7 +1,7 @@
 # ShadowRAG 知识库 ReAct 接续设计
 
 日期：2026-10-06  
-状态：接续设计，尚未实施  
+状态：R1～R3 验收通过，改动保留在专用分支，见 [ReAct验收](../../eval/chat_stream/knowledge-base-react-acceptance.md)
 前置：[聊天去除Flux计划](../plans/2026-10-06-remove-flux-chat.md) 的阶段3验收通过
 
 ## 1. 用户目标与执行顺序
@@ -15,7 +15,7 @@
 
 Embedding、Reranker、MinerU和全项目依赖清理暂缓，不作为ReAct前置条件。保留检索内部的现有客户端，可以直接复用已经可用的知识库搜索。
 
-本次只调整文档与任务安排，不实施Flux改造或ReAct。此设计明确首版边界；执行R阶段前应以实际完成的普通HTTP接口为基线补齐实施计划，不照尚未实现的接口直接写代码。
+聊天去Flux阶段0～3已完成，以 `b399f9c` 为基线在 `codex/knowledge-base-react` 实施R1～R3。具体步骤见 [实施计划](../plans/2026-10-06-knowledge-base-react.md)。本设计保留阶段过渡说明，R1的单工具保护已在R2被完整循环替换。
 
 ## 2. 最小可用范围
 

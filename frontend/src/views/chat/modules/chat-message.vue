@@ -55,7 +55,7 @@ function wrapBareUrls(text: string): string {
 
 const content = computed(() => {
   chatStore.scrollToBottom?.();
-  const rawContent = props.msg.content ?? '';
+  const rawContent = props.msg.roundDraft ?? props.msg.content ?? '';
 
   // 只对助手消息处理来源链接
   if (props.msg.role === 'assistant') {
@@ -144,6 +144,14 @@ async function handleSourceFileClick(fileName: string) {
     <NText v-if="msg.status === 'pending'">
       <icon-eos-icons:three-dots-loading class="ml-12 mt-2 text-8" />
     </NText>
+    <div v-if="msg.role === 'assistant' && msg.intermediateRounds?.some(round => round.content)" class="mt-2 pl-12">
+      <details>
+        <summary class="cursor-pointer text-3 color-gray-500">查看检索过程</summary>
+        <div v-for="round in msg.intermediateRounds" :key="round.roundId" class="mt-2 text-3 color-gray-500">
+          <VueMarkdownIt v-if="round.content" :content="round.content" />
+        </div>
+      </details>
+    </div>
     <div v-if="msg.role === 'assistant' && content" class="mt-2 pl-12" @click="handleContentClick">
       <VueMarkdownIt :content="content" />
     </div>

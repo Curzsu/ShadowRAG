@@ -128,6 +128,20 @@ function pageHarness(page: string, fetchImpl: (...args: any[]) => Promise<Respon
 }
 
 for (const page of ['test.html', 'static/test.html']) {
+  test(`${page}: final display excludes intermediate round text`, async () => {
+    const harness = pageHarness(page, async () => new Response());
+    harness.get('chat-conversation-id').value = input.conversationId;
+    harness.get('message-input').value = '问题';
+    harness.context.window.ChatStreamTransport.streamChat = async (_input: unknown, transportOptions: any) => {
+      transportOptions.onEvent({ type: 'chunk', data: { roundId: 1, chunk: '检索说明' } });
+      transportOptions.onEvent({ type: 'round_end', data: { roundId: 1, kind: 'intermediate' } });
+      transportOptions.onEvent({ type: 'chunk', data: { roundId: 2, chunk: '最终答案' } });
+      transportOptions.onEvent({ type: 'round_end', data: { roundId: 2, kind: 'final' } });
+      return { status: 'finished' };
+    };
+    await harness.run('sendMessage()');
+    assert.equal(harness.get('chat-messages').children[1].textContent, '最终答案');
+  });
   test(`${page}: explicit credential refresh cannot replace the stored login`, () => {
     const harness = pageHarness(page, async () => new Response());
     harness.get('chat-authorization').value = 'Bearer explicit-B';
@@ -213,6 +227,37 @@ for (const page of ['test.html', 'static/test.html']) {
 function available() {
   assert.equal(typeof helper.streamChat, 'function', 'Static SSE helper must expose streamChat');
 }
+
+test('static transport preserves react round events and rejects missing final confirmation', async () => {
+  available();
+  const events: any[] = [];
+  const text =
+    frame('chunk', 1, { roundId: 1, chunk: '说明' }) +
+    frame('round_end', 2, { roundId: 1, kind: 'intermediate' }) +
+    frame('chunk', 3, { roundId: 2, chunk: '答案' }) +
+    frame('round_end', 4, { roundId: 2, kind: 'final' }) +
+    frame('completion', 5, { status: 'finished' });
+  await helper.streamChat(input, {
+    ...options,
+    onEvent: (event: any) => events.push(event),
+    fetchImpl: async () => response(text)
+  });
+  assert.equal(events.filter(event => event.type === 'round_end').length, 2);
+  let count = 0;
+  await assert.rejects(
+    helper.streamChat(input, {
+      ...options,
+      onEvent() {},
+      fetchImpl: async () => {
+        count += 1;
+        return count === 1
+          ? response(frame('chunk', 1, { roundId: 1, chunk: 'draft' }) + frame('completion', 2, { status: 'finished' }))
+          : Response.json({ code: 200, data: { requestId: input.requestId, status: 'cancelled' } });
+      }
+    }),
+    (error: any) => error.kind === 'protocol'
+  );
+});
 
 test('static helper dispatches Chinese and emoji across bytes and all SSE line endings', async () => {
   available();

@@ -184,7 +184,7 @@ class ChatHandlerHistoryTest {
     }
 
     @Test
-    void prepareToolResponseMessages_shouldTruncateRetrievalContextBeforeSecondModelCall() {
+    void agentBudget_shouldTruncateRetrievalContextBeforeNextModelCall() {
         aiProperties.getContext().setWindowTokens(500);
         aiProperties.getContext().setSafetyMarginTokens(50);
         aiProperties.getGeneration().setMaxTokens(100);
@@ -193,8 +193,11 @@ class ChatHandlerHistoryTest {
                 Map.of("role", "user", "content", "current question")
         );
 
-        List<Map<String, Object>> messages = handler.prepareToolResponseMessages(
-                original, "call-1", "{\"query\":\"x\"}", "document result ".repeat(1000));
+        var protocol = new java.util.ArrayList<>(original);
+        protocol.add(Map.of("role","assistant","tool_calls",List.of(Map.of("id","call-1","type","function",
+                "function",Map.of("name","search_knowledge_base","arguments","{\"query\":\"x\"}")))));
+        protocol.add(Map.of("role","tool","tool_call_id","call-1","content","document result ".repeat(1000)));
+        List<Map<String,Object>> messages = new ContextBudgetService(aiProperties,tokenEstimator).fitAgent(protocol,100,0);
 
         assertEquals(List.of("system", "user", "assistant", "tool"),
                 messages.stream().map(m -> String.valueOf(m.get("role"))).toList());

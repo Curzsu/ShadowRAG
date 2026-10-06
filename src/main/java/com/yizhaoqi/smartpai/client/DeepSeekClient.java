@@ -46,7 +46,7 @@ public class DeepSeekClient {
         var response = streamWithTools(messages, List.of(), context, delta -> {
             if (delta.kind() == ModelDelta.Kind.CONTENT) onContent.accept(delta.value());
         });
-        if (!response.toolCallId().isEmpty() || !response.toolArgumentsJson().isEmpty())
+        if (!response.toolCalls().isEmpty())
             throw new IllegalStateException("Model returned a tool call when tools were disabled");
         return response;
     }

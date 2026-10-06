@@ -5,6 +5,7 @@ import { getServiceBaseURL } from '@/utils/service';
 import { createChatSession, createSendGate } from './chat-session';
 import type { RequestIdentity } from './chat-session';
 import { createChatViewLifecycle, draftAfterSubmission } from './chat-view';
+import { applyChatRoundEvent } from './chat-rounds';
 
 export const useChatStore = defineStore(SetupStoreId.Chat, () => {
   const conversationId = ref('');
@@ -50,7 +51,7 @@ export const useChatStore = defineStore(SetupStoreId.Chat, () => {
     onEvent(identity, event) {
       const message = findMessage(identity);
       if (!message) return;
-      if (event.type === 'chunk') message.content += String(event.data.chunk);
+      applyChatRoundEvent(message, event.type, event.data);
       if (event.type === 'tool_progress')
         message.toolProgress = event.data.status === 'started' ? '正在检索知识库' : '知识库检索完成';
       scrollToBottom.value?.();

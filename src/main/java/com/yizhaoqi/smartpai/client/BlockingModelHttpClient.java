@@ -90,7 +90,7 @@ public final class BlockingModelHttpClient {
             });
         } catch (CancellationException e) { throw e; }
         catch (IllegalStateException e) { throw new IOException("Invalid model streaming response", e); }
-        return new ModelRoundResult(round.content.toString(), round.id.toString(), round.arguments.toString(), round.finishReason);
+        return round.result();
     }
 
     public String postJson(Map<String,Object> request, Duration timeout) throws IOException, InterruptedException {
@@ -175,11 +175,13 @@ public final class BlockingModelHttpClient {
 
     private final class Round {
         final ChatGenerationResources resources; final Consumer<ModelDelta> output;
-        final StringBuilder content = new StringBuilder(), id = new StringBuilder(), arguments = new StringBuilder();
-        boolean done; String finishReason;
+        final StringBuilder content = new StringBuilder(), reasoning = new StringBuilder();
+        final SortedMap<Integer, CallParts> calls = new TreeMap<>();
+        long argumentCharacters, metadataCharacters;
+        boolean done, unindexedBatch; String finishReason;
         Round(ChatGenerationResources resources, Consumer<ModelDelta> output) { this.resources = resources; this.output = output; }
         void accept(String frame) throws IOException {
-            JsonNode root = mapper.readTree(frame);
+            JsonNode root = mapper.reader().with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readTree(frame);
             if (root == null || root.has("error") || !root.path("choices").isArray() || root.path("choices").isEmpty())
                 throw new IOException("Invalid model streaming response");
             var choice = root.path("choices").get(0);
@@ -192,32 +194,94 @@ public final class BlockingModelHttpClient {
             }
             var delta = choice.path("delta");
             if (!delta.isObject()) throw new IOException("Invalid model delta");
-            append(delta.get("content"), ModelDelta.Kind.CONTENT);
-            var calls = delta.get("tool_calls");
-            if (calls != null && !calls.isNull()) {
-                if (!calls.isArray() || calls.size() > 1) throw new IOException("Invalid single-search tool calls");
-                if (!calls.isEmpty()) {
-                    var call = calls.get(0);
-                    if (!call.isObject() || call.path("index").asInt(0) != 0) throw new IOException("Invalid search tool call");
-                    var name = call.path("function").get("name");
-                    if (name != null && (!name.isTextual() || !name.asText().equals("search_knowledge_base")))
-                        throw new IOException("Unsupported model tool");
-                    append(call.get("id"), ModelDelta.Kind.TOOL_CALL_ID);
-                    append(call.path("function").get("arguments"), ModelDelta.Kind.TOOL_CALL_ARGUMENTS);
+            String text = text(delta.get("content"));
+            if (!text.isEmpty()) {
+                resources.addContentCharacters(text.length(), properties.getMaxStreamContentChars()); content.append(text);
+                output.accept(new ModelDelta(ModelDelta.Kind.CONTENT,text)); resources.checkRunning();
+            }
+            String thought = text(delta.get("reasoning_content"));
+            if (reasoning.length() + (long) thought.length() > properties.getMaxReasoningChars()) throw new IOException("Model reasoning limit exceeded");
+            reasoning.append(thought);
+            var fragments = delta.get("tool_calls");
+            if (fragments != null && !fragments.isNull()) {
+                if (!fragments.isArray() || fragments.size() > properties.getMaxToolCallsPerRound()) throw new IOException("Invalid model tool calls");
+                if (!fragments.isEmpty() && unindexedBatch) throw new IOException("Ambiguous tool batch continuation");
+                // Some compatible providers send one complete call batch instead of indexed deltas.
+                boolean wholeBatch=!fragments.isEmpty();
+                for(var fragment:fragments) wholeBatch=wholeBatch && fragment.isObject() && !fragment.has("index");
+                if(wholeBatch) {
+                    if(!calls.isEmpty()) throw new IOException("Mixed model tool protocols");
+                    long characters=0;
+                    for(var fragment:fragments) {
+                        String arguments=completeArguments(fragment);
+                        characters+=arguments.length();
+                        if(characters>properties.getMaxToolArgumentsChars()) throw new IOException("Model tool arguments limit exceeded");
+                        JsonNode parsed=mapper.reader().with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readTree(arguments);
+                        if(parsed==null || !parsed.isObject()) throw new IOException("Incomplete unindexed tool arguments");
+                    }
+                    unindexedBatch=true;
+                }
+                int ordinal=0;
+                for (var fragment : fragments) {
+                    var indexNode = fragment.get("index");
+                    if (!wholeBatch && (!fragment.isObject() || indexNode == null || !indexNode.isIntegralNumber() || !indexNode.canConvertToInt()
+                            || indexNode.intValue()<0 || indexNode.intValue()>=properties.getMaxToolCallsPerRound())) throw new IOException("Invalid tool index");
+                    if (fragment.has("type") && !"function".equals(fragment.path("type").asText())) throw new IOException("Invalid tool type");
+                    int index=wholeBatch ? ordinal++ : indexNode.intValue(); var parts=calls.computeIfAbsent(index, ignored -> new CallParts());
+                    appendMetadata(parts.id, text(fragment.get("id")),index,ModelDelta.Kind.TOOL_CALL_ID);
+                    var function=fragment.get("function");
+                    if (function!=null && !function.isObject()) throw new IOException("Invalid tool function");
+                    if (function!=null) {
+                        appendName(parts.name,text(function.get("name")),index);
+                        String arguments=text(function.get("arguments"));
+                        argumentCharacters+=arguments.length();
+                        if(argumentCharacters>properties.getMaxToolArgumentsChars()) throw new IOException("Model tool arguments limit exceeded");
+                        parts.arguments.append(arguments);
+                        if(!arguments.isEmpty()) output.accept(new ModelDelta(ModelDelta.Kind.TOOL_CALL_ARGUMENTS,arguments,index));
+                    }
+                    resources.checkRunning();
                 }
             }
         }
-        void append(JsonNode node, ModelDelta.Kind kind) throws IOException {
-            if (node == null || node.isNull()) return;
-            if (!node.isTextual()) throw new IOException("Invalid model delta value");
-            String text = node.textValue(); if (text.isEmpty()) return;
-            switch (kind) {
-                case CONTENT -> { resources.addContentCharacters(text.length(), properties.getMaxStreamContentChars()); content.append(text); }
-                case TOOL_CALL_ID -> { if (id.length() + (long)text.length() > properties.getMaxToolArgumentsChars()) throw new IOException("Model tool ID limit exceeded"); id.append(text); }
-                case TOOL_CALL_ARGUMENTS -> { if (arguments.length() + (long)text.length() > properties.getMaxToolArgumentsChars()) throw new IOException("Model tool arguments limit exceeded"); arguments.append(text); }
-            }
-            output.accept(new ModelDelta(kind, text)); resources.checkRunning();
+        String completeArguments(JsonNode call) throws IOException {
+            var function=call.path("function");
+            if(!call.path("id").isTextual() || call.path("id").asText().isBlank()
+                    || !"function".equals(call.path("type").asText()) || !function.isObject()
+                    || !function.path("name").isTextual() || function.path("name").asText().isBlank()
+                    || !function.path("arguments").isTextual()) throw new IOException("Incomplete unindexed tool call");
+            return function.path("arguments").asText();
         }
+        String text(JsonNode node) throws IOException {
+            if(node==null || node.isNull()) return "";
+            if(!node.isTextual()) throw new IOException("Invalid model delta value");
+            return node.textValue();
+        }
+        void appendName(StringBuilder target,String fragment,int index) throws IOException {
+            if(fragment.isEmpty() || target.toString().equals(fragment)) return;
+            String addition=fragment.startsWith(target.toString()) ? fragment.substring(target.length()) : fragment;
+            appendMetadata(target,addition,index,null);
+        }
+        void appendMetadata(StringBuilder target,String addition,int index,ModelDelta.Kind kind) throws IOException {
+            if(addition.isEmpty()) return;
+            metadataCharacters+=addition.length();
+            if(metadataCharacters>4096) throw new IOException("Model tool metadata limit exceeded");
+            target.append(addition);
+            if(kind!=null && !addition.isEmpty()) output.accept(new ModelDelta(kind,addition,index));
+        }
+        ModelRoundResult result() throws IOException {
+            var result=new ArrayList<ModelToolCall>(); var ids=new HashSet<String>();
+            for(var entry:calls.entrySet()) {
+                var parts=entry.getValue();
+                if(parts.id.toString().isBlank() || parts.name.toString().isBlank() || !ids.add(parts.id.toString()))
+                    throw new IOException("Missing or duplicate model tool identity");
+                result.add(new ModelToolCall(entry.getKey(),parts.id.toString(),parts.name.toString(),parts.arguments.toString()));
+            }
+            if("tool_calls".equals(finishReason) && result.isEmpty()) throw new IOException("Missing model tool calls");
+            return new ModelRoundResult(content.toString(),reasoning.toString(),result,finishReason);
+        }
+    }
+    private static final class CallParts {
+        final StringBuilder id=new StringBuilder(),name=new StringBuilder(),arguments=new StringBuilder();
     }
 
     private record OwnedResponse(HttpResponse<InputStream> response, InputStream body) {
