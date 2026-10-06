@@ -1,0 +1,22 @@
+{
+  "scenario": "knowledge-first-real-pdf-person",
+  "model": "gemini-3.1-flash-lite",
+  "httpStatus": 200,
+  "conversationId": "4ef8c8bc-94f3-4e09-a22b-9741169e25e2",
+  "requestId": "e9cd475b-5653-4a34-a0af-739383341549",
+  "question": "苏哲是谁",
+  "toolStarts": 1,
+  "toolFinishes": 1,
+  "roundKinds": [
+    "intermediate",
+    "final"
+  ],
+  "terminalStatus": "finished",
+  "errorCodes": [],
+  "finalCharacters": 881,
+  "exactFinalSavedCount": 1,
+  "hasSourceCitation": true,
+  "answersFictionalCharacter": false,
+  "elapsedMillis": 15118,
+  "recordedAt": "2026-10-06T08:41:08.5065115Z"
+}

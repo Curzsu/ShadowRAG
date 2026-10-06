@@ -1,6 +1,6 @@
 /** Default theme settings */
 export const themeSettings: App.Theme.ThemeSetting = {
-  themeScheme: 'auto',
+  themeScheme: 'light',
   grayscale: false,
   colourWeakness: false,
   recommendColor: true,
@@ -15,7 +15,7 @@ export const themeSettings: App.Theme.ThemeSetting = {
   fixedHeaderAndTab: true,
   sider: {
     inverted: false,
-    width: 180,
+    width: 210,
     collapsedWidth: 64,
     mixWidth: 90,
     mixCollapsedWidth: 64,
@@ -46,4 +46,6 @@ export const themeSettings: App.Theme.ThemeSetting = {
  *
  * If publish new version, use `overrideThemeSettings` to override certain theme settings
  */
-export const overrideThemeSettings: Partial<App.Theme.ThemeSetting> = {};
+export const overrideThemeSettings: Partial<App.Theme.ThemeSetting> = {
+  themeScheme: 'light'
+};
