@@ -16,8 +16,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import reactor.core.Disposable;
-import reactor.core.Disposables;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -28,17 +26,19 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongFunction;
 
 import static com.yizhaoqi.smartpai.service.chat.ChatRequestContext.State.*;
 
-/** Owns the single subscription and the serialized downstream writer for each generation. */
+/** Owns the generation task and serialized downstream writer for each request. */
 @Service
 public class ChatStreamService implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(ChatStreamService.class);
@@ -47,6 +47,7 @@ public class ChatStreamService implements AutoCloseable {
     private final ChatRequestRegistry registry;
     private final ChatStreamingProperties properties;
     private final Executor workers;
+    private final Executor generators;
     private final ScheduledExecutorService timers;
     private final LongFunction<SseEmitter> emitterFactory;
     private final ConcurrentHashMap<ChatRequestContext, Stream> streams = new ConcurrentHashMap<>();
@@ -56,6 +57,7 @@ public class ChatStreamService implements AutoCloseable {
     public ChatStreamService(ChatHandler handler, ConversationService conversations,
                              ChatRequestRegistry registry, ChatStreamingProperties properties,
                              @Qualifier("chatStreamingExecutor") Executor workers,
+                             @Qualifier("chatGenerationExecutor") Executor generators,
                              @Qualifier("chatStreamingTimers") ScheduledExecutorService timers,
                              @Qualifier("chatSseEmitterFactory") LongFunction<SseEmitter> emitterFactory) {
         this.handler = handler;
@@ -63,6 +65,7 @@ public class ChatStreamService implements AutoCloseable {
         this.registry = registry;
         this.properties = properties;
         this.workers = workers;
+        this.generators = generators;
         this.timers = timers;
         this.emitterFactory = emitterFactory;
     }
@@ -203,7 +206,6 @@ public class ChatStreamService implements AutoCloseable {
         final AtomicBoolean removedOnce = new AtomicBoolean();
         final AtomicReference<ScheduledFuture<?>> deadline = new AtomicReference<>();
         final AtomicReference<ScheduledFuture<?>> heartbeat = new AtomicReference<>();
-        final Disposable.Swap subscription = Disposables.swap();
         final CountDownLatch removed = new CountDownLatch(1);
         final StringBuilder delivered = new StringBuilder();
         final long startedAt = System.nanoTime();
@@ -226,13 +228,25 @@ public class ChatStreamService implements AutoCloseable {
         }
 
         void start() {
-            workers.execute(this::subscribe);
+            var task = new FutureTask<Void>(() -> { generate(); return null; }) {
+                @Override protected void done() {
+                    if (isCancelled()) removeFromGenerationQueue(this);
+                }
+            };
+            context.generationResources().attachGenerationTask(task);
             scheduleDrain();
+            if (!context.isTerminal()) {
+                generators.execute(task);
+                // Cancellation may win between the admission check and the executor enqueue.
+                if (task.isCancelled()) removeFromGenerationQueue(task);
+            }
+        }
+
+        void removeFromGenerationQueue(Runnable task) {
+            if (generators instanceof ThreadPoolExecutor executor) executor.remove(task);
         }
 
         void initialize() {
-            // The cancellation slot exists before any supplier code can subscribe.
-            context.attachUpstream(subscription);
             emitter.onCompletion(this::disconnected);
             emitter.onError(error -> disconnected());
             emitter.onTimeout(() -> {
@@ -243,7 +257,7 @@ public class ChatStreamService implements AutoCloseable {
             });
             context.onCancel(() -> terminalWon(null));
             install(deadline, timers.schedule(() -> terminate(TIMED_OUT, "STREAM_TIMEOUT"),
-                    properties.getGenerationTimeoutMs(), TimeUnit.MILLISECONDS));
+                    context.generationResources().remaining().toNanos(), TimeUnit.NANOSECONDS));
             install(heartbeat, timers.scheduleAtFixedRate(() -> {
                 if (resourcesStopped.get()) return;
                 heartbeatPending = true;
@@ -256,20 +270,21 @@ public class ChatStreamService implements AutoCloseable {
             if (resourcesStopped.get()) task.cancel(false);
         }
 
-        void subscribe() {
+        void generate() {
             if (!context.tryTransition(REGISTERED, RUNNING)) return;
             try {
-                Disposable upstream = handler.generateReply(context.command()).subscribe(
-                        this::offer,
-                        error -> terminate(FAILED, error instanceof ChatHandler.GenerationException generation
-                                ? generation.getErrorCode() : "INTERNAL_ERROR"),
-                        () -> {
-                            modelDone = true;
-                            scheduleDrain();
-                        });
-                subscription.update(upstream);
+                context.generationResources().checkRunning();
+                handler.generateReply(context.command(), context, this::offer);
+                context.generationResources().checkRunning();
+                modelDone = true;
+                scheduleDrain();
+            } catch (java.net.http.HttpTimeoutException error) {
+                terminate(TIMED_OUT, "STREAM_TIMEOUT");
             } catch (RuntimeException error) {
-                terminate(FAILED, "INTERNAL_ERROR");
+                if (context.generationResources().remaining().isZero()
+                        || error instanceof ChatHandler.GenerationException generation && "STREAM_TIMEOUT".equals(generation.getErrorCode()))
+                    terminate(TIMED_OUT, "STREAM_TIMEOUT");
+                else terminate(FAILED, error instanceof ChatHandler.GenerationException generation ? generation.getErrorCode() : "INTERNAL_ERROR");
             }
         }
 
@@ -344,7 +359,7 @@ public class ChatStreamService implements AutoCloseable {
                     }
                     if (modelDone && context.tryTransition(RUNNING, COMPLETING)) {
                         cancel(deadline);
-                        context.dispose();
+                        context.releaseResources();
                         persist();
                         continue;
                     }
@@ -420,7 +435,7 @@ public class ChatStreamService implements AutoCloseable {
             cancel(heartbeat);
             heartbeatPending = false;
             synchronized (pending) { pending.clear(); }
-            context.dispose();
+            context.releaseResources();
         }
 
         void disconnected() {
@@ -446,13 +461,13 @@ public class ChatStreamService implements AutoCloseable {
             removed.countDown();
             ChatCommand command = context.command();
             logger.info("Chat stream ended username={} chatRequestId={} conversationId={} state={} errorCode={} "
-                            + "firstChunkMs={} elapsedMs={} writtenCharacters={} upstreamDisposed={} "
+                            + "firstChunkMs={} elapsedMs={} writtenCharacters={} resourcesReleased={} "
                             + "durableCommitted={} networkTerminalDelivered={}",
                     command.username(), command.requestId(), command.conversationId(), context.state(),
                     errorCode == null ? "none" : errorCode,
                     firstChunkAt < 0 ? -1 : TimeUnit.NANOSECONDS.toMillis(firstChunkAt - startedAt),
                     TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt), deliveredCharacters,
-                    subscription.isDisposed(), durableCommitted, networkTerminalDelivered);
+                    context.resourcesReleased(), durableCommitted, networkTerminalDelivered);
         }
 
         void cancel(AtomicReference<ScheduledFuture<?>> task) {

@@ -16,9 +16,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
-import reactor.core.scheduler.Scheduler;
-import reactor.core.scheduler.Schedulers;
-import reactor.test.StepVerifier;
+import com.yizhaoqi.smartpai.support.ChatGenerationProbe;
+import com.yizhaoqi.smartpai.model.chat.ChatOutput;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +33,6 @@ import static org.mockito.Mockito.*;
 
 class ChatHandlerStreamingTest {
     private MockModelSseServer server;
-    private Scheduler worker;
     private ChatHandler handler;
     private HybridSearchService search;
     private ConversationService conversations;
@@ -44,7 +42,6 @@ class ChatHandlerStreamingTest {
 
     @BeforeEach void setup() throws Exception {
         server = new MockModelSseServer();
-        worker = Schedulers.newBoundedElastic(2, 16, "test-chat-worker");
         search = mock(HybridSearchService.class);
         conversations = mock(ConversationService.class);
         messages = mock(ConversationMessageService.class);
@@ -57,29 +54,28 @@ class ChatHandlerStreamingTest {
         TokenEstimator estimator = new TokenEstimator(mapper);
         handler = new ChatHandler(mock(StringRedisTemplate.class), search,
                 new DeepSeekClient(server.url(), "test-model-token", "test-model", config, mapper),
-                mapper, config, compression, messages, new ContextBudgetService(config, estimator), estimator, conversations, worker);
+                mapper, config, compression, messages, new ContextBudgetService(config, estimator), estimator, conversations);
     }
-    @AfterEach void close() { worker.dispose(); server.close(); }
+    @AfterEach void close() { server.close(); }
 
-    @Test void publisherIsCold() {
-        var reply = handler.generateReply(command);
+    @Test void ordinaryCallStartsOnlyWhenInvoked() {
+        ChatGenerationProbe.Generation<ChatOutput> reply = (context, out) -> handler.generateReply(command, context, out);
         verifyNoInteractions(conversations, search, messages);
         assertEquals(0, server.requests());
         server.enqueue(s -> { s.content("answer"); s.data("[DONE]"); });
-        StepVerifier.create(reply).assertNext(out -> assertEquals("answer", out.data().get("chunk")))
+        ChatGenerationProbe.create(reply).assertNext(out -> assertEquals("answer", out.data().get("chunk")))
                 .expectComplete().verify(Duration.ofSeconds(5));
     }
     @Test void firstRoundContentArrivesBeforeModelCompletion() {
         server.enqueue(s -> { s.content("first"); s.probeUntilDisconnected(); });
-        StepVerifier.create(handler.generateReply(command).take(1))
-                .assertNext(out -> { assertEquals("chunk", out.type()); assertEquals("first", out.data().get("chunk")); })
-                .expectComplete().verify(Duration.ofSeconds(5));
+        ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out))
+                .assertNext(out -> { assertEquals("chunk", out.type()); assertEquals("first", out.data().get("chunk")); }).thenCancel().verify(Duration.ofSeconds(5));
         assertEquals(0, server.secondModelCalls());
         verifyNoInteractions(messages);
     }
     @Test void incompleteFirstRoundNeverSearchesStartsSecondModelOrPersists() {
         server.enqueue(s -> { s.content("partial"); s.tool("call-1", "{\"query\":\"private document\"}"); });
-        StepVerifier.create(handler.generateReply(command))
+        ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out))
                 .assertNext(out -> assertEquals("partial", out.data().get("chunk")))
                 .expectErrorSatisfies(error -> assertEquals("MODEL_ERROR", ((ChatHandler.GenerationException) error).getErrorCode()))
                 .verify(Duration.ofSeconds(5));
@@ -90,7 +86,7 @@ class ChatHandlerStreamingTest {
         server.enqueue(s -> { s.tool("call-1", "{\"query\":\"private document\"}"); s.data("[DONE]"); });
         server.enqueue(s -> s.content("partial"));
         when(search.searchWithPermission(anyString(), eq("alice"), eq(10))).thenReturn(List.of());
-        StepVerifier.create(handler.generateReply(command)).expectNextCount(2)
+        ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out)).expectNextCount(2)
                 .assertNext(out -> assertEquals("partial", out.data().get("chunk")))
                 .expectErrorSatisfies(error -> assertEquals("MODEL_ERROR", ((ChatHandler.GenerationException) error).getErrorCode()))
                 .verify(Duration.ofSeconds(5));
@@ -98,19 +94,19 @@ class ChatHandlerStreamingTest {
     }
     @Test void explicitConversationIgnoresCurrentPointer() {
         server.enqueue(s -> { s.content("answer"); s.data("[DONE]"); });
-        StepVerifier.create(handler.generateReply(command)).expectNextCount(1).expectComplete().verify(Duration.ofSeconds(5));
+        ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out)).expectNextCount(1).expectComplete().verify(Duration.ofSeconds(5));
         verify(conversations).loadHistoryForChat("alice", "explicit-conversation");
         verify(conversations, never()).getCurrentConversationId(anyString());
         verify(conversations, never()).switchConversation(anyString(), anyString());
     }
-    @Test void searchAndSecondModelStayInSameOrderedSubscription() {
+    @Test void searchAndSecondModelStayOnGenerationWorker() {
         server.enqueue(s -> { s.content("preface"); s.tool("call-1", "{\"query\":\"private document\"}"); s.data("[DONE]"); });
         server.enqueue(s -> { s.content("answer"); s.data("[DONE]"); });
         AtomicReference<String> searchThread = new AtomicReference<>();
         when(search.searchWithPermission("private document", "alice", 10)).thenAnswer(inv -> {
             searchThread.set(Thread.currentThread().getName()); return List.of();
         });
-        StepVerifier.create(handler.generateReply(command))
+        ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out))
                 .assertNext(out -> assertEquals("preface", out.data().get("chunk")))
                 .assertNext(out -> assertEquals(Map.of("tool", "search_knowledge_base", "status", "started"), out.data()))
                 .assertNext(out -> assertEquals(Map.of("tool", "search_knowledge_base", "status", "finished"), out.data()))
@@ -132,12 +128,12 @@ class ChatHandlerStreamingTest {
             returned.countDown(); return List.of();
         });
         var outputs = new java.util.concurrent.CopyOnWriteArrayList<com.yizhaoqi.smartpai.model.chat.ChatOutput>();
-        var subscription = handler.generateReply(command).subscribe(outputs::add);
+        var generation = ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out)).start(outputs::add);
         assertTrue(started.await(2, TimeUnit.SECONDS));
-        subscription.dispose();
+        generation.cancel();
         release.countDown();
         assertTrue(returned.await(2, TimeUnit.SECONDS));
-        Thread.sleep(100);
+        assertTrue(generation.exited.await(2, TimeUnit.SECONDS));
         assertEquals(1, outputs.size());
         assertEquals("started", outputs.get(0).data().get("status"));
         assertEquals(0, server.secondModelCalls());
@@ -147,7 +143,7 @@ class ChatHandlerStreamingTest {
         server.enqueue(s -> { s.tool("call-1", "{\"query\":\"private document\"}"); s.data("[DONE]"); });
         server.enqueue(s -> { s.content("partial"); s.probeUntilDisconnected(); });
         when(search.searchWithPermission(anyString(), eq("alice"), eq(10))).thenReturn(List.of());
-        StepVerifier.create(handler.generateReply(command)).expectNextCount(2)
+        ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out)).expectNextCount(2)
                 .assertNext(out -> assertEquals("partial", out.data().get("chunk")))
                 .thenCancel().verify(Duration.ofSeconds(5));
         assertTrue(server.awaitDisconnect(Duration.ofSeconds(1)));
@@ -222,7 +218,7 @@ class ChatHandlerStreamingTest {
         ChatCommand second = new ChatCommand("alice", command.conversationId(), UUID.randomUUID(), "second question");
         ChatHandler restarted = storage.handler();
         server.enqueue(s -> { s.content("second answer"); s.data("[DONE]"); });
-        StepVerifier.create(restarted.generateReply(second)).expectNextCount(1)
+        ChatGenerationProbe.<ChatOutput>create((context, out) -> restarted.generateReply(second, context, out)).expectNextCount(1)
                 .expectComplete().verify(Duration.ofSeconds(5));
         assertEquals(originalCache, storage.cache.get());
         storage.cacheUnavailable.set(false);
@@ -267,7 +263,7 @@ class ChatHandlerStreamingTest {
         CachedHistoryFixture storage = new CachedHistoryFixture(false);
         storage.cache.set("[{\"role\":\"assistant\",\"content\":null}]");
         server.enqueue(s -> { s.content("answer"); s.data("[DONE]"); });
-        StepVerifier.create(storage.handler().generateReply(command))
+        ChatGenerationProbe.<ChatOutput>create((context, out) -> storage.handler().generateReply(command, context, out))
                 .assertNext(out -> assertEquals("answer", out.data().get("chunk")))
                 .expectComplete().verify(Duration.ofSeconds(5));
         assertEquals(storage.durable.get(), storage.reader().loadHistoryForChat("alice", command.conversationId()));
@@ -348,18 +344,18 @@ class ChatHandlerStreamingTest {
             TokenEstimator estimator = new TokenEstimator(mapper);
             return new ChatHandler(redis, search,
                     new DeepSeekClient(server.url(), "test-model-token", "test-model", config, mapper), mapper, config,
-                    compression, messages, new ContextBudgetService(config, estimator), estimator, reader(), worker);
+                    compression, messages, new ContextBudgetService(config, estimator), estimator, reader());
         }
     }
     @Test void modelAndToolFailuresHaveSafeDistinctCodes() {
         server.enqueue(s -> s.data("{\"error\":\"supplier-secret\"}"));
-        StepVerifier.create(handler.generateReply(command)).expectErrorSatisfies(error -> {
+        ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out)).expectErrorSatisfies(error -> {
             assertEquals("MODEL_ERROR", ((ChatHandler.GenerationException) error).getErrorCode());
             assertFalse(error.getMessage().contains("supplier-secret"));
         }).verify(Duration.ofSeconds(5));
         server.enqueue(s -> { s.tool("call-1", "{\"query\":\"private document\"}"); s.data("[DONE]"); });
         when(search.searchWithPermission(anyString(), anyString(), anyInt())).thenThrow(new IllegalStateException("search-secret"));
-        StepVerifier.create(handler.generateReply(command)).expectNextCount(1).expectErrorSatisfies(error -> {
+        ChatGenerationProbe.<ChatOutput>create((context, out) -> handler.generateReply(command, context, out)).expectNextCount(1).expectErrorSatisfies(error -> {
             assertEquals("TOOL_ERROR", ((ChatHandler.GenerationException) error).getErrorCode());
             assertFalse(error.getMessage().contains("search-secret"));
         }).verify(Duration.ofSeconds(5));

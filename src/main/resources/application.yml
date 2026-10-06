@@ -110,7 +110,14 @@ deepseek:
       url: https://ark.cn-beijing.volces.com/api/coding/v3
       key: "${DEEPSEEK_API_KEY:}"
       model: glm-5-3-flash
-      proxy-url: "${LLM_HTTP_PROXY:}" # 可选 HTTP CONNECT 代理，仅用于 LLM 请求
+      proxy-url: "${LLM_HTTP_PROXY:}" # 可选 HTTP 代理，HTTPS 使用 CONNECT，仅用于 LLM 请求
+      connect-timeout-ms: ${LLM_CONNECT_TIMEOUT_MS:10000}
+      max-sse-line-bytes: ${LLM_MAX_SSE_LINE_BYTES:1048576}
+      max-sse-frame-bytes: ${LLM_MAX_SSE_FRAME_BYTES:1048576}
+      max-stream-content-chars: ${LLM_MAX_STREAM_CONTENT_CHARS:1048576}
+      max-tool-arguments-chars: ${LLM_MAX_TOOL_ARGUMENTS_CHARS:262144}
+      max-json-response-bytes: ${LLM_MAX_JSON_RESPONSE_BYTES:1048576}
+      max-error-response-bytes: ${LLM_MAX_ERROR_RESPONSE_BYTES:16384}
 
 mineru:
   api:
@@ -197,4 +204,6 @@ chat:
     max-retained-per-user: ${CHAT_MAX_RETAINED_PER_USER:200}
     worker-threads: ${CHAT_WORKER_THREADS:16}
     worker-queue-capacity: ${CHAT_WORKER_QUEUE_CAPACITY:1024}
+    generation-worker-threads: ${CHAT_GENERATION_WORKER_THREADS:16}
+    generation-worker-queue-capacity: ${CHAT_GENERATION_WORKER_QUEUE_CAPACITY:64}
     max-pending-events: ${CHAT_MAX_PENDING_EVENTS:64}

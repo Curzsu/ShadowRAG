@@ -8,7 +8,7 @@ import com.yizhaoqi.smartpai.entity.SearchResult;
 import com.yizhaoqi.smartpai.model.chat.ChatCommand;
 import com.yizhaoqi.smartpai.model.chat.ChatOutput;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
+import com.yizhaoqi.smartpai.service.chat.ChatRequestContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -20,10 +20,10 @@ import java.util.Map;
 import java.util.LinkedHashMap;
 import com.yizhaoqi.smartpai.config.AiProperties;
 import com.fasterxml.jackson.databind.JsonNode;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
-import reactor.core.scheduler.Schedulers;
+import com.yizhaoqi.smartpai.client.ModelRoundResult;
+import java.util.function.Consumer;
+import java.util.concurrent.CancellationException;
+import java.net.http.HttpTimeoutException;
 
 /**
  * 聊天处理服务
@@ -45,7 +45,7 @@ public class ChatHandler {
     private final ContextBudgetService contextBudgetService;
     private final TokenEstimator tokenEstimator;
     private final ConversationService conversationService;
-    private final Scheduler streamingScheduler;
+
 
 
     /**
@@ -74,32 +74,11 @@ public class ChatHandler {
         )
     );
 
-    public ChatHandler(StringRedisTemplate redisTemplate,
-                      HybridSearchService searchService,
-                      DeepSeekClient deepSeekClient,
-                      ObjectMapper objectMapper,
-                      AiProperties aiProperties,
-                      ConversationCompressionService compressionService,
-                      ConversationMessageService conversationMessageService,
-                      ContextBudgetService contextBudgetService,
-                      TokenEstimator tokenEstimator,
-                      ConversationService conversationService) {
-        this(redisTemplate, searchService, deepSeekClient, objectMapper, aiProperties, compressionService,
-                conversationMessageService, contextBudgetService, tokenEstimator, conversationService, Schedulers.immediate());
-    }
-
     @Autowired
-    public ChatHandler(StringRedisTemplate redisTemplate,
-                      HybridSearchService searchService,
-                      DeepSeekClient deepSeekClient,
-                      ObjectMapper objectMapper,
-                      AiProperties aiProperties,
-                      ConversationCompressionService compressionService,
-                      ConversationMessageService conversationMessageService,
-                      ContextBudgetService contextBudgetService,
-                      TokenEstimator tokenEstimator,
-                      ConversationService conversationService,
-                      @Qualifier("chatStreamingScheduler") Scheduler streamingScheduler) {
+    public ChatHandler(StringRedisTemplate redisTemplate, HybridSearchService searchService,
+                       DeepSeekClient deepSeekClient, ObjectMapper objectMapper, AiProperties aiProperties,
+                       ConversationCompressionService compressionService, ConversationMessageService conversationMessageService,
+                       ContextBudgetService contextBudgetService, TokenEstimator tokenEstimator, ConversationService conversationService) {
         this.redisTemplate = redisTemplate;
         this.searchService = searchService;
         this.deepSeekClient = deepSeekClient;
@@ -110,7 +89,6 @@ public class ChatHandler {
         this.contextBudgetService = contextBudgetService;
         this.tokenEstimator = tokenEstimator;
         this.conversationService = conversationService;
-        this.streamingScheduler = streamingScheduler;
     }
 
     public static final class GenerationException extends RuntimeException {
@@ -122,49 +100,65 @@ public class ChatHandler {
         public String getErrorCode() { return errorCode; }
     }
 
-    /** Only produces content and tool progress. The stream owner decides terminal state and persistence. */
-    public Flux<ChatOutput> generateReply(ChatCommand command) {
-        return Mono.fromCallable(() -> buildMessagesForAgenticRAG(
-                        conversationService.loadHistoryForChat(command.username(), command.conversationId()), command.message()))
-                .subscribeOn(streamingScheduler)
-                .onErrorMap(error -> new GenerationException("HISTORY_ERROR", "会话历史加载失败，请稍后重试", error))
-                .flatMapMany(originalMessages -> Flux.defer(() -> {
-                    StringBuilder toolId = new StringBuilder();
-                    StringBuilder arguments = new StringBuilder();
-                    boolean[] toolDetected = { false };
-                    Flux<ChatOutput> firstRound = Flux.defer(() -> deepSeekClient.streamWithTools(originalMessages, SEARCH_TOOL))
-                            .onErrorMap(error -> new GenerationException("MODEL_ERROR", "模型服务暂时不可用，请稍后重试", error))
-                            .<ChatOutput>handle((delta, sink) -> {
-                                switch (delta.kind()) {
-                                    case CONTENT -> sink.next(new ChatOutput("chunk", Map.of("chunk", delta.value())));
-                                    case TOOL_CALL_ID -> { toolDetected[0] = true; toolId.append(delta.value()); }
-                                    case TOOL_CALL_ARGUMENTS -> { toolDetected[0] = true; arguments.append(delta.value()); }
-                                }
-                            });
-                    return firstRound.concatWith(Flux.defer(() -> {
-                        if (!toolDetected[0]) return Flux.empty();
-                        Mono<List<Map<String, Object>>> searchedMessages = Mono.fromCallable(() -> {
-                                    if (toolId.isEmpty()) throw new IllegalArgumentException("Missing search tool id");
-                                    JsonNode parsed = objectMapper.readTree(arguments.toString());
-                                    if (parsed == null || !parsed.isObject()) throw new IllegalArgumentException("Invalid search arguments");
-                                    JsonNode queryNode = parsed.get("query");
-                                    if (queryNode != null && !queryNode.isTextual()) throw new IllegalArgumentException("Invalid search query");
-                                    String query = queryNode == null ? "" : queryNode.textValue();
-                                    if (query.isBlank()) query = command.message();
-                                    List<SearchResult> results = searchService.searchWithPermission(query, command.username(), 10);
-                                    String context = buildContext(results);
-                                    if (context.isEmpty()) context = "（未找到相关文档）";
-                                    return prepareToolResponseMessages(originalMessages, toolId.toString(), arguments.toString(), context);
-                                })
-                                .subscribeOn(streamingScheduler)
-                                .onErrorMap(error -> new GenerationException("TOOL_ERROR", "知识库检索失败，请稍后重试", error));
-                        return Flux.just(toolProgress("started")).concatWith(searchedMessages.flatMapMany(secondMessages ->
-                                Flux.just(toolProgress("finished")).concatWith(
-                                        Flux.defer(() -> deepSeekClient.streamResponse(secondMessages))
-                                                .onErrorMap(error -> new GenerationException("MODEL_ERROR", "模型服务暂时不可用，请稍后重试", error))
-                                                .map(chunk -> new ChatOutput("chunk", Map.of("chunk", chunk))))));
-                    }));
-                }));
+    /** Runs on the generation pool. The stream owner arbitrates termination and persistence. */
+    public void generateReply(ChatCommand command, ChatRequestContext context, Consumer<ChatOutput> output) {
+        checkRunning(context);
+        List<Map<String,Object>> originalMessages;
+        try {
+            originalMessages = buildMessagesForAgenticRAG(
+                    conversationService.loadHistoryForChat(command.username(), command.conversationId()), command.message());
+        } catch (RuntimeException error) {
+            checkRunning(context);
+            throw new GenerationException("HISTORY_ERROR", "会话历史加载失败，请稍后重试", error);
+        }
+        checkRunning(context);
+        ModelRoundResult first;
+        try {
+            first = deepSeekClient.streamWithTools(originalMessages, SEARCH_TOOL, context, delta -> {
+                if (delta.kind() == com.yizhaoqi.smartpai.client.ModelDelta.Kind.CONTENT)
+                    output.accept(new ChatOutput("chunk", Map.of("chunk", delta.value())));
+            });
+        } catch (RuntimeException error) {
+            checkRunning(context);
+            throw new GenerationException("MODEL_ERROR", "模型服务暂时不可用，请稍后重试", error);
+        }
+        checkRunning(context);
+        if (first.toolCallId().isEmpty() && first.toolArgumentsJson().isEmpty()) return;
+        output.accept(toolProgress("started"));
+        List<Map<String,Object>> secondMessages;
+        try {
+            if (first.toolCallId().isEmpty()) throw new IllegalArgumentException("Missing search tool id");
+            JsonNode parsed = objectMapper.readTree(first.toolArgumentsJson());
+            if (parsed == null || !parsed.isObject()) throw new IllegalArgumentException("Invalid search arguments");
+            JsonNode queryNode = parsed.get("query");
+            if (queryNode != null && !queryNode.isTextual()) throw new IllegalArgumentException("Invalid search query");
+            String query = queryNode == null ? "" : queryNode.textValue();
+            if (query.isBlank()) query = command.message();
+            checkRunning(context);
+            List<SearchResult> results = searchService.searchWithPermission(query, command.username(), 10);
+            checkRunning(context);
+            String searchContext = buildContext(results);
+            if (searchContext.isEmpty()) searchContext = "（未找到相关文档）";
+            secondMessages = prepareToolResponseMessages(originalMessages, first.toolCallId(), first.toolArgumentsJson(), searchContext);
+        } catch (Exception error) {
+            checkRunning(context);
+            throw new GenerationException("TOOL_ERROR", "知识库检索失败，请稍后重试", error);
+        }
+        checkRunning(context);
+        output.accept(toolProgress("finished"));
+        try {
+            deepSeekClient.streamResponse(secondMessages, context,
+                    chunk -> output.accept(new ChatOutput("chunk", Map.of("chunk", chunk))));
+        } catch (RuntimeException error) {
+            checkRunning(context);
+            throw new GenerationException("MODEL_ERROR", "模型服务暂时不可用，请稍后重试", error);
+        }
+        checkRunning(context);
+    }
+
+    private static void checkRunning(ChatRequestContext context) {
+        try { context.generationResources().checkRunning(); }
+        catch (HttpTimeoutException error) { throw new GenerationException("STREAM_TIMEOUT", "回答生成超时，请稍后重试", error); }
     }
 
     private ChatOutput toolProgress(String status) {

@@ -32,6 +32,7 @@ public abstract class ChatStreamingAcceptanceSupport {
     @Autowired protected ChatStreamingAcceptanceFixture.AdjustableClock clock;
     @Autowired protected MockModelSseServer model;
     @Autowired @Qualifier("chatStreamingExecutor") protected ThreadPoolExecutor workers;
+    @Autowired @Qualifier("chatGenerationExecutor") protected ThreadPoolExecutor generators;
     @Autowired @Qualifier("chatStreamingTimers") protected ScheduledExecutorService timerService;
     protected final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))
             .version(HttpClient.Version.HTTP_1_1).build();
@@ -133,6 +134,7 @@ public abstract class ChatStreamingAcceptanceSupport {
         await(() -> registry.activeRequestCount() == 0 && registry.conversationLeaseCount() == 0
                 && ChatStreamingResourceProbe.streams(streams) == 0 && state.subscriptions.get() == 0
                 && model.activeConnections() == 0 && workers.getActiveCount() == 0 && workers.getQueue().isEmpty()
+                && generators.getActiveCount() == 0 && generators.getQueue().isEmpty()
                 && ((ScheduledThreadPoolExecutor) timerService).getQueue().size() == 1, Duration.ofSeconds(10));
         assertEquals(0, ChatStreamingResourceProbe.pendingEvents(streams));
     }
@@ -151,13 +153,16 @@ public abstract class ChatStreamingAcceptanceSupport {
                 Map.entry("workerPoolSize", workers.getPoolSize()),
                 Map.entry("workerLargestPoolSize", workers.getLargestPoolSize()),
                 Map.entry("workerQueue", workers.getQueue().size()),
+                Map.entry("generationActive", generators.getActiveCount()),
+                Map.entry("generationQueue", generators.getQueue().size()),
+                Map.entry("generationLargestPoolSize", generators.getLargestPoolSize()),
                 Map.entry("timerPoolSize", ((ScheduledThreadPoolExecutor) timerService).getPoolSize()),
                 Map.entry("timerQueue", ((ScheduledThreadPoolExecutor) timerService).getQueue().size()),
                 Map.entry("retainedRecords", registry.retainedRequestCount()));
     }
     protected void saveMetrics(String name, Map<String, Object> values) throws IOException {
         Path directory = Path.of(System.getProperty("chat.acceptance.metrics-dir",
-                ".superpowers/sdd/2026-10-03-websocket-to-sse-refactor"));
+                ".superpowers/sdd/2026-10-06-remove-flux-chat"));
         Files.createDirectories(directory);
         Map<String, Object> artifact = new LinkedHashMap<>(values);
         artifact.put("recordedAt", java.time.Instant.now().toString());
