@@ -177,7 +177,7 @@ public final class BlockingModelHttpClient {
         final ChatGenerationResources resources; final Consumer<ModelDelta> output;
         final StringBuilder content = new StringBuilder(), reasoning = new StringBuilder();
         final SortedMap<Integer, CallParts> calls = new TreeMap<>();
-        long argumentCharacters, metadataCharacters;
+        long argumentCharacters, metadataCharacters, signatureCharacters;
         boolean done, unindexedBatch; String finishReason;
         Round(ChatGenerationResources resources, Consumer<ModelDelta> output) { this.resources = resources; this.output = output; }
         void accept(String frame) throws IOException {
@@ -228,6 +228,7 @@ public final class BlockingModelHttpClient {
                             || indexNode.intValue()<0 || indexNode.intValue()>=properties.getMaxToolCallsPerRound())) throw new IOException("Invalid tool index");
                     if (fragment.has("type") && !"function".equals(fragment.path("type").asText())) throw new IOException("Invalid tool type");
                     int index=wholeBatch ? ordinal++ : indexNode.intValue(); var parts=calls.computeIfAbsent(index, ignored -> new CallParts());
+                    retainSignature(parts,fragment);
                     appendMetadata(parts.id, text(fragment.get("id")),index,ModelDelta.Kind.TOOL_CALL_ID);
                     var function=fragment.get("function");
                     if (function!=null && !function.isObject()) throw new IOException("Invalid tool function");
@@ -250,6 +251,25 @@ public final class BlockingModelHttpClient {
                     || !function.path("name").isTextual() || function.path("name").asText().isBlank()
                     || !function.path("arguments").isTextual()) throw new IOException("Incomplete unindexed tool call");
             return function.path("arguments").asText();
+        }
+        void retainSignature(CallParts parts,JsonNode call) throws IOException {
+            var extra=call.get("extra_content");
+            if(extra==null || extra.isNull()) return;
+            if(!extra.isObject()) throw new IOException("Invalid tool extension metadata");
+            var google=extra.get("google");
+            if(google==null) return;
+            if(!google.isObject()) throw new IOException("Invalid Google tool metadata");
+            var signature=google.get("thought_signature");
+            if(signature==null) return;
+            if(!signature.isTextual() || signature.asText().isBlank()) throw new IOException("Invalid tool thought signature");
+            String value=signature.textValue();
+            if(parts.signature!=null) {
+                if(!parts.signature.equals(value)) throw new IOException("Conflicting tool thought signatures");
+                return;
+            }
+            signatureCharacters+=value.length();
+            if(signatureCharacters>properties.getMaxToolSignatureChars()) throw new IOException("Model tool signature limit exceeded");
+            parts.signature=value;
         }
         String text(JsonNode node) throws IOException {
             if(node==null || node.isNull()) return "";
@@ -274,7 +294,7 @@ public final class BlockingModelHttpClient {
                 var parts=entry.getValue();
                 if(parts.id.toString().isBlank() || parts.name.toString().isBlank() || !ids.add(parts.id.toString()))
                     throw new IOException("Missing or duplicate model tool identity");
-                result.add(new ModelToolCall(entry.getKey(),parts.id.toString(),parts.name.toString(),parts.arguments.toString()));
+                result.add(new ModelToolCall(entry.getKey(),parts.id.toString(),parts.name.toString(),parts.arguments.toString(),parts.signature));
             }
             if("tool_calls".equals(finishReason) && result.isEmpty()) throw new IOException("Missing model tool calls");
             return new ModelRoundResult(content.toString(),reasoning.toString(),result,finishReason);
@@ -282,6 +302,7 @@ public final class BlockingModelHttpClient {
     }
     private static final class CallParts {
         final StringBuilder id=new StringBuilder(),name=new StringBuilder(),arguments=new StringBuilder();
+        String signature;
     }
 
     private record OwnedResponse(HttpResponse<InputStream> response, InputStream body) {

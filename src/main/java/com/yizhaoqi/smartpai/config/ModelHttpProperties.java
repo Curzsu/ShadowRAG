@@ -13,6 +13,7 @@ public class ModelHttpProperties {
     private int maxSseFrameBytes = 1048576;
     private int maxStreamContentChars = 1048576;
     private int maxToolArgumentsChars = 262144;
+    private int maxToolSignatureChars = 1048576;
     private int maxToolCallsPerRound = 16;
     private int maxReasoningChars = 1048576;
     private int maxJsonResponseBytes = 1048576;
@@ -22,7 +23,7 @@ public class ModelHttpProperties {
     @PostConstruct
     public void validate() {
         if (maxSseLineBytes <= 0 || maxSseFrameBytes <= 0 || maxStreamContentChars <= 0
-                || maxToolArgumentsChars <= 0 || maxJsonResponseBytes <= 0 || maxErrorResponseBytes <= 0
+                || maxToolArgumentsChars <= 0 || maxToolSignatureChars <= 0 || maxJsonResponseBytes <= 0 || maxErrorResponseBytes <= 0
                 || maxToolCallsPerRound <= 0 || maxToolCallsPerRound > 64 || maxReasoningChars <= 0
                 || connectTimeoutMs <= 0) throw new IllegalArgumentException("Model HTTP limits must be positive and bounded");
     }

@@ -189,4 +189,34 @@ class AgentLoopServiceTest {
         assertEquals("function-call-google-original",messages.get(3).path("tool_call_id").asText());
         assertEquals(2,server.requests()); verify(search).searchWithPermission("A","alice",10);
     }
+
+    @Test void googleThoughtSignaturesSurviveEveryRequestIncludingTruncationAndFinalization() throws Exception {
+        p.getContext().setWindowTokens(1500); p.getAgent().setMaxToolRounds(2); rebuild();
+        for(int round=1;round<=2;round++) {
+            final int current=round;
+            server.enqueue(s -> {
+                requests.add(mapper.readTree(s.requestBody()));
+                s.data(mapper.writeValueAsString(Map.of("choices",List.of(Map.of("delta",Map.of("tool_calls",List.of(
+                        Map.of("id","google-"+current,"type","function",
+                                "extra_content",Map.of("google",Map.of("thought_signature","opaque-signature-"+current)),
+                                "function",Map.of("name","search_knowledge_base","arguments","{\"query\":\"A"+current+"\"}")))))))));
+                s.data("[DONE]");
+            });
+        }
+        response("最终回答");
+        when(search.searchWithPermission(anyString(),eq("alice"),eq(10)))
+                .thenReturn(List.of(new SearchResult("a",1,"检索正文 ".repeat(6000),1.0,"A.pdf")));
+        run(new ChatRequestContext(command));
+        assertEquals(3,requests.size()); assertFalse(requests.get(2).has("tools"));
+        for(int request=1;request<=2;request++) {
+            var messages=requests.get(request).path("messages");
+            for(int round=1;round<=request;round++) {
+                var call=messages.get(round*2).path("tool_calls").get(0);
+                assertEquals("opaque-signature-"+round,call.path("extra_content").path("google").path("thought_signature").asText());
+                assertEquals(call.path("id").asText(),messages.get(round*2+1).path("tool_call_id").asText());
+            }
+        }
+        assertTrue(requests.get(1).path("messages").get(3).path("content").asText().contains("已按上下文预算截断"));
+        assertFalse(events.toString().contains("opaque-signature"),"Protocol signatures must not enter user-visible/persisted output");
+    }
 }

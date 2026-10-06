@@ -1,0 +1,22 @@
+{
+  "scenario": "uploaded-pdf-explicit-context",
+  "model": "gemini-3.1-flash-lite",
+  "httpStatus": 200,
+  "conversationId": "6cfcb6e1-f21f-4200-9677-ddce3b4a5979",
+  "requestId": "269df9b1-912f-44a1-857c-7a1cc0e30997",
+  "prompt": "请调用知识库检索工具辅助回答：概括我刚上传的 PDF 的主要内容，并标注引用来源。",
+  "toolStarts": 1,
+  "toolFinishes": 1,
+  "roundKinds": [
+    "intermediate",
+    "final"
+  ],
+  "terminalStatus": "finished",
+  "errorCodes": [],
+  "finalCharacters": 903,
+  "exactFinalSavedCount": 1,
+  "hasSourceCitation": true,
+  "signatureInAnswer": false,
+  "elapsedMillis": 20365,
+  "recordedAt": "2026-10-06T08:26:19.0605641Z"
+}

@@ -2,6 +2,8 @@
 
 日期：2026-10-06。分支：`codex/knowledge-base-react`。用户授权使用提供的 Gemini 凭据进行真实 API 测试；凭据仅用于临时进程环境，没有写入项目配置、测试源码或报告。
 
+后续问题与修复：本地模型配置切换到 Gemini 3.1 后，工具调用需要保留供应商签名；详见 [Gemini 3.1 工具签名修复](gemini31-tool-signature-fix.md)。下文保留此前 Gemini 2.5 联调记录。
+
 ## 实际结果
 
 项目链路使用 Gemini 的 OpenAI 兼容接口，模型为 `gemini-2.5-flash-lite`。通过项目的 `DeepSeekClient`、`BlockingModelHttpClient` 和 `AgentLoopService` 发出真实流式请求；类名仍为 DeepSeekClient，但本次请求目标为 Gemini。仅知识库检索边界使用合成报告。
