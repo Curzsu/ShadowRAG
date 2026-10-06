@@ -122,67 +122,117 @@ async function handleSourceFileClick(fileName: string) {
 </script>
 
 <template>
-  <div class="mb-8 flex-col gap-2">
-    <div v-if="msg.role === 'user'" class="flex items-center gap-4">
-      <NAvatar class="bg-success">
-        <SvgIcon icon="ph:user-circle" class="text-icon-large color-white" />
-      </NAvatar>
-      <div class="flex-col gap-1">
-        <NText class="text-4 font-bold">{{ authStore.userInfo.username }}</NText>
-        <NText class="text-3 color-gray-500">{{ formatDate(msg.timestamp) }}</NText>
+  <!-- 用户消息（admin）：头像与对话气泡靠右 -->
+  <div v-if="msg.role === 'user'" class="mb-6 flex flex-row-reverse items-start gap-3">
+    <!-- 用户头像（最右侧） -->
+    <NAvatar round class="mt-0.5 flex-shrink-0 bg-success">
+      <SvgIcon icon="ph:user-circle" class="text-icon-large color-white" />
+    </NAvatar>
+
+    <!-- 气泡主体区（靠右） -->
+    <div class="max-w-[80%] min-w-0 flex flex-col items-end">
+      <!-- 用户名与时间 -->
+      <div class="mb-1 flex items-center gap-2 text-right">
+        <NText class="text-3 color-gray-400">{{ formatDate(msg.timestamp) }}</NText>
+        <NText class="text-3.5 text-gray-800 font-bold dark:text-gray-200">
+          {{ authStore.userInfo.username || 'admin' }}
+        </NText>
+      </div>
+
+      <!-- 对话气泡 -->
+      <div class="user-bubble bg-primary text-white">
+        {{ content }}
+      </div>
+
+      <!-- 操作栏（复制） -->
+      <div class="mt-1 flex items-center justify-end gap-1 opacity-60 transition-opacity hover:opacity-100">
+        <NButton quaternary size="tiny" @click="handleCopy(msg.content)">
+          <template #icon>
+            <icon-mynaui:copy />
+          </template>
+        </NButton>
       </div>
     </div>
-    <div v-else class="flex items-center gap-4">
-      <NAvatar class="bg-primary">
-        <SystemLogo class="text-6 text-white" />
-      </NAvatar>
-      <div class="flex-col gap-1">
-        <NText class="text-4 font-bold">Brain.ai</NText>
-        <NText class="text-3 color-gray-500">{{ formatDate(msg.timestamp) }}</NText>
+  </div>
+
+  <!-- AI助手消息（Brain.ai）：头像与回答靠左 -->
+  <div v-else class="mb-6 flex items-start gap-3">
+    <!-- Brain.ai 头像（最左侧） -->
+    <NAvatar round class="mt-0.5 flex-shrink-0 bg-primary">
+      <SystemLogo class="text-6 text-white" />
+    </NAvatar>
+
+    <!-- 消息主体区（靠左） -->
+    <div class="min-w-0 flex flex-col flex-1 items-start">
+      <!-- 助手名与时间 -->
+      <div class="mb-1 flex items-center gap-2">
+        <NText class="text-3.5 text-gray-800 font-bold dark:text-gray-200">Brain.ai</NText>
+        <NText class="text-3 color-gray-400">{{ formatDate(msg.timestamp) }}</NText>
       </div>
-    </div>
-    <NText v-if="msg.status === 'pending'">
-      <icon-eos-icons:three-dots-loading class="ml-12 mt-2 text-8" />
-    </NText>
-    <div v-if="msg.role === 'assistant' && msg.intermediateRounds?.some(round => round.content)" class="mt-2 pl-12">
-      <details>
-        <summary class="cursor-pointer text-3 color-gray-500">查看检索过程</summary>
-        <div v-for="round in msg.intermediateRounds" :key="round.roundId" class="mt-2 text-3 color-gray-500">
-          <VueMarkdownIt v-if="round.content" :content="round.content" />
+
+      <!-- 等待中动画 -->
+      <div v-if="msg.status === 'pending'" class="mt-1">
+        <icon-eos-icons:three-dots-loading class="text-8 text-primary" />
+      </div>
+
+      <!-- 检索过程 -->
+      <div v-if="msg.intermediateRounds?.some(round => round.content)" class="mt-2 w-full">
+        <details class="border border-gray-100 rounded-lg bg-gray-50 p-2.5 dark:border-gray-800 dark:bg-gray-800/50">
+          <summary class="cursor-pointer text-3 color-gray-500 font-medium">查看检索过程</summary>
+          <div v-for="round in msg.intermediateRounds" :key="round.roundId" class="mt-2 text-3 color-gray-500">
+            <VueMarkdownIt v-if="round.content" :content="round.content" />
+          </div>
+        </details>
+      </div>
+
+      <!-- 回答内容（Markdown） -->
+      <div v-if="content" class="mt-1.5 w-full text-14px leading-relaxed" @click="handleContentClick">
+        <VueMarkdownIt :content="content" />
+      </div>
+
+      <!-- 状态与进度提示 -->
+      <NText
+        v-if="msg.toolProgress && ['pending', 'loading', 'cancelling'].includes(msg.status || '')"
+        class="mt-2 text-3 color-gray-500"
+      >
+        {{ msg.toolProgress }}
+      </NText>
+      <NText v-if="msg.status === 'loading'" class="mt-1 text-3 color-gray-500">正在生成</NText>
+      <NText v-if="msg.status === 'cancelling'" class="mt-1 text-3 color-gray-500">正在停止</NText>
+      <NText v-if="msg.status === 'cancelled'" class="mt-1 text-3 color-gray-500">已停止</NText>
+      <NText v-if="msg.status === 'finished'" class="mt-1 text-3 color-gray-400">已完成</NText>
+      <NText v-if="msg.status === 'error'" class="mt-1 text-3 text-red-500 italic">
+        {{ msg.errorReason || '生成失败，请重新发送' }}
+      </NText>
+
+      <!-- 底部操作与分割线 -->
+      <div
+        class="mt-2.5 w-full flex items-center justify-between border-t border-gray-100 pt-1.5 dark:border-gray-800/60"
+      >
+        <div class="flex items-center gap-2">
+          <NButton
+            quaternary
+            size="tiny"
+            class="opacity-60 transition-opacity hover:opacity-100"
+            @click="handleCopy(msg.content)"
+          >
+            <template #icon>
+              <icon-mynaui:copy />
+            </template>
+          </NButton>
         </div>
-      </details>
-    </div>
-    <div v-if="msg.role === 'assistant' && content" class="mt-2 pl-12" @click="handleContentClick">
-      <VueMarkdownIt :content="content" />
-    </div>
-    <NText v-else-if="msg.role === 'user'" class="ml-12 mt-2 text-4">{{ content }}</NText>
-    <NText
-      v-if="msg.toolProgress && ['pending', 'loading', 'cancelling'].includes(msg.status || '')"
-      class="ml-12 mt-2 text-3 color-gray-500"
-    >
-      {{ msg.toolProgress }}
-    </NText>
-    <NText v-if="msg.status === 'loading'" class="ml-12 mt-2 text-3 color-gray-500">正在生成</NText>
-    <NText v-if="msg.status === 'cancelling'" class="ml-12 mt-2 text-3 color-gray-500">正在停止</NText>
-    <NText v-if="msg.status === 'cancelled'" class="ml-12 mt-2 text-3 color-gray-500">已停止</NText>
-    <NText v-if="msg.status === 'finished' && msg.role === 'assistant'" class="ml-12 mt-2 text-3 color-gray-500">
-      已完成
-    </NText>
-    <NText v-if="msg.status === 'error'" class="ml-12 mt-2 italic">
-      {{ msg.errorReason || '生成失败，请重新发送' }}
-    </NText>
-    <NDivider class="ml-12 w-[calc(100%-3rem)] mb-0! mt-2!" />
-    <div class="ml-12 flex gap-4">
-      <NButton quaternary @click="handleCopy(msg.content)">
-        <template #icon>
-          <icon-mynaui:copy />
-        </template>
-      </NButton>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped lang="scss">
+.user-bubble {
+  @apply max-w-full px-4 py-2.5 rounded-2xl rounded-tr-xs text-14px leading-relaxed shadow-sm break-words whitespace-pre-wrap;
+  background-color: rgb(var(--primary-color, 100 108 255));
+  color: #ffffff;
+}
+
 :deep(.source-file-link) {
   color: #1890ff;
   cursor: pointer;

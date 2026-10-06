@@ -1,0 +1,10 @@
+{
+  "scenario" : "person-hit",
+  "model" : "gemini-3.1-flash-lite",
+  "question" : "苏哲是谁",
+  "syntheticRetrieval" : true,
+  "queries" : [ "苏哲" ],
+  "roundKinds" : [ "intermediate", "final" ],
+  "answer" : "根据知识库资料，苏哲是一个虚构的联调人物，在联调组负责 ShadowRAG 的文档检索模块。该信息仅供合成测试使用 (来源#1: 联调人物.pdf)。",
+  "elapsedMillis" : 5123
+}

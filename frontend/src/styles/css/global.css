@@ -11,3 +11,20 @@ body,
 html {
   overflow-x: hidden;
 }
+
+/* 隐藏 vue-devtools 悬浮栏 */
+#__vue-devtools-container__,
+.vue-devtools__anchor,
+div[data-v-inspector],
+[class*='vue-devtools'] {
+  display: none !important;
+}
+
+/* 侧边栏拖拽调整宽度时的全局控制 */
+body.is-resizing,
+body.is-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+  transition: none !important;
+}
+

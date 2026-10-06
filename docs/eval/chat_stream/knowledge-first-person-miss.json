@@ -1,0 +1,10 @@
+{
+  "scenario" : "person-miss",
+  "model" : "gemini-3.1-flash-lite",
+  "question" : "青岚联调人物九号是谁",
+  "syntheticRetrieval" : true,
+  "queries" : [ "青岚联调人物九号" ],
+  "roundKinds" : [ "intermediate", "final" ],
+  "answer" : "知识库中未找到关于“青岚联调人物九号”的相关信息。请问您是否能提供更多背景信息，或者确认一下名称是否准确？",
+  "elapsedMillis" : 7956
+}
