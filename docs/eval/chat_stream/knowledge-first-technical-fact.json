@@ -1,0 +1,10 @@
+{
+  "scenario" : "technical-fact",
+  "model" : "gemini-3.1-flash-lite",
+  "question" : "什么是ReAct",
+  "syntheticRetrieval" : true,
+  "queries" : [ "什么是ReAct" ],
+  "roundKinds" : [ "intermediate", "final" ],
+  "answer" : "ReAct 是一种让模型能够结合“推理”（Reasoning）与“行动”（Acting）的机制。\n\n在本项目中，ReAct 的工作流程如下：\n1. **推理与选择**：模型根据用户的问题进行推理，并决定是否需要调用工具。\n2. **执行行动**：模型调用相应的工具进行检索或计算。\n3. **回填结果**：模型将工具返回的结果作为上下文信息回填到对话中。\n4. **继续回答**：模型基于获取到的工具结果，进行进一步的分析或直接给出最终答案。\n\n通过这种循环，模型能够处理需要外部事实支持或复杂逻辑的任务。(来源#1: ReAct说明.pdf)",
+  "elapsedMillis" : 3956
+}

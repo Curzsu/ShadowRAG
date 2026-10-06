@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import { useRoute, useRouter } from 'vue-router';
 import { NButton, NPopconfirm, NScrollbar } from 'naive-ui';
 
 defineOptions({
   name: 'ConversationList'
 });
 
+const route = useRoute();
+const router = useRouter();
 const chatStore = useChatStore();
 const { conversationList, conversationId } = storeToRefs(chatStore);
 
@@ -13,13 +16,22 @@ onMounted(() => {
   chatStore.fetchConversationList();
 });
 
+/** 确保导航到聊天页面 */
+async function ensureChatRoute() {
+  if (route.name !== 'chat') {
+    await router.push({ name: 'chat' });
+  }
+}
+
 /** 新建对话 */
 async function handleCreate() {
+  await ensureChatRoute();
   await chatStore.createConversation();
 }
 
 /** 切换到指定会话 */
 async function handleSwitch(convId: string) {
+  await ensureChatRoute();
   if (convId === conversationId.value) return;
   await chatStore.switchConversation(convId);
 }
@@ -81,7 +93,7 @@ function formatTime(timestamp?: string) {
 
       <!-- 空状态 -->
       <div v-if="conversationList.length === 0" class="empty-state">
-        <icon-mdi-chat-outline class="text-32px color-gray-300" />
+        <icon-mdi-chat-outline class="text-28px color-gray-300" />
         <p class="mt-2 text-12px color-gray-400">暂无对话记录</p>
       </div>
     </NScrollbar>
@@ -90,23 +102,21 @@ function formatTime(timestamp?: string) {
 
 <style scoped lang="scss">
 .conversation-sidebar {
-  @apply flex flex-col h-full border-r border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-#1c1c1c;
-  width: 240px;
-  min-width: 240px;
+  @apply flex flex-col h-full w-full min-w-0 bg-transparent;
 
   .sidebar-header {
-    @apply p-3 border-b border-gray-200 dark:border-gray-700;
+    @apply p-2.5 pb-2;
   }
 
   .sidebar-list {
-    @apply flex-1 overflow-hidden;
+    @apply flex-1 overflow-hidden min-h-0;
   }
 
   .conversation-item {
-    @apply flex items-center justify-between px-3 py-2.5 mx-2 my-0.5 rounded-md cursor-pointer transition-colors text-gray-800 dark:text-#e0e0e0;
+    @apply flex items-center justify-between px-2.5 py-2 mx-2 my-0.5 rounded-lg cursor-pointer transition-colors text-gray-700 dark:text-#d0d0d0;
 
     &:hover {
-      @apply bg-gray-100 dark:bg-gray-700;
+      @apply bg-gray-100 dark:bg-gray-800;
 
       .delete-btn {
         opacity: 1;
@@ -114,7 +124,7 @@ function formatTime(timestamp?: string) {
     }
 
     &.active {
-      @apply bg-blue-50 border-l-2 border-blue-500 dark:bg-#2a2a3a dark:border-blue-400;
+      @apply bg-blue-50/80 text-blue-600 font-medium dark:bg-blue-900/30 dark:text-blue-300;
 
       .item-title {
         @apply text-blue-700 font-medium dark:text-blue-300;
@@ -122,14 +132,14 @@ function formatTime(timestamp?: string) {
     }
 
     .item-content {
-      @apply flex-1 overflow-hidden;
+      @apply flex-1 overflow-hidden min-w-0 mr-1;
 
       .item-title {
-        @apply text-13px truncate;
+        @apply text-13px truncate leading-tight;
       }
 
       .item-time {
-        @apply text-11px text-gray-400 dark:text-gray-500 mt-0.5;
+        @apply text-11px text-gray-400 dark:text-gray-500 mt-1;
       }
     }
 
@@ -140,7 +150,7 @@ function formatTime(timestamp?: string) {
   }
 
   .empty-state {
-    @apply flex flex-col items-center justify-center py-10;
+    @apply flex flex-col items-center justify-center py-8;
   }
 }
 </style>

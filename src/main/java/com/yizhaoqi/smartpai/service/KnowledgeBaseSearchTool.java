@@ -14,7 +14,7 @@ import java.util.*;
 public class KnowledgeBaseSearchTool {
     public static final String NAME="search_knowledge_base";
     public static final List<Map<String,Object>> DEFINITIONS=List.of(Map.of("type","function","function",Map.of(
-            "name",NAME,"description","仅检索用户明确指定的已上传文件、知识库、内部制度或项目文档。资料不足可改写查询继续检索；通用知识、计算、写作和一般建议直接回答，不因出现文档、报告等名词而强制搜索。",
+            "name",NAME,"description","事实性问答的首选工具：先检索当前用户有权限访问的知识库，再依据相关资料回答。人物、组织、产品、项目、数据、概念和技术问题均先检索，用户无需明确指定文件。提取核心姓名或主题查询，资料不足可改写查询；未命中须说明，不凭常识猜测同名人物。纯寒暄、纯计算、翻译或改写已提供文本可直接完成。",
             "parameters",Map.of("type","object","properties",Map.of("query",Map.of("type","string","description","检索查询")),"required",List.of("query")))));
     public record Result(String content,boolean executed) { }
     private final HybridSearchService search;

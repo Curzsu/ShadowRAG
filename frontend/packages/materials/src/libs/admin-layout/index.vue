@@ -167,7 +167,7 @@ function handleClickMask() {
       <template v-if="showSider">
         <aside
           v-show="!fullContent"
-          class="absolute left-4 top-4 h-[calc(100vh-32px)] of-hidden rd-4 shadow-2xl"
+          class="absolute left-0 top-0 h-full overflow-hidden border-r border-gray-200/80 dark:border-gray-800"
           :class="[
             commonClass,
             siderClass,

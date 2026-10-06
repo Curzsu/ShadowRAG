@@ -1,0 +1,10 @@
+{
+  "scenario" : "calculation",
+  "model" : "gemini-3.1-flash-lite",
+  "question" : "计算7乘8",
+  "syntheticRetrieval" : true,
+  "queries" : [ ],
+  "roundKinds" : [ "final" ],
+  "answer" : "7乘8等于56。",
+  "elapsedMillis" : 1777
+}

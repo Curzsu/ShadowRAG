@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { SimpleScrollbar } from '@sa/materials';
 import { GLOBAL_SIDER_MENU_ID } from '@/constants/app';
 import { useAppStore } from '@/store/modules/app';
 import { useThemeStore } from '@/store/modules/theme';
 import { useRouteStore } from '@/store/modules/route';
 import { useRouterPush } from '@/hooks/common/router';
+import ConversationList from '@/views/chat/modules/conversation-list.vue';
 import { useMenu } from '../../../context';
 
 defineOptions({
@@ -43,26 +43,36 @@ watch(
 
 <template>
   <Teleport :to="`#${GLOBAL_SIDER_MENU_ID}`">
-    <SimpleScrollbar class="relative">
-      <NMenu
-        v-model:expanded-keys="expandedKeys"
-        mode="vertical"
-        :value="selectedKey"
-        :collapsed="appStore.siderCollapse"
-        :collapsed-width="themeStore.sider.collapsedWidth"
-        :collapsed-icon-size="22"
-        :options="routeStore.menus"
-        :inverted="inverted"
-        :indent="18"
-        @update:value="routerPushByKeyWithMetaQuery"
-      />
+    <div class="h-full flex flex-col justify-between overflow-hidden">
+      <div class="flex-shrink-0">
+        <NMenu
+          v-model:expanded-keys="expandedKeys"
+          mode="vertical"
+          :value="selectedKey"
+          :collapsed="appStore.siderCollapse"
+          :collapsed-width="themeStore.sider.collapsedWidth"
+          :collapsed-icon-size="22"
+          :options="routeStore.menus"
+          :inverted="inverted"
+          :indent="18"
+          @update:value="routerPushByKeyWithMetaQuery"
+        />
+      </div>
+
+      <div
+        v-show="!appStore.siderCollapse"
+        class="min-h-0 flex flex-col flex-1 overflow-hidden border-t border-gray-100 dark:border-gray-800"
+      >
+        <ConversationList />
+      </div>
+
       <MenuToggler
         v-if="!appStore.isMobile"
-        class="absolute bottom-0 w-full"
+        class="w-full flex-shrink-0"
         :collapsed="appStore.siderCollapse"
         @click="appStore.toggleSiderCollapse"
       />
-    </SimpleScrollbar>
+    </div>
   </Teleport>
 </template>
 

@@ -1,0 +1,10 @@
+{
+  "scenario" : "greeting",
+  "model" : "gemini-3.1-flash-lite",
+  "question" : "你好",
+  "syntheticRetrieval" : true,
+  "queries" : [ ],
+  "roundKinds" : [ "final" ],
+  "answer" : "你好！我是 Brain.ai 知识库问答助手。请问有什么我可以帮您的吗？",
+  "elapsedMillis" : 1485
+}
