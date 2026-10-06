@@ -10,7 +10,7 @@ import com.yizhaoqi.smartpai.model.chat.ChatStreamRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
-import reactor.core.Disposable;
+import java.io.InputStream;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -54,30 +54,30 @@ class ChatRequestRegistryTest {
     }
 
     @Test
-    void lateDisposableIsDisposed() {
+    void lateBodyIsClosed() {
         ChatRequestContext context = registry.register(command("alice", "conversation-a"));
         registry.cancel("alice", context.command().requestId());
-        CountingDisposable disposable = new CountingDisposable();
+        CountingBody disposable = new CountingBody();
         AtomicInteger callback = new AtomicInteger();
-        context.attachUpstream(disposable);
+        context.generationResources().attachResponseBody(disposable);
         context.onCancel(callback::incrementAndGet);
-        context.dispose();
-        context.dispose();
+        context.releaseResources();
+        context.releaseResources();
         assertEquals(1, disposable.disposals.get());
         assertEquals(1, callback.get());
     }
 
     @Test
-    void cancellationDisposesExistingResourcesOnlyOnce() {
+    void cancellationClosesExistingResourcesOnlyOnce() {
         ChatRequestContext context = registry.register(command("alice", "conversation-a"));
-        CountingDisposable disposable = new CountingDisposable();
+        CountingBody disposable = new CountingBody();
         AtomicInteger callback = new AtomicInteger();
-        context.attachUpstream(disposable);
+        context.generationResources().attachResponseBody(disposable);
         context.onCancel(callback::incrementAndGet);
         assertTrue(registry.cancel("alice", context.command().requestId()).changed());
         assertFalse(registry.cancel("alice", context.command().requestId()).changed());
         registry.finish(context, CANCELLED);
-        context.dispose();
+        context.releaseResources();
         assertEquals(1, disposable.disposals.get());
         assertEquals(1, callback.get());
         assertEquals(0, registry.activeRequestCount());
@@ -204,10 +204,10 @@ class ChatRequestRegistryTest {
         ChatRequestContext context = registry.register(command("alice", "conversation-a"));
         CountDownLatch cleanupStarted = new CountDownLatch(1);
         CountDownLatch releaseCleanup = new CountDownLatch(1);
-        context.attachUpstream(() -> {
+        context.generationResources().attachResponseBody(cleanupBody(() -> {
             cleanupStarted.countDown();
             await(releaseCleanup);
-        });
+        }));
         CompletableFuture<Void> firstFinish = CompletableFuture.runAsync(() -> registry.finish(context, FAILED));
         try {
             assertTrue(cleanupStarted.await(2, TimeUnit.SECONDS));
@@ -323,11 +323,11 @@ class ChatRequestRegistryTest {
     @Test
     void cancellationBetweenCallbackStateReadsStillNotifiesOnceAndCleansTimers() throws Exception {
         ChatRequestContext context = spy(new ChatRequestContext(command("alice", "conversation-a")));
-        CountingDisposable upstream = new CountingDisposable();
-        CountingDisposable timer = new CountingDisposable();
+        CountingBody upstream = new CountingBody();
+        CountingBody timer = new CountingBody();
         AtomicBoolean terminalReady = new AtomicBoolean();
         AtomicInteger callbacks = new AtomicInteger();
-        context.attachUpstream(upstream);
+        context.generationResources().attachResponseBody(upstream);
         CountDownLatch cancelled = new CountDownLatch(1);
         AtomicBoolean firstRead = new AtomicBoolean(true);
         AtomicReference<CompletableFuture<Void>> cleanup = new AtomicReference<>();
@@ -338,7 +338,7 @@ class ChatRequestRegistryTest {
                 cleanup.set(CompletableFuture.runAsync(() -> {
                     assertTrue(context.tryTransition(REGISTERED, CANCELLED));
                     cancelled.countDown();
-                    context.dispose();
+                    context.releaseResources();
                 }));
                 assertTrue(cancelled.await(2, TimeUnit.SECONDS));
             }
@@ -348,10 +348,10 @@ class ChatRequestRegistryTest {
         context.onCancel(() -> {
             callbacks.incrementAndGet();
             terminalReady.set(true);
-            timer.dispose();
+            timer.close();
         });
         cleanup.get().get(2, TimeUnit.SECONDS);
-        context.dispose();
+        context.releaseResources();
         assertEquals(1, callbacks.get(), "cancellation must not drop the concurrently registered callback");
         assertTrue(terminalReady.get());
         assertEquals(1, timer.disposals.get());
@@ -363,17 +363,17 @@ class ChatRequestRegistryTest {
         ChatRequestContext context = registry.register(command("alice", "conversation-a"));
         CountDownLatch disposalStarted = new CountDownLatch(1);
         CountDownLatch releaseDisposal = new CountDownLatch(1);
-        context.attachUpstream(() -> {
+        context.generationResources().attachResponseBody(cleanupBody(() -> {
             disposalStarted.countDown();
             await(releaseDisposal);
-        });
+        }));
         CompletableFuture<ChatRequestRegistry.CancelResult> cancellation = CompletableFuture.supplyAsync(
                 () -> registry.cancel("alice", context.command().requestId()));
-        CountingDisposable lateUpstream = new CountingDisposable();
+        CountingBody lateUpstream = new CountingBody();
         AtomicInteger callbacks = new AtomicInteger();
         try {
             assertTrue(disposalStarted.await(2, TimeUnit.SECONDS));
-            context.attachUpstream(lateUpstream);
+            context.generationResources().attachResponseBody(lateUpstream);
             context.onCancel(callbacks::incrementAndGet);
             assertEquals(1, lateUpstream.disposals.get());
             assertEquals(1, callbacks.get());
@@ -381,7 +381,7 @@ class ChatRequestRegistryTest {
             releaseDisposal.countDown();
             assertEquals(CANCELLED, cancellation.get(2, TimeUnit.SECONDS).state());
         }
-        context.dispose();
+        context.releaseResources();
         assertEquals(1, lateUpstream.disposals.get());
         assertEquals(1, callbacks.get());
         assertEquals(0, registry.conversationLeaseCount());
@@ -391,7 +391,7 @@ class ChatRequestRegistryTest {
     void throwingCleanupDoesNotLeakLeaseOrSkipOtherCallbacks() {
         ChatRequestContext context = registry.register(command("alice", "conversation-a"));
         AtomicInteger callback = new AtomicInteger();
-        context.attachUpstream(() -> { throw new IllegalStateException("test cleanup failure"); });
+        context.generationResources().attachResponseBody(cleanupBody(() -> { throw new IllegalStateException("test cleanup failure"); }));
         context.onCancel(() -> { throw new IllegalStateException("test callback failure"); });
         context.onCancel(callback::incrementAndGet);
         assertDoesNotThrow(() -> registry.cancel("alice", context.command().requestId()));
@@ -402,9 +402,9 @@ class ChatRequestRegistryTest {
     @Test
     void finishedCleanupDoesNotNotifyCancellation() {
         ChatRequestContext context = registry.register(command("alice", "conversation-a"));
-        CountingDisposable disposable = new CountingDisposable();
+        CountingBody disposable = new CountingBody();
         AtomicInteger callback = new AtomicInteger();
-        context.attachUpstream(disposable);
+        context.generationResources().attachResponseBody(disposable);
         context.onCancel(callback::incrementAndGet);
         context.tryTransition(REGISTERED, RUNNING);
         context.tryTransition(RUNNING, COMPLETING);
@@ -489,10 +489,16 @@ class ChatRequestRegistryTest {
         }
     }
 
-    private static final class CountingDisposable implements Disposable {
+    private static final class CountingBody extends InputStream {
         private final AtomicInteger disposals = new AtomicInteger();
-        @Override public void dispose() { disposals.incrementAndGet(); }
-        @Override public boolean isDisposed() { return disposals.get() > 0; }
+        @Override public int read() { return -1; }
+        @Override public void close() { disposals.incrementAndGet(); }
+    }
+    private static InputStream cleanupBody(Runnable cleanup) {
+        return new InputStream() {
+            @Override public int read() { return -1; }
+            @Override public void close() { cleanup.run(); }
+        };
     }
 
     private static final class MutableClock extends Clock {

@@ -3,14 +3,13 @@ package com.yizhaoqi.smartpai.service.chat;
 import com.yizhaoqi.smartpai.model.chat.ChatCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import reactor.core.Disposable;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
-public final class ChatRequestContext implements Disposable {
+public final class ChatRequestContext {
     private static final Logger log = LoggerFactory.getLogger(ChatRequestContext.class);
 
     public enum State {
@@ -24,12 +23,17 @@ public final class ChatRequestContext implements Disposable {
     private final ChatCommand command;
     private final AtomicReference<State> state = new AtomicReference<>(State.REGISTERED);
     private final Object resourceLock = new Object();
-    private Disposable upstream;
+    private final ChatGenerationResources generationResources;
     private final List<Runnable> cancellationCallbacks = new ArrayList<>();
-    private boolean disposed;
+    private boolean released;
 
     public ChatRequestContext(ChatCommand command) {
+        this(command, System.nanoTime() + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(300000));
+    }
+
+    public ChatRequestContext(ChatCommand command, long deadlineNanos) {
         this.command = Objects.requireNonNull(command);
+        this.generationResources = new ChatGenerationResources(deadlineNanos);
     }
 
     public ChatCommand command() { return command; }
@@ -54,19 +58,7 @@ public final class ChatRequestContext implements Disposable {
         };
     }
 
-    public void attachUpstream(Disposable disposable) {
-        Objects.requireNonNull(disposable);
-        Disposable previous;
-        synchronized (resourceLock) {
-            if (disposed || isTerminal()) {
-                previous = disposable;
-            } else {
-                previous = upstream;
-                upstream = disposable;
-            }
-        }
-        if (previous != null) safelyRun(previous::dispose);
-    }
+    public ChatGenerationResources generationResources() { return generationResources; }
 
     public void onCancel(Runnable callback) {
         Objects.requireNonNull(callback);
@@ -74,32 +66,27 @@ public final class ChatRequestContext implements Disposable {
         synchronized (resourceLock) {
             State snapshot = state();
             notify = snapshot == State.CANCELLED;
-            // A later cancellation must hand off the queued callback to dispose under this lock.
-            if (!notify && !disposed && !snapshot.isTerminal()) cancellationCallbacks.add(callback);
+            if (!notify && !released && !snapshot.isTerminal()) cancellationCallbacks.add(callback);
         }
         if (notify) safelyRun(callback);
     }
 
     /** Detaches all handles before invoking user/resource code, and invokes each once. */
-    @Override
-    public void dispose() {
-        Disposable disposable;
+    public void releaseResources() {
         List<Runnable> callbacks;
         synchronized (resourceLock) {
-            if (disposed) return;
-            disposed = true;
-            disposable = upstream;
-            upstream = null;
+            if (released) return;
+            released = true;
             callbacks = state() == State.CANCELLED ? List.copyOf(cancellationCallbacks) : List.of();
             cancellationCallbacks.clear();
         }
-        if (disposable != null) safelyRun(disposable::dispose);
+        if (state() == State.COMPLETING || state() == State.FINISHED) generationResources.finishNormally();
+        else generationResources.stop();
         callbacks.forEach(ChatRequestContext::safelyRun);
     }
 
-    @Override
-    public boolean isDisposed() {
-        synchronized (resourceLock) { return disposed; }
+    public boolean resourcesReleased() {
+        synchronized (resourceLock) { return released; }
     }
 
     private static void safelyRun(Runnable cleanup) {

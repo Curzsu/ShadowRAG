@@ -35,7 +35,7 @@ ShadowRAG 是一个企业级 AI 知识管理系统，基于 RAG（检索增强�
 | Embedding | Ollama bge-m3（1024 维） |
 | Reranker | HuggingFace TEI bge-reranker-v2-m3 |
 | 实时通信 | POST SSE + 独立 HTTP 取消 |
-| 响应式 | Spring WebFlux |
+| 聊天流式输出 | Spring MVC SseEmitter + 普通 Java HTTP 读取 |
 | 中文处理 | HanLP 1.8.6 |
 
 ### 前端
@@ -69,9 +69,13 @@ curl -X POST http://localhost:8081/api/v1/chat/requests/<NEW_REQUEST_UUID>/cance
 
 流依次发送 `meta`、`chunk` / `tool_progress` 和一次 `completion`；JSON envelope 包含 `type`、`requestId`、`conversationId`、连续的 `seq` 和 `data`，SSE `event` 与 `type` 相同、`id` 为 `seq`。失败时发送 `error` 再发送终态。只有 `completion.data.status=finished` 表示完整回答已保存；`cancelled`、`failed`、`timed_out` 和缺少 completion 的 EOF 保留页面上的局部文本，但不把它当作已保存回答。流开始前的鉴权、参数或容量错误返回普通 HTTP JSON。`New-Token` 仅更新同一个仍有效的登录会话，生成 POST 不重放。
 
+聊天编排与 DeepSeek 模型/摘要客户端使用普通 Java 方法：生成线程通过 JDK HttpClient 的输入流逐段读取模型 SSE，增量回调进入有界队列，由独立发送线程按顺序写入 SseEmitter。取消同时撤销请求、关闭模型响应流和取消生成任务；全部轮次与排队共享总期限。正文、工具参数、模型 SSE 行/帧及摘要 JSON 都有限额。模型缺少 `[DONE]`、截断或流损坏时，不继续检索，也不保存半截答案。
+
+当前仍保留最多一次知识库搜索的两阶段流程。Embedding、Reranker、MinerU 客户端仍使用 WebClient，因此尚未删除 WebFlux/Reactor 依赖；完整 ReAct 与 MCP 未实施。去除 Flux 的聊天验收记录见 [阶段3验收](docs/eval/chat_stream/remove-flux-phase-3-acceptance.md)。
+
 停止请求返回当前用户命名空间中的实际状态；`cancelled` 后关闭本地流，`completing` / `finished` 继续读取现有流至终态。取消失败时关闭本地连接并提示停止结果未确认。已经进入 `COMPLETING` 的数据库提交不会因断线撤销，提交成功但完成通知丢失时可以从历史恢复。
 
-部署使用 [Nginx 示例](docs/nginx.conf)，修改静态目录与后端地址。独立 stream location 关闭响应缓冲、缓存与 gzip，90 秒超时是两次读写之间的空闲期限；15 秒注释心跳维持工具等待，不能代替 300000 ms 总生成期限。emitter 为 320000 ms，为最多 10 秒数据库事务留出余量。`application.yml` 的 `chat.streaming` 可通过 `CHAT_*` 环境变量覆盖：活跃请求 100、总记录 10000、每用户记录 200、16 个 worker、1024 个排队任务、每请求 64 个待发送事件、终态保留 300000 ms；零、负数和冲突的期限在启动时拒绝。关闭应用停止新请求、取消运行中的生成，已进入提交的请求最多等待事务期限。
+部署使用 [Nginx 示例](docs/nginx.conf)，修改静态目录与后端地址。独立 stream location 关闭响应缓冲、缓存与 gzip，90 秒超时是两次读写之间的空闲期限；15 秒注释心跳维持工具等待，不能代替 300000 ms 总生成期限。emitter 为 320000 ms，为最多 10 秒数据库事务留出余量。`application.yml` 的 `chat.streaming` 可通过 `CHAT_*` 环境变量覆盖：活跃请求 100、总记录 10000、每用户记录 200、发送池 16 个线程/1024 个排队任务、生成池 16 个线程/64 个排队任务、每请求 64 个待发送事件、终态保留 300000 ms；零、负数和冲突的期限在启动时拒绝。关闭应用停止新请求、取消运行中的生成，已进入提交的请求最多等待事务期限。
 
 首版只能部署为单个后端实例。随机分发到多实例前必须实现请求归属与取消路由、会话并发控制，或明确的请求亲和。浏览器 SSE 与未来 MCP 自身的 Streamable HTTP 是两条链路，本次不提供 MCP 功能。
 

@@ -7,7 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-import reactor.test.StepVerifier;
+import com.yizhaoqi.smartpai.support.ChatGenerationProbe;
+import com.yizhaoqi.smartpai.config.ModelHttpProperties;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -31,7 +32,7 @@ class DeepSeekClientProxyTest {
 
     private ApplicationContextRunner context(String proxyUrl) {
         return new ApplicationContextRunner()
-                .withBean(AiProperties.class).withBean(ObjectMapper.class).withBean(DeepSeekClient.class)
+                .withBean(AiProperties.class).withBean(ObjectMapper.class).withBean(ModelHttpProperties.class).withBean(DeepSeekClient.class)
                 .withPropertyValues("deepseek.api.url=http://model.invalid:80", "deepseek.api.key=test-token",
                         "deepseek.api.model=test-model", "deepseek.api.proxy-url=" + proxyUrl);
     }
@@ -41,10 +42,10 @@ class DeepSeekClientProxyTest {
             model.enqueue(session -> { session.content("代理正常"); session.data("[DONE]"); });
             context(proxy.url()).run(ctx -> {
                 assertThat(ctx).hasNotFailed();
-                var stream = ctx.getBean(DeepSeekClient.class).streamResponse(messages);
                 assertThat(proxy.connections.get()).isZero();
-                StepVerifier.create(stream).expectNext("代理正常").expectComplete().verify(Duration.ofSeconds(5));
-                assertThat(proxy.connectLine).isEqualTo("CONNECT model.invalid:80 HTTP/1.1");
+                ChatGenerationProbe.<String>create((context, out) -> ctx.getBean(DeepSeekClient.class).streamResponse(messages, context, out))
+                        .expectNext("代理正常").expectComplete().verify(Duration.ofSeconds(5));
+                assertThat(proxy.connectLine).isEqualTo("POST http://model.invalid:80/chat/completions HTTP/1.1");
                 assertThat(model.requests()).isEqualTo(1);
             });
         }
@@ -55,7 +56,7 @@ class DeepSeekClientProxyTest {
             model.enqueue(session -> { session.content("first"); session.probeUntilDisconnected(); });
             context(proxy.url()).run(ctx -> {
                 assertThat(ctx).hasNotFailed();
-                StepVerifier.create(ctx.getBean(DeepSeekClient.class).streamResponse(messages))
+                ChatGenerationProbe.<String>create((context, out) -> ctx.getBean(DeepSeekClient.class).streamResponse(messages, context, out))
                         .expectNext("first").thenCancel().verify(Duration.ofSeconds(5));
                 try { assertThat(model.awaitDisconnect(Duration.ofSeconds(2))).isTrue(); }
                 catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new AssertionError(e); }
@@ -108,12 +109,19 @@ class DeepSeekClientProxyTest {
                     headers.append((char) value);
                 }
                 connectLine = headers.toString().split("\r\n", 2)[0];
-                if (!connectLine.equals("CONNECT model.invalid:80 HTTP/1.1")) throw new IOException("Unexpected CONNECT target");
+                boolean connect = connectLine.equals("CONNECT model.invalid:80 HTTP/1.1");
+                if (!connect && !connectLine.equals("POST http://model.invalid:80/chat/completions HTTP/1.1"))
+                    throw new IOException("Unexpected proxy target");
                 Socket upstream = new Socket("127.0.0.1", modelPort);
                 sockets.add(upstream);
                 connections.incrementAndGet();
-                downstream.getOutputStream().write("HTTP/1.1 200 Connection Established\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
-                downstream.getOutputStream().flush();
+                if (connect) {
+                    downstream.getOutputStream().write("HTTP/1.1 200 Connection Established\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
+                    downstream.getOutputStream().flush();
+                } else {
+                    upstream.getOutputStream().write(headers.toString().replace(connectLine, "POST /chat/completions HTTP/1.1").getBytes(StandardCharsets.US_ASCII));
+                    upstream.getOutputStream().flush();
+                }
                 downstream.setSoTimeout(0);
                 executor.submit(() -> relay(upstream, downstream));
                 relay(downstream, upstream);

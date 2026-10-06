@@ -39,16 +39,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.scheduler.Scheduler;
-import reactor.netty.http.client.HttpClient;
-import reactor.netty.transport.ProxyProvider;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -281,23 +274,18 @@ public class ChatStreamingBrowserApplication {
             String key = System.getenv("GEMINI_API_KEY");
             if (key == null || key.isBlank()) throw new IllegalStateException("Live browser fixture requires GEMINI_API_KEY");
             String apiUrl = env("GEMINI_API_URL", "https://generativelanguage.googleapis.com/v1beta/openai");
-            DeepSeekClient client = new DeepSeekClient(apiUrl, key, env("GEMINI_MODEL", "gemini-3.8-flash"), ai, mapper);
-            String proxy = System.getenv("CHAT_BROWSER_HTTPS_PROXY");
-            if (proxy != null && !proxy.isBlank()) {
-                // Test-source transport override only; production request/decoder/cancellation remain intact.
-                WebClient proxied = WebClient.builder().baseUrl(apiUrl)
-                        .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + key)
-                        .clientConnector(new ReactorClientHttpConnector(liveHttpClient(proxy))).build();
-                ReflectionTestUtils.setField(client, "webClient", proxied);
-            }
-            return client;
+            return browserModelClient(apiUrl, key, env("GEMINI_MODEL", "gemini-3.8-flash"), ai, mapper,
+                    System.getenv("CHAT_BROWSER_HTTPS_PROXY"));
         }
         return new DeepSeekClient(supplier.url(), "", "loopback-browser-fixture", ai, mapper);
     }
 
-    static HttpClient liveHttpClient(String configuredProxy) {
-        HttpClient client = HttpClient.create();
-        if (configuredProxy == null || configuredProxy.isBlank()) return client;
+    static DeepSeekClient browserModelClient(String url, String key, String model, AiProperties ai, ObjectMapper mapper, String proxy) {
+        return new DeepSeekClient(url, key, model, ai, mapper, liveProxyUrl(proxy));
+    }
+
+    static String liveProxyUrl(String configuredProxy) {
+        if (configuredProxy == null || configuredProxy.isBlank()) return "";
         String invalidMessage = "CHAT_BROWSER_HTTPS_PROXY must be an unauthenticated HTTP proxy with an explicit valid port";
         URI proxy;
         try {
@@ -311,15 +299,15 @@ public class ChatStreamingBrowserApplication {
                 || (proxy.getRawPath() != null && !proxy.getRawPath().isEmpty() && !"/".equals(proxy.getRawPath()))) {
             throw new IllegalArgumentException(invalidMessage);
         }
-        return client.proxy(spec -> spec.type(ProxyProvider.Proxy.HTTP).host(proxy.getHost()).port(proxy.getPort()));
+        return configuredProxy;
     }
 
     @Bean ChatHandler chatHandler(StringRedisTemplate redis, HybridSearchService search, DeepSeekClient model,
             ObjectMapper mapper, AiProperties ai, ConversationCompressionService compression,
             ConversationMessageService messages, ContextBudgetService budget, TokenEstimator estimator,
-            ConversationService conversations, Scheduler chatStreamingScheduler) {
+            ConversationService conversations) {
         return new ChatHandler(redis, search, model, mapper, ai, compression, messages, budget, estimator,
-                conversations, chatStreamingScheduler);
+                conversations);
     }
 
     /** Finished boundary doubles must not receive inherited @Autowired/@PersistenceContext injections. */

@@ -11,8 +11,6 @@ import org.springframework.web.servlet.AsyncHandlerInterceptor;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import reactor.core.scheduler.Scheduler;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
@@ -33,9 +31,12 @@ public class ChatStreamingConfig {
                 namedThreads("chat-stream-worker-"), new ThreadPoolExecutor.AbortPolicy());
     }
 
-    @Bean(destroyMethod = "dispose")
-    public Scheduler chatStreamingScheduler(ThreadPoolExecutor chatStreamingExecutor) {
-        return Schedulers.fromExecutorService(chatStreamingExecutor);
+    @Bean(destroyMethod = "shutdownNow")
+    public ThreadPoolExecutor chatGenerationExecutor(ChatStreamingProperties properties) {
+        properties.validate();
+        return new ThreadPoolExecutor(properties.getGenerationWorkerThreads(), properties.getGenerationWorkerThreads(),
+                0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(properties.getGenerationWorkerQueueCapacity()),
+                namedThreads("chat-generation-worker-"), new ThreadPoolExecutor.AbortPolicy());
     }
 
     @Bean(destroyMethod = "shutdownNow")

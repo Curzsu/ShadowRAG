@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class MockModelSseServer implements AutoCloseable {
     @FunctionalInterface
     public interface Script { void run(Session session) throws Exception; }
-    private record Response(int status, Script script) {}
+    private record Response(int status, String contentType, CountDownLatch beforeHeaders, Script script) {}
     private final HttpServer server;
     private final ExecutorService executor = Executors.newCachedThreadPool();
     private final Queue<Response> responses = new ConcurrentLinkedQueue<>();
@@ -31,16 +31,21 @@ public final class MockModelSseServer implements AutoCloseable {
     private volatile Script fallback;
     private final CountDownLatch disconnected = new CountDownLatch(1);
 
-    public MockModelSseServer() throws IOException {
+    public MockModelSseServer() throws IOException { this("/chat/completions"); }
+    public MockModelSseServer(String path) throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.setExecutor(executor);
-        server.createContext("/chat/completions", exchange -> {
+        server.createContext(path, exchange -> {
             requests.incrementAndGet();
             String requestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             Response response = responses.poll();
-            if (response == null && fallback != null) response = new Response(200, fallback);
-            if (response == null) response = new Response(500, session -> session.raw("unexpected request"));
-            exchange.getResponseHeaders().set("Content-Type", "text/event-stream;charset=UTF-8");
+            if (response == null && fallback != null) response = new Response(200, "text/event-stream;charset=UTF-8", null, fallback);
+            if (response == null) response = new Response(500, "text/plain", null, session -> session.raw("unexpected request"));
+            if (response.beforeHeaders() != null) {
+                try { response.beforeHeaders().await(10, TimeUnit.SECONDS); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); exchange.close(); return; }
+            }
+            exchange.getResponseHeaders().set("Content-Type", response.contentType());
             exchange.sendResponseHeaders(response.status(), 0);
             peakActive.accumulateAndGet(active.incrementAndGet(), Math::max);
             try (OutputStream output = exchange.getResponseBody()) {
@@ -70,7 +75,9 @@ public final class MockModelSseServer implements AutoCloseable {
     public int peakActiveConnections() { return peakActive.get(); }
     public void fallback(Script script) { fallback = script; }
     public void enqueue(Script script) { enqueue(200, script); }
-    public void enqueue(int status, Script script) { responses.add(new Response(status, script)); }
+    public void enqueue(int status, Script script) { responses.add(new Response(status, "text/event-stream;charset=UTF-8", null, script)); }
+    public void enqueueJson(int status, Script script) { responses.add(new Response(status, "application/json", null, script)); }
+    public void enqueueDelayedHeaders(CountDownLatch release, Script script) { responses.add(new Response(200, "text/event-stream;charset=UTF-8", release, script)); }
     public boolean awaitDisconnect(Duration timeout) throws InterruptedException {
         return disconnected.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
     }

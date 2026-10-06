@@ -31,7 +31,7 @@ class ChatStreamingPropertiesTest {
                 p -> p.setHeartbeatIntervalMs(0), p -> p.setTerminalRetentionMs(-1),
                 p -> p.setMaxActiveRequests(0), p -> p.setMaxRetainedRequests(-1),
                 p -> p.setMaxRetainedPerUser(0), p -> p.setWorkerThreads(-1),
-                p -> p.setWorkerQueueCapacity(0), p -> p.setMaxPendingEvents(-1),
+                p -> p.setGenerationWorkerThreads(0), p -> p.setGenerationWorkerQueueCapacity(-1), p -> p.setWorkerQueueCapacity(0), p -> p.setMaxPendingEvents(-1),
                 p -> p.setEmitterTimeoutMs(309999),
                 p -> p.setHeartbeatIntervalMs(320000),
                 p -> p.setMaxActiveRequests(10001));

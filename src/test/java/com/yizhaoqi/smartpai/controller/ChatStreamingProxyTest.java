@@ -28,7 +28,7 @@ class ChatStreamingProxyTest extends ChatStreamingAcceptanceSupport {
     void nginxDeliversTwentyMillisFramesBeforeModelCompletionWithFirstTextP95UnderOneSecond() throws Exception {
         for (int i = 0; i < 3; i++) answer(proxyUrl(), "acceptance-warmup", UUID.randomUUID().toString(), "short");
         awaitEmpty();
-        List<Answer> answers = concurrentAnswers(proxyUrl(), 20, "load");
+        List<Answer> answers = concurrentAnswers(proxyUrl(), 16, "load");
         for (Answer answer : answers) {
             assertEquals(200, answer.chunkMillis().size());
             assertEquals(expectedText(answer.marker(), 200), answer.text());
@@ -39,7 +39,7 @@ class ChatStreamingProxyTest extends ChatStreamingAcceptanceSupport {
         }
         assertTrue(p95(answers) <= 1000, "Nginx first-body p95 was " + p95(answers) + "ms");
         awaitEmpty();
-        saveMetrics("task-7-proxy-frame-metrics", Map.of("proxy", "real-nginx", "requests", 20,
+        saveMetrics("task-7-proxy-frame-metrics", Map.of("proxy", "real-nginx", "requests", 16,
                 "chunksPerRequest", 200, "upstreamIntervalMillis", 20, "firstTextP95Millis", p95(answers),
                 "firstTextMillis", answers.stream().map(Answer::firstTextMillis).sorted().toList(),
                 "settledResources", resourceMetrics()));

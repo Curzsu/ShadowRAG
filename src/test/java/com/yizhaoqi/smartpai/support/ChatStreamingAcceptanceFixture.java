@@ -14,8 +14,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import reactor.core.publisher.Flux;
-import reactor.core.scheduler.Scheduler;
+import com.yizhaoqi.smartpai.service.chat.ChatRequestContext;
+import java.util.function.Consumer;
 
 import java.time.*;
 import java.util.*;
@@ -80,7 +80,7 @@ public class ChatStreamingAcceptanceFixture {
         return server;
     }
     @Bean @Primary ChatHandler acceptanceHandler(MockModelSseServer model, State state,
-                                                 ConversationService conversations, Scheduler chatStreamingScheduler) {
+                                                 ConversationService conversations) {
         when(conversations.loadHistoryForChat(anyString(), anyString())).thenReturn(List.of());
         ConversationMessageService messages = mock(ConversationMessageService.class);
         when(messages.appendTurn(anyString(), anyString(), anyString(), any())).thenAnswer(call -> {
@@ -100,11 +100,11 @@ public class ChatStreamingAcceptanceFixture {
         return new ChatHandler(mock(StringRedisTemplate.class), search,
                 new DeepSeekClient(model.url(), "dedicated-acceptance-key", "local-stub", ai, mapper),
                 mapper, ai, mock(ConversationCompressionService.class), messages,
-                new ContextBudgetService(ai, estimator), estimator, conversations, chatStreamingScheduler) {
-            @Override public Flux<ChatOutput> generateReply(ChatCommand command) {
-                return super.generateReply(command)
-                        .doOnSubscribe(ignored -> state.peakSubscriptions.accumulateAndGet(state.subscriptions.incrementAndGet(), Math::max))
-                        .doFinally(ignored -> state.subscriptions.decrementAndGet());
+                new ContextBudgetService(ai, estimator), estimator, conversations) {
+            @Override public void generateReply(ChatCommand command, ChatRequestContext context, Consumer<ChatOutput> output) {
+                state.peakSubscriptions.accumulateAndGet(state.subscriptions.incrementAndGet(), Math::max);
+                try { super.generateReply(command, context, output); }
+                finally { state.subscriptions.decrementAndGet(); }
             }
         };
     }
