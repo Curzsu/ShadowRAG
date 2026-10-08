@@ -1,0 +1,89 @@
+[
+  {
+    "query_id": 1,
+    "query": "滴滴实习面试问了哪些RAG相关的问题",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:12",
+      "f85f05936fc325cf34792163c880042c:13"
+    ],
+    "difficulty": "easy"
+  },
+  {
+    "query_id": 2,
+    "query": "面试官问vector怎么设计的，向量维度选多少",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:12"
+    ],
+    "difficulty": "medium"
+  },
+  {
+    "query_id": 3,
+    "query": "面试中被问到MCP和Skill的区别",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:2",
+      "f85f05936fc325cf34792163c880042c:15"
+    ],
+    "difficulty": "medium"
+  },
+  {
+    "query_id": 4,
+    "query": "哪些公司的面试涉及到了LangGraph",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:4",
+      "f85f05936fc325cf34792163c880042c:7",
+      "f85f05936fc325cf34792163c880042c:8"
+    ],
+    "difficulty": "hard"
+  },
+  {
+    "query_id": 5,
+    "query": "面试中被追问Function Calling怎么匹配工具参数",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:2"
+    ],
+    "difficulty": "easy"
+  },
+  {
+    "query_id": 6,
+    "query": "怎么评判预训练模型效果，LoRA的数学原理",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:7"
+    ],
+    "difficulty": "medium"
+  },
+  {
+    "query_id": 7,
+    "query": "蔚来AI应用开发的面试题",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:7",
+      "f85f05936fc325cf34792163c880042c:8"
+    ],
+    "difficulty": "easy"
+  },
+  {
+    "query_id": 8,
+    "query": "面试官问Attention机制的核心作用和处理长文本的优化策略",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:8",
+      "f85f05936fc325cf34792163c880042c:9"
+    ],
+    "difficulty": "medium"
+  },
+  {
+    "query_id": 9,
+    "query": "怎么评估RAG系统的检索质量和生成质量",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:9",
+      "f85f05936fc325cf34792163c880042c:10"
+    ],
+    "difficulty": "medium"
+  },
+  {
+    "query_id": 10,
+    "query": "美团实习面试关于AI Coding和Vibe Coding的问题",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:6"
+    ],
+    "difficulty": "easy"
+  }
+]

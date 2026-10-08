@@ -176,6 +176,24 @@ async function handleSourceFileClick(fileName: string) {
       </div>
 
       <!-- 检索过程 -->
+      <div v-if="msg.toolCalls?.length" class="mt-2 w-full" aria-label="工具调用记录" aria-live="polite">
+        <div class="border border-gray-100 rounded-lg bg-gray-50 p-2.5 dark:border-gray-800 dark:bg-gray-800/50">
+          <div class="text-3 color-gray-500 font-medium">工具调用 · {{ msg.toolCalls.length }} 次</div>
+          <div
+            v-for="(call, index) in msg.toolCalls"
+            :key="call.callId"
+            class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-3 color-gray-500"
+          >
+            <span>第 {{ index + 1 }} 次 · 知识库检索</span>
+            <span class="color-gray-400">第 {{ call.roundId }} 轮</span>
+            <span v-if="call.status === 'finished'" class="color-success">已完成</span>
+            <span v-else-if="['pending', 'loading', 'cancelling'].includes(msg.status || '')" class="color-primary">
+              正在检索…
+            </span>
+            <span v-else>未完成</span>
+          </div>
+        </div>
+      </div>
       <div v-if="msg.intermediateRounds?.some(round => round.content)" class="mt-2 w-full">
         <details class="border border-gray-100 rounded-lg bg-gray-50 p-2.5 dark:border-gray-800 dark:bg-gray-800/50">
           <summary class="cursor-pointer text-3 color-gray-500 font-medium">查看检索过程</summary>
@@ -192,7 +210,9 @@ async function handleSourceFileClick(fileName: string) {
 
       <!-- 状态与进度提示 -->
       <NText
-        v-if="msg.toolProgress && ['pending', 'loading', 'cancelling'].includes(msg.status || '')"
+        v-if="
+          !msg.toolCalls?.length && msg.toolProgress && ['pending', 'loading', 'cancelling'].includes(msg.status || '')
+        "
         class="mt-2 text-3 color-gray-500"
       >
         {{ msg.toolProgress }}

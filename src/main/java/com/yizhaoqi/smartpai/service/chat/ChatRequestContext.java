@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import io.opentelemetry.context.Context;
 
 public final class ChatRequestContext {
     private static final Logger log = LoggerFactory.getLogger(ChatRequestContext.class);
@@ -26,6 +27,7 @@ public final class ChatRequestContext {
     private final ChatGenerationResources generationResources;
     private final List<Runnable> cancellationCallbacks = new ArrayList<>();
     private boolean released;
+    private volatile Context traceContext = Context.root();
 
     public ChatRequestContext(ChatCommand command) {
         this(command, System.nanoTime() + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(300000));
@@ -37,6 +39,8 @@ public final class ChatRequestContext {
     }
 
     public ChatCommand command() { return command; }
+    public Context traceContext() { return traceContext; }
+    public void setTraceContext(Context value) { traceContext = Objects.requireNonNull(value); }
     public State state() { return state.get(); }
     public boolean isTerminal() { return state().isTerminal(); }
 

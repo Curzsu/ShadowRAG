@@ -80,7 +80,7 @@ import static org.mockito.Mockito.*;
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, OrgTagAuthorizationFilter.class, JwtUtils.class,
         ChatController.class, ConversationController.class, ChatStreamingExceptionHandler.class,
         ChatStreamService.class, ChatStreamingConfig.class, ChatStreamingProperties.class, ChatRequestRegistry.class,
-        WebConfig.class, LoggingInterceptor.class,
+        WebConfig.class, LoggingInterceptor.class, LangfuseConfiguration.class,
         ChatStreamingBrowserApplication.BrowserFixtureController.class})
 public class ChatStreamingBrowserApplication {
     public static final String USERNAME = "fixture-browser";

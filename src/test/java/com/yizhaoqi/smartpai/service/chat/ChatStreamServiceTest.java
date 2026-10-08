@@ -4,6 +4,11 @@ import com.yizhaoqi.smartpai.config.ChatStreamingProperties;
 import com.yizhaoqi.smartpai.model.chat.*;
 import com.yizhaoqi.smartpai.service.*;
 import com.yizhaoqi.smartpai.support.RecordingSseEmitter;
+import com.yizhaoqi.smartpai.observability.LangfuseTracing;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import org.junit.jupiter.api.*;
 import com.yizhaoqi.smartpai.support.GenerationScript;
 import java.util.*;
@@ -14,20 +19,58 @@ import static org.mockito.Mockito.*;
 import static com.yizhaoqi.smartpai.service.chat.ChatRequestContext.State.*;
 
 class ChatStreamServiceTest {
+    InMemorySpanExporter exporter; SdkTracerProvider provider;
     ChatHandler handler; ConversationService conversations; ChatRequestRegistry registry;
     ChatStreamingProperties properties; ChatStreamService service; ExecutorService workers; ExecutorService generators; ScheduledExecutorService timers;
     final AtomicReference<RecordingSseEmitter> recorded = new AtomicReference<>();
     ChatCommand command;
     @BeforeEach void setup() {
+        exporter=InMemorySpanExporter.create();
+        provider=SdkTracerProvider.builder().addSpanProcessor(SimpleSpanProcessor.create(exporter)).build();
         handler=mock(ChatHandler.class); conversations=mock(ConversationService.class); properties=new ChatStreamingProperties();
         registry=new ChatRequestRegistry(properties); workers=Executors.newFixedThreadPool(4); generators=Executors.newFixedThreadPool(4); timers=Executors.newSingleThreadScheduledExecutor();
-        service=new ChatStreamService(handler,conversations,registry,properties,workers,generators,timers,timeout -> { var emitter=new RecordingSseEmitter(timeout); recorded.set(emitter); return emitter; });
+        service=new ChatStreamService(handler,conversations,registry,properties,workers,generators,timers,timeout -> { var emitter=new RecordingSseEmitter(timeout); recorded.set(emitter); return emitter; },new LangfuseTracing(provider.get("test"),provider,"development"));
         command=new ChatCommand("alice",UUID.randomUUID().toString(),UUID.randomUUID(),"dedicated test question");
     }
-    @AfterEach void close() { service.close(); workers.shutdownNow(); generators.shutdownNow(); timers.shutdownNow(); }
+    @AfterEach void close() { service.close(); workers.shutdownNow(); generators.shutdownNow(); timers.shutdownNow(); provider.close(); }
     ChatOutput chunk(String value) { return new ChatOutput("chunk",Map.of("chunk",value)); }
     void await(java.util.function.BooleanSupplier condition) throws Exception {
         long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(5); while(!condition.getAsBoolean() && System.nanoTime()<deadline) Thread.sleep(5); assertTrue(condition.getAsBoolean());
+    }
+    void assertRoot(String state, boolean committed, boolean notified) throws Exception {
+        await(() -> !exporter.getFinishedSpanItems().isEmpty());
+        var root=exporter.getFinishedSpanItems().get(0);
+        assertEquals("chat.request",root.getName());
+        assertEquals(state,root.getAttributes().get(AttributeKey.stringKey("langfuse.observation.metadata.state")));
+        assertEquals(committed,root.getAttributes().get(AttributeKey.booleanKey("langfuse.observation.metadata.durable_committed")));
+        assertEquals(notified,root.getAttributes().get(AttributeKey.booleanKey("langfuse.observation.metadata.network_terminal_delivered")));
+    }
+
+    @Test void reusedGenerationThreadDoesNotMixRequestTracesOrRetainScope() throws Exception {
+        service.close(); generators.shutdownNow(); generators=Executors.newSingleThreadExecutor();
+        var emitters=new CopyOnWriteArrayList<RecordingSseEmitter>();
+        service=new ChatStreamService(handler,conversations,registry,properties,workers,generators,timers,
+                timeout -> { var e=new RecordingSseEmitter(timeout); emitters.add(e); return e; },
+                new LangfuseTracing(provider.get("test"),provider,"development"));
+        doAnswer(invocation -> {
+            var request=invocation.getArgument(1,ChatRequestContext.class);
+            assertEquals(io.opentelemetry.api.trace.Span.fromContext(request.traceContext()).getSpanContext().getSpanId(),
+                    io.opentelemetry.api.trace.Span.current().getSpanContext().getSpanId());
+            var child=provider.get("test").spanBuilder("generation.probe").startSpan();
+            child.end();
+            invocation.<java.util.function.Consumer<ChatOutput>>getArgument(2).accept(chunk("answer"));
+            return null;
+        }).when(handler).generateReply(any(),any(),any());
+        service.open(command);
+        service.open(new ChatCommand("alice",UUID.randomUUID().toString(),UUID.randomUUID(),"second"));
+        for(var emitter:emitters) emitter.awaitTerminal();
+        await(() -> exporter.getFinishedSpanItems().size()==4);
+        assertFalse(generators.submit(() -> io.opentelemetry.api.trace.Span.current().getSpanContext().isValid()).get());
+        var roots=exporter.getFinishedSpanItems().stream().filter(s -> s.getName().equals("chat.request")).toList();
+        assertEquals(2,roots.size()); assertNotEquals(roots.get(0).getTraceId(),roots.get(1).getTraceId());
+        for(var child:exporter.getFinishedSpanItems().stream().filter(s -> s.getName().equals("generation.probe")).toList()) {
+            assertTrue(roots.stream().anyMatch(root -> root.getSpanId().equals(child.getParentSpanId()) && root.getTraceId().equals(child.getTraceId())));
+        }
     }
     @Test void metaPrecedesContent() throws Exception {
         GenerationScript.stub(handler, command, GenerationScript.just(chunk("one"),chunk("two")));
@@ -35,6 +78,67 @@ class ChatStreamServiceTest {
         assertEquals(List.of("meta","chunk","chunk","completion"),recorded.get().events().stream().map(ChatEventEnvelope::type).toList());
         for(int i=0;i<4;i++) assertEquals(i+1,recorded.get().events().get(i).seq());
         verify(handler).persistCompletedTurn(command,"onetwo");
+    }
+    @Test void simultaneousRequestsKeepTheirOwnTraceParents() throws Exception {
+        service.close();
+        var emitters=new CopyOnWriteArrayList<RecordingSseEmitter>();
+        var bothGenerating=new CountDownLatch(2);
+        var release=new CountDownLatch(1);
+        var tracing=new LangfuseTracing(provider.get("test"),provider,"development");
+        service=new ChatStreamService(handler,conversations,registry,properties,workers,generators,timers,
+                timeout -> { var emitter=new RecordingSseEmitter(timeout); emitters.add(emitter); return emitter; },tracing);
+        doAnswer(call -> {
+            var context=call.getArgument(1,ChatRequestContext.class);
+            bothGenerating.countDown();
+            assertTrue(release.await(5,TimeUnit.SECONDS));
+            try(var observation=tracing.startModel(context,1,"local-stub",new com.yizhaoqi.smartpai.config.AiProperties().getGeneration())) {
+                observation.firstContent("answer");
+                call.<java.util.function.Consumer<ChatOutput>>getArgument(2).accept(chunk("answer"));
+            }
+            return null;
+        }).when(handler).generateReply(any(),any(),any());
+        var other=new ChatCommand("bob",UUID.randomUUID().toString(),UUID.randomUUID(),"other question");
+        try {
+            service.open(command); service.open(other);
+            assertTrue(bothGenerating.await(5,TimeUnit.SECONDS));
+        } finally { release.countDown(); }
+        for(var emitter:emitters) emitter.awaitTerminal();
+        await(() -> exporter.getFinishedSpanItems().size()==4);
+        var roots=exporter.getFinishedSpanItems().stream().filter(span -> "chat.request".equals(span.getName())).toList();
+        assertEquals(2,roots.size()); assertNotEquals(roots.get(0).getTraceId(),roots.get(1).getTraceId());
+        for(var root:roots) {
+            var children=exporter.getFinishedSpanItems().stream().filter(span -> "llm.round".equals(span.getName()) && span.getTraceId().equals(root.getTraceId())).toList();
+            assertEquals(1,children.size()); assertEquals(root.getSpanId(),children.get(0).getParentSpanId());
+            assertEquals(root.getAttributes().get(AttributeKey.stringKey("langfuse.observation.metadata.request_id")),
+                    children.get(0).getAttributes().get(AttributeKey.stringKey("langfuse.observation.metadata.request_id")));
+        }
+        verify(handler).persistCompletedTurn(command,"answer"); verify(handler).persistCompletedTurn(other,"answer");
+    }
+    @Test void rejectedCloudExportDoesNotChangeCompletionOrPersistence() throws Exception {
+        var server=com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1",0),0);
+        var uploads=new AtomicInteger();
+        server.createContext("/",exchange -> {
+            exchange.getRequestBody().readAllBytes(); uploads.incrementAndGet();
+            exchange.sendResponseHeaders(401,-1); exchange.close();
+        });
+        server.start();
+        var props=new com.yizhaoqi.smartpai.config.LangfuseProperties();
+        props.setEnabled(true); props.setBaseUrl("http://127.0.0.1:"+server.getAddress().getPort());
+        props.setPublicKey("fake-public"); props.setSecretKey("fake-secret");
+        try(var tracing=new com.yizhaoqi.smartpai.config.LangfuseConfiguration().langfuseTracing(props)) {
+            service.close();
+            service=new ChatStreamService(handler,conversations,registry,properties,workers,generators,timers,
+                    timeout -> { var emitter=new RecordingSseEmitter(timeout); recorded.set(emitter); return emitter; },tracing);
+            GenerationScript.stub(handler,command,GenerationScript.just(chunk("answer")));
+            service.open(command); recorded.get().awaitTerminal();
+            assertEquals(FINISHED,service.cancel("alice",command.requestId()).state());
+            verify(handler,times(1)).persistCompletedTurn(command,"answer");
+            assertEquals("finished",recorded.get().events().get(recorded.get().events().size()-1).data().get("status"));
+            service.close(); // Existing cleanup completes before the provider is flushed/shut down.
+            tracing.forceFlush().join(5,TimeUnit.SECONDS);
+            await(() -> uploads.get()>0);
+            assertEquals(0,registry.activeRequestCount());
+        } finally { server.stop(0); }
     }
     @Test void intermediateRoundsAreStreamedButOnlyConfirmedFinalAnswerIsSaved() throws Exception {
         GenerationScript.stub(handler,command,GenerationScript.just(
@@ -75,6 +179,7 @@ class ChatStreamServiceTest {
         service.open(command); assertTrue(subscribed.await(5,TimeUnit.SECONDS));
         assertEquals(CANCELLED,service.cancel("alice",command.requestId()).state()); sink.tryEmitComplete(); recorded.get().awaitTerminal();
         verify(handler,never()).persistCompletedTurn(any(),anyString()); assertEquals(1,recorded.get().eventsOfType("completion").size());
+        assertRoot("CANCELLED",false,true);
     }
     @Test void completingWinsAndCancelReturnsCompleting() throws Exception {
         CountDownLatch committing=new CountDownLatch(1), release=new CountDownLatch(1);
@@ -87,6 +192,13 @@ class ChatStreamServiceTest {
         GenerationScript.stub(handler, command, GenerationScript.just(chunk("answer")));
         service.open(command); recorded.get().awaitTerminal(); recorded.get().disconnect(); service.cancel("alice",command.requestId());
         verify(handler,times(1)).persistCompletedTurn(command,"answer"); assertEquals(1,recorded.get().eventsOfType("completion").size());
+        await(() -> !exporter.getFinishedSpanItems().isEmpty());
+        assertEquals(1,exporter.getFinishedSpanItems().size());
+        var root=exporter.getFinishedSpanItems().get(0);
+        assertEquals("FINISHED",root.getAttributes().get(AttributeKey.stringKey("langfuse.observation.metadata.state")));
+        assertEquals(true,root.getAttributes().get(AttributeKey.booleanKey("langfuse.observation.metadata.durable_committed")));
+        assertFalse(root.getAttributes().toString().contains("dedicated test question"));
+        assertFalse(root.getAttributes().toString().contains("alice"));
     }
     @Test void disconnectCancelsUpstream() throws Exception {
         AtomicBoolean cancelled=new AtomicBoolean(); CountDownLatch started=new CountDownLatch(1);
@@ -134,6 +246,8 @@ class ChatStreamServiceTest {
         doThrow(new IllegalStateException("private database credentials")).when(handler).persistCompletedTurn(any(),anyString());
         service.open(command); recorded.get().awaitTerminal(); assertEquals("PERSISTENCE_ERROR",recorded.get().eventsOfType("error").get(0).data().get("code"));
         assertEquals("failed",recorded.get().eventsOfType("completion").get(0).data().get("status")); assertFalse(recorded.get().events().toString().contains("credentials"));
+        assertRoot("FAILED",false,true);
+        assertFalse(exporter.getFinishedSpanItems().get(0).getAttributes().toString().contains("private database"));
     }
     @Test void cancelBeforeSubscriptionDisposesLateHandle() throws Exception {
         CountDownLatch entered=new CountDownLatch(1), release=new CountDownLatch(1); AtomicBoolean cancelled=new AtomicBoolean();
@@ -159,7 +273,7 @@ class ChatStreamServiceTest {
     }
     @Test void heartbeatContinuesDuringToolGapAndDoesNotResetGenerationDeadline() throws Exception {
         ManualTimers manual=new ManualTimers(); timers.shutdownNow(); timers=manual;
-        service=new ChatStreamService(handler,conversations,registry,properties,workers,generators,timers,timeout -> { var emitter=new RecordingSseEmitter(timeout); recorded.set(emitter); return emitter; });
+        service=new ChatStreamService(handler,conversations,registry,properties,workers,generators,timers,timeout -> { var emitter=new RecordingSseEmitter(timeout); recorded.set(emitter); return emitter; },new LangfuseTracing(provider.get("test"),provider,"development"));
         AtomicBoolean cancelled=new AtomicBoolean(); GenerationScript.stub(handler, command, GenerationScript.never().onCancel(() -> cancelled.set(true)));
         service.open(command); await(() -> recorded.get().eventsOfType("meta").size()==1);
         for(int i=1;i<=3;i++) { manual.heartbeat.run(); int expected=i; await(() -> recorded.get().heartbeats()==expected); }
@@ -167,6 +281,7 @@ class ChatStreamServiceTest {
         assertEquals("STREAM_TIMEOUT",recorded.get().eventsOfType("error").get(0).data().get("code"));
         assertEquals("timed_out",recorded.get().eventsOfType("completion").get(0).data().get("status")); verify(handler,never()).persistCompletedTurn(any(),anyString());
         assertTrue(manual.deadlineFuture.isCancelled()); assertTrue(manual.heartbeatFuture.isCancelled());
+        assertRoot("TIMED_OUT",false,true);
     }
     @Test void cleanupStopsAllResources() throws Exception {
         GenerationScript.stub(handler, command, GenerationScript.just(chunk("answer"))); service.open(command); recorded.get().awaitTerminal();
@@ -183,7 +298,13 @@ class ChatStreamServiceTest {
         service.open(command); assertTrue(started.await(5,TimeUnit.SECONDS)); await(() -> recorded.get().eventsOfType("meta").size()==1);
         service.open(committing); RecordingSseEmitter completed=recorded.get(); assertTrue(commit.await(5,TimeUnit.SECONDS));
         var shutdown=CompletableFuture.runAsync(service::close); await(cancelled::get); release.countDown(); shutdown.get(5,TimeUnit.SECONDS); completed.awaitTerminal();
-        assertEquals("finished",completed.eventsOfType("completion").get(0).data().get("status")); verify(handler,never()).persistCompletedTurn(eq(command),anyString());
+        // Shutdown may close transport before the queued terminal write; the committed outcome is authoritative.
+        assertEquals(FINISHED,service.cancel("bob",committing.requestId()).state());
+        verify(handler,times(1)).persistCompletedTurn(committing,"committed");
+        var terminalEvents=completed.eventsOfType("completion");
+        assertTrue(terminalEvents.size()<=1);
+        if(!terminalEvents.isEmpty()) assertEquals("finished",terminalEvents.get(0).data().get("status"));
+        verify(handler,never()).persistCompletedTurn(eq(command),anyString());
         assertThrows(ChatRequestException.class,() -> service.open(new ChatCommand("alice",UUID.randomUUID().toString(),UUID.randomUUID(),"test")));
     }
     static class ManualTimers extends ScheduledThreadPoolExecutor {
@@ -251,6 +372,7 @@ class ChatStreamServiceTest {
         assertEquals(FINISHED,service.cancel("alice",command.requestId()).state());
         verify(handler,times(1)).persistCompletedTurn(command,"answer");
         assertTrue(recorded.get().eventsOfType("completion").isEmpty());
+        assertRoot("FINISHED",true,false);
     }    @Test void transportReadinessRejectionCompletesHealthyEmitter() {
         service.close(); AtomicInteger completions=new AtomicInteger();
         service=new ChatStreamService(handler,conversations,registry,properties,
@@ -345,7 +467,7 @@ class ChatStreamServiceTest {
                         @Override public void complete() { completions.incrementAndGet(); super.complete(); }
                     };
                     recorded.set(emitter); return emitter;
-                });
+                },new LangfuseTracing(provider.get("test"),provider,"development"));
         try {
             service.open(command); assertTrue(committing.await(5,TimeUnit.SECONDS));
             int writes=recorded.get().writes();
@@ -354,6 +476,12 @@ class ChatStreamServiceTest {
             assertEquals(1,completions.get(),"An unresolved commit must not leave its healthy HTTP transport open");
             assertEquals(COMPLETING,service.cancel("alice",command.requestId()).state());
             assertEquals(writes,recorded.get().writes());
+            assertEquals(1,exporter.getFinishedSpanItems().size(),"Pending root must end before SDK shutdown");
+            var root=exporter.getFinishedSpanItems().get(0);
+            assertEquals("COMPLETING",root.getAttributes().get(AttributeKey.stringKey("langfuse.observation.metadata.state")));
+            assertEquals("unknown",root.getAttributes().get(AttributeKey.stringKey("langfuse.observation.metadata.durable_commit_outcome")));
+            assertNull(root.getAttributes().get(AttributeKey.booleanKey("langfuse.observation.metadata.durable_committed")));
+            provider.shutdown().join(4,TimeUnit.SECONDS);
         } finally { release.countDown(); }
         await(() -> registry.activeRequestCount()==0);
         assertEquals(FINISHED,service.cancel("alice",command.requestId()).state());

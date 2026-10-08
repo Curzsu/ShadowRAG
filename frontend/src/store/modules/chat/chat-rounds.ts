@@ -1,5 +1,13 @@
+export interface ChatToolCall {
+  roundId: number;
+  callId: string;
+  tool: string;
+  status: 'started' | 'finished';
+}
+
 export interface ChatRoundMessage {
   content: string;
+  toolCalls?: ChatToolCall[];
   roundDraft?: string;
   intermediateRounds?: Array<{ roundId: number; content: string }>;
 }
@@ -16,5 +24,17 @@ export function applyChatRoundEvent(message: ChatRoundMessage, type: string, dat
       message.intermediateRounds.push({ roundId: Number(data.roundId), content });
     } else message.content = content;
     message.roundDraft = undefined;
+  } else if (type === 'tool_progress' && typeof data.callId === 'string') {
+    message.toolCalls ??= [];
+    const call = message.toolCalls.find(item => item.callId === data.callId);
+    if (call) call.status = data.status as ChatToolCall['status'];
+    else {
+      message.toolCalls.push({
+        roundId: Number(data.roundId),
+        callId: data.callId,
+        tool: String(data.tool),
+        status: data.status as ChatToolCall['status']
+      });
+    }
   }
 }

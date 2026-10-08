@@ -26,6 +26,9 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.stream.Collectors;
+import com.yizhaoqi.smartpai.observability.LangfuseTracing;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.context.Scope;
 
 /**
  * 混合搜索服务，结合文本匹配和向量相似度搜索
@@ -57,6 +60,9 @@ public class HybridSearchService {
     @Autowired
     private RerankerClient rerankerClient;
 
+    @Autowired
+    private LangfuseTracing tracing = LangfuseTracing.noop();
+
     /**
      * 使用文本匹配和向量相似度进行混合搜索，支持权限过滤
      * 该方法确保用户只能搜索其有权限访问的文档（自己的文档、公开文档、所属组织的文档）
@@ -83,57 +89,71 @@ public class HybridSearchService {
 
             // 如果向量生成失败，仅使用文本匹配
             if (queryVector == null) {
+                LangfuseTracing.metadata(Span.current(), "retrieval_status", "bm25_fallback");
                 logger.warn("向量生成失败，仅使用文本匹配进行搜索");
                 return textOnlySearchWithPermission(query, userDbId, userEffectiveTags, topK);
             }
 
             logger.debug("向量生成成功，开始执行混合搜索（Java 端 RRF 融合）");
 
-            // 构建权限过滤 Query（KNN 和 BM25 共用）
-            Query permissionFilter = buildPermissionFilter(userDbId, userEffectiveTags);
-            int recallK = topK * 30;
+            List<SearchResult> results;
+            Span retrieval = tracing.startSearchStage("retrieval");
+            LangfuseTracing.metadata(retrieval, "retrieval_strategy", "hybrid_rrf");
+            try (Scope ignored = retrieval.makeCurrent()) {
+                // 构建权限过滤 Query（KNN 和 BM25 共用）
+                Query permissionFilter = buildPermissionFilter(userDbId, userEffectiveTags);
+                int recallK = topK * 30;
 
-            // 1. KNN 向量搜索
-            SearchResponse<EsDocument> knnResponse = esClient.search(s -> s
-                    .index("knowledge_base")
-                    .knn(kn -> kn
-                            .field("vector")
-                            .queryVector(queryVector)
-                            .k(recallK)
-                            .numCandidates(recallK)
-                            .filter(permissionFilter)
-                    )
-                    .size(recallK),
-                    EsDocument.class);
-            logger.debug("KNN 搜索完成，命中: {}", knnResponse.hits().hits().size());
+                // 1. KNN 向量搜索
+                SearchResponse<EsDocument> knnResponse = esClient.search(s -> s
+                        .index("knowledge_base")
+                        .knn(kn -> kn
+                                .field("vector")
+                                .queryVector(queryVector)
+                                .k(recallK)
+                                .numCandidates(recallK)
+                                .filter(permissionFilter)
+                        )
+                        .size(recallK),
+                        EsDocument.class);
+                logger.debug("KNN 搜索完成，命中: {}", knnResponse.hits().hits().size());
 
-            // 2. BM25 文本搜索
-            SearchResponse<EsDocument> bm25Response = esClient.search(s -> s
-                    .index("knowledge_base")
-                    .query(q -> q.bool(b -> b
-                            .must(mst -> mst.match(m -> m.field("textContent").query(query)))
-                            .filter(permissionFilter)
-                    ))
-                    .size(recallK),
-                    EsDocument.class);
-            logger.debug("BM25 搜索完成，命中: {}", bm25Response.hits().hits().size());
+                // 2. BM25 文本搜索
+                SearchResponse<EsDocument> bm25Response = esClient.search(s -> s
+                        .index("knowledge_base")
+                        .query(q -> q.bool(b -> b
+                                .must(mst -> mst.match(m -> m.field("textContent").query(query)))
+                                .filter(permissionFilter)
+                        ))
+                        .size(recallK),
+                        EsDocument.class);
+                logger.debug("BM25 搜索完成，命中: {}", bm25Response.hits().hits().size());
 
-            // 3. Java 端 RRF 融合
-            List<SearchResult> results = fuseWithRRF(
-                    knnResponse.hits().hits(), bm25Response.hits().hits(), topK);
-            logger.debug("RRF 融合后返回搜索结果数量: {}", results.size());
+                // 3. Java 端 RRF 融合
+                results = fuseWithRRF(
+                        knnResponse.hits().hits(), bm25Response.hits().hits(), topK);
+                logger.debug("RRF 融合后返回搜索结果数量: {}", results.size());
+            } catch (Exception error) {
+                LangfuseTracing.error(retrieval, "RETRIEVAL_ERROR");
+                throw error;
+            } finally {
+                retrieval.end();
+            }
 
             // 4. Cross-Encoder 精排（可选，需 TEI 服务可用）
             results = applyRerank(query, results, topK);
             attachFileNames(results);
             return results;
         } catch (Exception e) {
+            LangfuseTracing.metadata(Span.current(), "retrieval_status", "bm25_fallback");
+            LangfuseTracing.metadata(Span.current(), "rerank_status", "skipped");
             logger.error("带权限的搜索失败，异常类型: {}", e.getClass().getSimpleName());
             // 发生异常时尝试使用纯文本搜索作为后备方案
             try {
                 logger.info("尝试使用纯文本搜索作为后备方案");
                 return textOnlySearchWithPermission(query, getUserDbId(userId), getUserEffectiveOrgTags(userId), topK);
             } catch (Exception fallbackError) {
+                LangfuseTracing.error(Span.current(), "SEARCH_ERROR");
                 logger.error("后备搜索也失败，异常类型: {}", fallbackError.getClass().getSimpleName());
                 return Collections.emptyList();
             }
@@ -144,7 +164,11 @@ public class HybridSearchService {
      * 仅使用文本匹配的带权限搜索方法
      */
     private List<SearchResult> textOnlySearchWithPermission(String query, String userDbId, List<String> userEffectiveTags, int topK) {
-        try {
+        Span searchSpan = Span.current();
+        Span retrieval = tracing.startSearchStage("retrieval");
+        LangfuseTracing.metadata(retrieval, "retrieval_strategy", "bm25_fallback");
+        List<SearchResult> results;
+        try (Scope ignored = retrieval.makeCurrent()) {
             logger.debug("开始执行纯文本搜索，用户数据库ID: {}, 标签: {}", userDbId, userEffectiveTags);
 
             SearchResponse<EsDocument> response = esClient.search(s -> s
@@ -210,7 +234,7 @@ public class HybridSearchService {
             logger.debug("纯文本查询执行完成，命中数量: {}, 最大分数: {}", 
                 response.hits().total().value(), response.hits().maxScore());
 
-            List<SearchResult> results = response.hits().hits().stream()
+            results = response.hits().hits().stream()
                     .map(hit -> {
                         assert hit.source() != null;
                         logger.debug("纯文本搜索结果 - 文件: {}, 块: {}, 分数: {}",
@@ -228,12 +252,16 @@ public class HybridSearchService {
                     .toList();
 
             logger.debug("返回纯文本搜索结果数量: {}", results.size());
-            attachFileNames(results);
-            return results;
         } catch (Exception e) {
             logger.error("纯文本搜索失败，异常类型: {}", e.getClass().getSimpleName());
+            LangfuseTracing.error(searchSpan, "SEARCH_ERROR");
+            LangfuseTracing.error(retrieval, "RETRIEVAL_ERROR");
             return new ArrayList<>();
+        } finally {
+            retrieval.end();
         }
+        attachFileNames(results);
+        return results;
     }
 
     /**
@@ -409,10 +437,12 @@ public class HybridSearchService {
      * 生成查询向量，返回 List<Float>，失败时返回 null
      */
     private List<Float> embedToVectorList(String text) {
-        try {
+        Span embedding = tracing.startSearchStage("embedding");
+        try (Scope ignored = embedding.makeCurrent()) {
             List<float[]> vecs = embeddingClient.embed(List.of(text));
             if (vecs == null || vecs.isEmpty()) {
                 logger.warn("生成的向量为空");
+                LangfuseTracing.error(embedding, "EMBEDDING_UNAVAILABLE");
                 return null;
             }
             float[] raw = vecs.get(0);
@@ -423,7 +453,10 @@ public class HybridSearchService {
             return list;
         } catch (Exception e) {
             logger.error("生成向量失败，异常类型: {}", e.getClass().getSimpleName());
+            LangfuseTracing.error(embedding, "EMBEDDING_ERROR");
             return null;
+        } finally {
+            embedding.end();
         }
     }
     
@@ -519,32 +552,45 @@ public class HybridSearchService {
      * 如果 RerankerClient 不可用或调用失败，返回原始 RRF 排序结果
      */
     private List<SearchResult> applyRerank(String query, List<SearchResult> rrfResults, int topK) {
+        Span searchSpan = Span.current();
         if (!rerankerClient.isEnabled() || rrfResults.isEmpty()) {
+            LangfuseTracing.metadata(searchSpan, "rerank_status", "skipped");
             return rrfResults;
         }
 
-        // 提取文档文本用于 rerank
-        List<String> documents = rrfResults.stream()
-                .map(SearchResult::getTextContent)
-                .toList();
+        Span rerank = tracing.startSearchStage("rerank");
+        try (Scope ignored = rerank.makeCurrent()) {
+            // 提取文档文本用于 rerank
+            List<String> documents = rrfResults.stream()
+                    .map(SearchResult::getTextContent)
+                    .toList();
 
-        List<RerankerClient.RerankResult> rerankResults = rerankerClient.rerank(query, documents, topK);
-        if (rerankResults == null) {
-            logger.debug("Rerank 未执行或失败，保持 RRF 原始排序");
-            return rrfResults;
-        }
+            List<RerankerClient.RerankResult> rerankResults = rerankerClient.rerank(query, documents, topK);
+            if (rerankResults == null) {
+                LangfuseTracing.metadata(searchSpan, "rerank_status", "fallback");
+                LangfuseTracing.error(rerank, "RERANK_UNAVAILABLE");
+                logger.debug("Rerank 未执行或失败，保持 RRF 原始排序");
+                return rrfResults;
+            }
 
-        // 按 rerank 结果重排序：用 rerank 分数替换 RRF 分数
-        List<SearchResult> reranked = new ArrayList<>();
-        for (RerankerClient.RerankResult rr : rerankResults) {
-            SearchResult original = rrfResults.get(rr.index());
-            reranked.add(new SearchResult(
-                    original.getFileMd5(), original.getChunkId(), original.getTextContent(),
-                    rr.score(), original.getUserId(), original.getOrgTag(), original.getIsPublic()
-            ));
+            // 按 rerank 结果重排序：用 rerank 分数替换 RRF 分数
+            List<SearchResult> reranked = new ArrayList<>();
+            for (RerankerClient.RerankResult rr : rerankResults) {
+                SearchResult original = rrfResults.get(rr.index());
+                reranked.add(new SearchResult(
+                        original.getFileMd5(), original.getChunkId(), original.getTextContent(),
+                        rr.score(), original.getUserId(), original.getOrgTag(), original.getIsPublic()
+                ));
+            }
+            logger.debug("Cross-Encoder 精排完成，返回 {} 个结果", reranked.size());
+            LangfuseTracing.metadata(searchSpan, "rerank_status", "success");
+            return reranked;
+        } catch (RuntimeException error) {
+            LangfuseTracing.error(rerank, "RERANK_ERROR");
+            throw error;
+        } finally {
+            rerank.end();
         }
-        logger.debug("Cross-Encoder 精排完成，返回 {} 个结果", reranked.size());
-        return reranked;
     }
 
     private void attachFileNames(List<SearchResult> results) {
