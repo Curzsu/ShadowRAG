@@ -117,6 +117,14 @@ application-local.yml
 /tmp_batch_test.ps1
 /tmp_emb_test.py
 
+# Local files excluded from version control
+/CLAUDE.md
+/bug_high_list.md
+/bug_high_list.py
+/test_minimal.pdf
+/TODO.md
+/pdf解析策略方案设计.md
+
 # Accidental duplicate files
 /CurzsuShadowRAGdocscompose-mineru.yaml
 /CurzsuShadowRAGdocsDockerfile.mineru
