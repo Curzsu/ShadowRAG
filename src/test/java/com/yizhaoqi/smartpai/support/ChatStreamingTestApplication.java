@@ -39,7 +39,7 @@ import static org.mockito.Mockito.when;
         PersistenceExceptionTranslationAutoConfiguration.class})
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, OrgTagAuthorizationFilter.class, JwtUtils.class,
         ChatController.class, ChatStreamingExceptionHandler.class, ChatStreamService.class, ChatStreamingConfig.class,
-        ChatStreamingProperties.class, ChatRequestRegistry.class})
+        ChatStreamingProperties.class, ChatRequestRegistry.class, LangfuseConfiguration.class})
 public class ChatStreamingTestApplication {
     @Bean
     ChatHandler chatHandler() { return mock(ChatHandler.class); }

@@ -1,0 +1,19 @@
+{
+  "run_id": "retrieval-exp-20261008-180248-9d8c0c85",
+  "verified": true,
+  "experiments": [
+    {
+      "id": "d053a720-9946-3ebc-b2b0-1b30c570a5aa",
+      "name": "retrieval-exp-20261008-180248-9d8c0c85-bm25",
+      "item_count": 10,
+      "sample_trace_id": "0e553381c07e52c4b7d49e25fcd84050"
+    },
+    {
+      "id": "f6431071-ddd2-35fd-b7c0-3c25abe977d5",
+      "name": "retrieval-exp-20261008-180248-9d8c0c85-hybrid_rerank",
+      "item_count": 10,
+      "sample_trace_id": "52095342baec2ff056181cc4fac9e6e3"
+    }
+  ],
+  "score_count": 40
+}

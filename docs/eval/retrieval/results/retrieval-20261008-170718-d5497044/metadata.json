@@ -1,0 +1,54 @@
+{
+  "run_id": "retrieval-20261008-170718-d5497044",
+  "dataset_sha256": "5feb14edc1b2cbb606e820324ee101342fd9d75171935e55cf0848661aa7a083",
+  "user_sha256": "ed1855373afe5d73279a6f9acf3f706a68b864c21a1181a2dc0ef58cd4c7bb95",
+  "sample_count": 10,
+  "config": {
+    "top_k": 10,
+    "recall_k": 300,
+    "rrf_k": 60,
+    "bm25_min_score": 0.3,
+    "index": "knowledge_base",
+    "embedding_model": "bge-m3",
+    "embedding_dimension": "1024",
+    "embedding_batch_size": "10",
+    "reranker_enabled": true,
+    "reranker_model": "unspecified: model selected by TEI server",
+    "embedding_endpoint_sha256": "89caf70a6a58a082c8bd16cc0a4ad72d0a2ab0a8d0f495421057ebb5ce6460ee",
+    "reranker_endpoint_sha256": "813c53663a314269e648501bf36ca869b23e389c328396214b30f056733d6094",
+    "source_sha256": {
+      "src/main/java/com/yizhaoqi/smartpai/client/EmbeddingClient.java": "3665ffd30bbe99bbcb60aad48f388b943406edda8d6302ccf88d15ebd84e576d",
+      "src/main/java/com/yizhaoqi/smartpai/client/RerankerClient.java": "130c9ba37c894374e4e3a32260a9d179c3f8f9edbb5e6f9f4498371d99676101",
+      "src/main/java/com/yizhaoqi/smartpai/observability/LangfuseTracing.java": "c2a252f209cdac45b61e18a7b6065215cad5726da79283dd7109aa56ff67e2f7",
+      "src/main/java/com/yizhaoqi/smartpai/service/HybridSearchService.java": "71f38b7b407366d095913ccca5fd06779c6b3239b161c8cd57630c259b0802fa"
+    }
+  },
+  "config_sha256": "68e4892618ac4f6a72b1a20d4677b9e58e2bdd8fa3186e34a000c868da32de95",
+  "permission_sha256_before": "4a18e42561391e39ca9d01c0a74a659d81d682be4b048db1663fce2ef45ae7f3",
+  "index_before": {
+    "index_uuid": "yqh8k2JLT3KDjRC8iHvfkQ",
+    "settings_sha256": "da505a06d1eab6ca36499e16c2a01e07d0279896f9669aa2cc6346213ae9f010",
+    "mapping_sha256": "619b3848226a812d915b6bcffe1dfbcc5da64f318c9ae67fbf977e6bb85f7318",
+    "document_count": 129,
+    "primary_max_seq_no": {
+      "0": 138
+    }
+  },
+  "missing_or_invisible_labels": [],
+  "preflight_status": "success",
+  "permission_sha256_after": "4a18e42561391e39ca9d01c0a74a659d81d682be4b048db1663fce2ef45ae7f3",
+  "index_after": {
+    "index_uuid": "yqh8k2JLT3KDjRC8iHvfkQ",
+    "settings_sha256": "da505a06d1eab6ca36499e16c2a01e07d0279896f9669aa2cc6346213ae9f010",
+    "mapping_sha256": "619b3848226a812d915b6bcffe1dfbcc5da64f318c9ae67fbf977e6bb85f7318",
+    "document_count": 129,
+    "primary_max_seq_no": {
+      "0": 138
+    }
+  },
+  "permission_unchanged": true,
+  "index_snapshot_unchanged": true,
+  "snapshot_limit": "UUID/settings/mapping/document count and primary shard max_seq_no are checked before and after retrieval",
+  "cloud_flush_success": true,
+  "export_status": "complete"
+}

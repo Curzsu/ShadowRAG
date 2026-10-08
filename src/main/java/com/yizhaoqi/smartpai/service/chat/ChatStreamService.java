@@ -8,6 +8,8 @@ import com.yizhaoqi.smartpai.model.chat.ChatEventEnvelope;
 import com.yizhaoqi.smartpai.model.chat.ChatOutput;
 import com.yizhaoqi.smartpai.service.ChatHandler;
 import com.yizhaoqi.smartpai.service.ConversationService;
+import com.yizhaoqi.smartpai.observability.LangfuseTracing;
+import org.springframework.beans.factory.annotation.Autowired;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,16 +52,26 @@ public class ChatStreamService implements AutoCloseable {
     private final Executor generators;
     private final ScheduledExecutorService timers;
     private final LongFunction<SseEmitter> emitterFactory;
+    private final LangfuseTracing tracing;
     private final ConcurrentHashMap<ChatRequestContext, Stream> streams = new ConcurrentHashMap<>();
     private final Object admission = new Object();
     private boolean accepting = true;
 
     public ChatStreamService(ChatHandler handler, ConversationService conversations,
                              ChatRequestRegistry registry, ChatStreamingProperties properties,
+                             Executor workers, Executor generators, ScheduledExecutorService timers,
+                             LongFunction<SseEmitter> emitterFactory) {
+        this(handler, conversations, registry, properties, workers, generators, timers, emitterFactory, LangfuseTracing.noop());
+    }
+
+    @Autowired
+    public ChatStreamService(ChatHandler handler, ConversationService conversations,
+                             ChatRequestRegistry registry, ChatStreamingProperties properties,
                              @Qualifier("chatStreamingExecutor") Executor workers,
                              @Qualifier("chatGenerationExecutor") Executor generators,
                              @Qualifier("chatStreamingTimers") ScheduledExecutorService timers,
-                             @Qualifier("chatSseEmitterFactory") LongFunction<SseEmitter> emitterFactory) {
+                             @Qualifier("chatSseEmitterFactory") LongFunction<SseEmitter> emitterFactory,
+                             LangfuseTracing tracing) {
         this.handler = handler;
         this.conversations = conversations;
         this.registry = registry;
@@ -68,6 +80,7 @@ public class ChatStreamService implements AutoCloseable {
         this.generators = generators;
         this.timers = timers;
         this.emitterFactory = emitterFactory;
+        this.tracing = tracing;
     }
 
     public SseEmitter open(ChatCommand command) {
@@ -93,6 +106,7 @@ public class ChatStreamService implements AutoCloseable {
                 throw new ChatRequestException("CHAT_CAPACITY_EXCEEDED", HttpStatus.TOO_MANY_REQUESTS, "聊天服务正在关闭");
             }
             ChatRequestContext context = registry.register(command);
+            context.setTraceContext(tracing.startChat(command));
             Stream stream = null;
             try {
                 stream = new Stream(context, emitterFactory.apply(properties.getEmitterTimeoutMs()));
@@ -108,6 +122,7 @@ public class ChatStreamService implements AutoCloseable {
                 } else {
                     context.tryTransition(REGISTERED, FAILED);
                     registry.finish(context, FAILED);
+                    tracing.finishChat(context, "INTERNAL_ERROR", -1, 0, false, false);
                 }
                 throw startFailed();
             }
@@ -191,6 +206,7 @@ public class ChatStreamService implements AutoCloseable {
             if (stream.context.state() == COMPLETING) {
                 // The transaction owns its result; shutdown only closes downstream resources.
                 stream.closeHealthyTransport(stream::stopResources);
+                stream.finishObservation(true);
             }
         }
     }
@@ -204,6 +220,7 @@ public class ChatStreamService implements AutoCloseable {
         final AtomicBoolean writable = new AtomicBoolean(true);
         final AtomicBoolean resourcesStopped = new AtomicBoolean();
         final AtomicBoolean removedOnce = new AtomicBoolean();
+        final AtomicBoolean observationEnded = new AtomicBoolean();
         final AtomicReference<ScheduledFuture<?>> deadline = new AtomicReference<>();
         final AtomicReference<ScheduledFuture<?>> heartbeat = new AtomicReference<>();
         final CountDownLatch removed = new CountDownLatch(1);
@@ -272,7 +289,7 @@ public class ChatStreamService implements AutoCloseable {
 
         void generate() {
             if (!context.tryTransition(REGISTERED, RUNNING)) return;
-            try {
+            try (var ignored = context.traceContext().makeCurrent()) {
                 context.generationResources().checkRunning();
                 handler.generateReply(context.command(), context, this::offer);
                 context.generationResources().checkRunning();
@@ -459,6 +476,7 @@ public class ChatStreamService implements AutoCloseable {
             if (!removedOnce.compareAndSet(false, true)) return;
             stopResources();
             streams.remove(context, this);
+            finishObservation(false);
             removed.countDown();
             ChatCommand command = context.command();
             logger.info("Chat stream ended username={} chatRequestId={} conversationId={} state={} errorCode={} "
@@ -469,6 +487,17 @@ public class ChatStreamService implements AutoCloseable {
                     firstChunkAt < 0 ? -1 : TimeUnit.NANOSECONDS.toMillis(firstChunkAt - startedAt),
                     TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt), deliveredCharacters,
                     context.resourcesReleased(), durableCommitted, networkTerminalDelivered);
+        }
+
+        void finishObservation(boolean shutdown) {
+            if (!observationEnded.compareAndSet(false, true)) return;
+            long firstChunkMs = firstChunkAt < 0 ? -1 : TimeUnit.NANOSECONDS.toMillis(firstChunkAt - startedAt);
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+            if (shutdown && context.state() == COMPLETING && !durableCommitted) {
+                tracing.finishPendingChat(context, firstChunkMs, elapsedMs);
+            } else {
+                tracing.finishChat(context, errorCode, firstChunkMs, elapsedMs, durableCommitted, networkTerminalDelivered);
+            }
         }
 
         void cancel(AtomicReference<ScheduledFuture<?>> task) {

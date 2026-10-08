@@ -30,6 +30,34 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class HybridSearchServiceLoggingTest {
+    @Test void rerankObservationMatchesSuccessDisabledAndSupplierFallback() {
+        var exporter=io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter.create();
+        try(var provider=io.opentelemetry.sdk.trace.SdkTracerProvider.builder()
+                .addSpanProcessor(io.opentelemetry.sdk.trace.export.SimpleSpanProcessor.create(exporter)).build()) {
+            var search=new HybridSearchService();
+            var reranker=mock(RerankerClient.class);
+            ReflectionTestUtils.setField(search,"rerankerClient",reranker);
+            var original=List.of(new com.yizhaoqi.smartpai.entity.SearchResult("file",1,SNIPPET,0.5));
+            when(reranker.isEnabled()).thenReturn(true);
+            when(reranker.rerank(QUERY,List.of(SNIPPET),10)).thenReturn(List.of(new RerankerClient.RerankResult(0,0.9)));
+            for(String expected:List.of("success","skipped","fallback")) {
+                if("skipped".equals(expected)) when(reranker.isEnabled()).thenReturn(false);
+                if("fallback".equals(expected)) {
+                    when(reranker.isEnabled()).thenReturn(true);
+                    when(reranker.rerank(QUERY,List.of(SNIPPET),10)).thenReturn(null);
+                }
+                var span=provider.get("test").spanBuilder("tool.knowledge_search").startSpan();
+                try(var ignored=span.makeCurrent()) {
+                    List<com.yizhaoqi.smartpai.entity.SearchResult> results=ReflectionTestUtils.invokeMethod(search,"applyRerank",QUERY,original,10);
+                    assertNotNull(results);
+                    assertEquals("success".equals(expected) ? 0.9 : 0.5,results.get(0).getScore());
+                } finally { span.end(); }
+                var data=exporter.getFinishedSpanItems().get(exporter.getFinishedSpanItems().size()-1);
+                assertEquals(expected,data.getAttributes().get(io.opentelemetry.api.common.AttributeKey.stringKey("langfuse.observation.metadata.rerank_status")));
+                assertFalse(data.getAttributes().toString().contains(SNIPPET));
+            }
+        }
+    }
     private static final String QUERY = "PRIVATEQUERYFORLOGTEST";
     private static final String SNIPPET = "PRIVATEHITFORLOGTEST";
     private static final String TOKEN = "DEDICATEDTESTSUPPLIERTOKEN";

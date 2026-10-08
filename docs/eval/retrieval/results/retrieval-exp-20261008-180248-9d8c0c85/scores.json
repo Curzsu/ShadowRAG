@@ -1,0 +1,362 @@
+[
+  {
+    "id": "bea78f03-44f8-8e35-8961-cc99d8a619f0",
+    "traceId": "0e553381c07e52c4b7d49e25fcd84050",
+    "name": "hit_at_5",
+    "value": 0.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=1; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "d86ae57506dcdbbf"
+  },
+  {
+    "id": "a1c00308-9a7b-c48a-4e31-4ac755408d63",
+    "traceId": "0e553381c07e52c4b7d49e25fcd84050",
+    "name": "mrr_at_5",
+    "value": 0.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=1; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "d86ae57506dcdbbf"
+  },
+  {
+    "id": "f06e1b61-ceee-858e-c2d9-2439ac49f60c",
+    "traceId": "52095342baec2ff056181cc4fac9e6e3",
+    "name": "hit_at_5",
+    "value": 0.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=1; strategy=hybrid_rerank; retrieval_status=success; rerank_status=fallback",
+    "observationId": "7c930d15fa31f166"
+  },
+  {
+    "id": "4de8bd9c-bd04-04aa-5eea-e5d850ca50c8",
+    "traceId": "52095342baec2ff056181cc4fac9e6e3",
+    "name": "mrr_at_5",
+    "value": 0.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=1; strategy=hybrid_rerank; retrieval_status=success; rerank_status=fallback",
+    "observationId": "7c930d15fa31f166"
+  },
+  {
+    "id": "1f20fe24-f6d0-d1ee-1486-b17b8481c0f2",
+    "traceId": "7db633110c2ce1333cfdef14c9b904ed",
+    "name": "hit_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=2; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "b55066056fe2a5f4"
+  },
+  {
+    "id": "398b9037-1421-d811-863e-95c823d62125",
+    "traceId": "7db633110c2ce1333cfdef14c9b904ed",
+    "name": "mrr_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=2; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "b55066056fe2a5f4"
+  },
+  {
+    "id": "83a08471-92ed-e2bc-d428-54208e48a0fa",
+    "traceId": "6445841e509b49aea21055c037272534",
+    "name": "hit_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=2; strategy=hybrid_rerank; retrieval_status=success; rerank_status=fallback",
+    "observationId": "2cd3073a691bc196"
+  },
+  {
+    "id": "803db293-145e-e54d-a9ab-da00dacf91e2",
+    "traceId": "6445841e509b49aea21055c037272534",
+    "name": "mrr_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=2; strategy=hybrid_rerank; retrieval_status=success; rerank_status=fallback",
+    "observationId": "2cd3073a691bc196"
+  },
+  {
+    "id": "3bdffda8-94e7-f053-0d3d-3470ec25ff59",
+    "traceId": "97ba55c25d62ee2a9233498cd1386de1",
+    "name": "hit_at_5",
+    "value": 0.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=3; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "5f069ef168f93ac0"
+  },
+  {
+    "id": "8049d0a5-951e-b9eb-806c-068288cc356c",
+    "traceId": "97ba55c25d62ee2a9233498cd1386de1",
+    "name": "mrr_at_5",
+    "value": 0.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=3; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "5f069ef168f93ac0"
+  },
+  {
+    "id": "0e4957db-a10d-9ecc-3b63-89a35bef6f85",
+    "traceId": "47354222e0524aa2445ee4fb32670828",
+    "name": "hit_at_5",
+    "value": 0.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=3; strategy=hybrid_rerank; retrieval_status=success; rerank_status=fallback",
+    "observationId": "423a63f0d409d0ba"
+  },
+  {
+    "id": "c2788dfc-1845-7bc9-3ccb-c3901f994f15",
+    "traceId": "47354222e0524aa2445ee4fb32670828",
+    "name": "mrr_at_5",
+    "value": 0.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=3; strategy=hybrid_rerank; retrieval_status=success; rerank_status=fallback",
+    "observationId": "423a63f0d409d0ba"
+  },
+  {
+    "id": "b940dd6d-9740-8426-c3c7-52595806a271",
+    "traceId": "43895fe3646e81b10b4de66018aa4f41",
+    "name": "hit_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=4; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "2d7426b126dffd2c"
+  },
+  {
+    "id": "dc1c100a-d711-0ebe-213a-56696e880cff",
+    "traceId": "43895fe3646e81b10b4de66018aa4f41",
+    "name": "mrr_at_5",
+    "value": 0.2,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=4; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "2d7426b126dffd2c"
+  },
+  {
+    "id": "9c13a65d-5a48-d117-bc05-442d5c347490",
+    "traceId": "710933985cfb523660152ad9ee2a5fab",
+    "name": "hit_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=4; strategy=hybrid_rerank; retrieval_status=success; rerank_status=success",
+    "observationId": "fdeaf2521560547d"
+  },
+  {
+    "id": "2f2e5558-5f3c-ccdc-8214-47c9516452c4",
+    "traceId": "710933985cfb523660152ad9ee2a5fab",
+    "name": "mrr_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=4; strategy=hybrid_rerank; retrieval_status=success; rerank_status=success",
+    "observationId": "fdeaf2521560547d"
+  },
+  {
+    "id": "6868691b-a07e-6a80-a418-900ede1bf756",
+    "traceId": "9dafbc0651fc94f14a1a5a298484df03",
+    "name": "hit_at_5",
+    "value": 0.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=5; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "bd6d143697fd290c"
+  },
+  {
+    "id": "aa10cb67-9014-3855-603b-4f4e8d40c3f5",
+    "traceId": "9dafbc0651fc94f14a1a5a298484df03",
+    "name": "mrr_at_5",
+    "value": 0.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=5; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "bd6d143697fd290c"
+  },
+  {
+    "id": "ca26afd6-2ea9-085f-93e6-93596a76ff28",
+    "traceId": "84c3da0279f8cc43df30104788adcb0c",
+    "name": "hit_at_5",
+    "value": 0.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=5; strategy=hybrid_rerank; retrieval_status=success; rerank_status=success",
+    "observationId": "aa59eaf514eabaef"
+  },
+  {
+    "id": "cacce992-d15b-f761-3048-b5fbed2ad086",
+    "traceId": "84c3da0279f8cc43df30104788adcb0c",
+    "name": "mrr_at_5",
+    "value": 0.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=5; strategy=hybrid_rerank; retrieval_status=success; rerank_status=success",
+    "observationId": "aa59eaf514eabaef"
+  },
+  {
+    "id": "e035e843-33c9-aebf-333d-6ccdd2d1a1f9",
+    "traceId": "29785a838c9ac6a56c4b83e6541ddbf7",
+    "name": "hit_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=6; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "b9cb4d283cd2ac02"
+  },
+  {
+    "id": "3e8d70de-9506-942c-24e5-66d6854c1a01",
+    "traceId": "29785a838c9ac6a56c4b83e6541ddbf7",
+    "name": "mrr_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=6; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "b9cb4d283cd2ac02"
+  },
+  {
+    "id": "c92a6d9e-48fe-491a-f531-d7ff2ade5cf9",
+    "traceId": "f05ca1acb0d97fed2ee0113a5128665d",
+    "name": "hit_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=6; strategy=hybrid_rerank; retrieval_status=success; rerank_status=fallback",
+    "observationId": "565058fa9eedfde6"
+  },
+  {
+    "id": "3e47b09a-77ea-affd-4994-78582d43632d",
+    "traceId": "f05ca1acb0d97fed2ee0113a5128665d",
+    "name": "mrr_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=6; strategy=hybrid_rerank; retrieval_status=success; rerank_status=fallback",
+    "observationId": "565058fa9eedfde6"
+  },
+  {
+    "id": "be1183ac-c7d2-63c4-27b4-7424361f001b",
+    "traceId": "08190566ba55e9d35b56d2e6993231da",
+    "name": "hit_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=7; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "43fa47237e05611a"
+  },
+  {
+    "id": "c38ef349-c24c-c09a-4f71-fb697b8e2b5c",
+    "traceId": "08190566ba55e9d35b56d2e6993231da",
+    "name": "mrr_at_5",
+    "value": 0.5,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=7; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "43fa47237e05611a"
+  },
+  {
+    "id": "5ec4857a-3973-ba1d-c131-90d7173dd13d",
+    "traceId": "a938d7ef2679d8f0d2d652e45373a062",
+    "name": "hit_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=7; strategy=hybrid_rerank; retrieval_status=success; rerank_status=fallback",
+    "observationId": "16814252ae44f0a9"
+  },
+  {
+    "id": "3395854e-5af4-c6e8-a466-801b300a27f5",
+    "traceId": "a938d7ef2679d8f0d2d652e45373a062",
+    "name": "mrr_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=7; strategy=hybrid_rerank; retrieval_status=success; rerank_status=fallback",
+    "observationId": "16814252ae44f0a9"
+  },
+  {
+    "id": "5ef6566d-015d-5c59-bdcc-f3d4c2551398",
+    "traceId": "9403d9fdf54619136c9ac988bb3f1066",
+    "name": "hit_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=8; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "c18f534029634dc7"
+  },
+  {
+    "id": "b0f43840-4e12-338a-2c8d-7b43be871b6a",
+    "traceId": "9403d9fdf54619136c9ac988bb3f1066",
+    "name": "mrr_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=8; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "c18f534029634dc7"
+  },
+  {
+    "id": "bef84836-21a3-fd61-8c76-25e1de3e5506",
+    "traceId": "7636c103199b4eedf9b34f35878a4579",
+    "name": "hit_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=8; strategy=hybrid_rerank; retrieval_status=success; rerank_status=fallback",
+    "observationId": "0ad70d2d2f991709"
+  },
+  {
+    "id": "70602857-2f18-1b66-decd-c1500ea6c8a7",
+    "traceId": "7636c103199b4eedf9b34f35878a4579",
+    "name": "mrr_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=8; strategy=hybrid_rerank; retrieval_status=success; rerank_status=fallback",
+    "observationId": "0ad70d2d2f991709"
+  },
+  {
+    "id": "15deeb10-5bb4-a6c8-2ee8-e91a8fea9832",
+    "traceId": "a617dd268e8c345341ac815e0f0adc6d",
+    "name": "hit_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=9; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "349c7e8d94715d29"
+  },
+  {
+    "id": "7ba80706-310b-01c1-184f-5b1833dfc8ee",
+    "traceId": "a617dd268e8c345341ac815e0f0adc6d",
+    "name": "mrr_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=9; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "349c7e8d94715d29"
+  },
+  {
+    "id": "eb37c3c0-53aa-1fc2-ff0d-7b11e6144b42",
+    "traceId": "4ad1ed663441ee8f7899f47479d9ca81",
+    "name": "hit_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=9; strategy=hybrid_rerank; retrieval_status=success; rerank_status=fallback",
+    "observationId": "333e81025c5da1cb"
+  },
+  {
+    "id": "28763e27-bb7e-1575-6e1f-39e5c9c51a18",
+    "traceId": "4ad1ed663441ee8f7899f47479d9ca81",
+    "name": "mrr_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=9; strategy=hybrid_rerank; retrieval_status=success; rerank_status=fallback",
+    "observationId": "333e81025c5da1cb"
+  },
+  {
+    "id": "ed53426e-38ea-bb10-d660-bb0c46b902d4",
+    "traceId": "aa336fddc081c41aa96217aad9cfde5f",
+    "name": "hit_at_5",
+    "value": 1.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=10; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "0f7afec8260ba2e0"
+  },
+  {
+    "id": "a728966c-b052-ec50-0040-1b87b9c9384e",
+    "traceId": "aa336fddc081c41aa96217aad9cfde5f",
+    "name": "mrr_at_5",
+    "value": 0.25,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=10; strategy=bm25; retrieval_status=success; rerank_status=not_applicable",
+    "observationId": "0f7afec8260ba2e0"
+  },
+  {
+    "id": "b462fe8e-20f5-7f22-8d96-c7866a58e028",
+    "traceId": "e10441869e810f6276aa9f0c3833602d",
+    "name": "hit_at_5",
+    "value": 0.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=10; strategy=hybrid_rerank; retrieval_status=success; rerank_status=fallback",
+    "observationId": "3982c9219dc23050"
+  },
+  {
+    "id": "22d0fef5-1897-c396-bcfe-44a2b2b12019",
+    "traceId": "e10441869e810f6276aa9f0c3833602d",
+    "name": "mrr_at_5",
+    "value": 0.0,
+    "dataType": "NUMERIC",
+    "comment": "run=retrieval-exp-20261008-180248-9d8c0c85; sample=10; strategy=hybrid_rerank; retrieval_status=success; rerank_status=fallback",
+    "observationId": "3982c9219dc23050"
+  }
+]

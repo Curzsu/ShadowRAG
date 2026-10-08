@@ -2,7 +2,9 @@
 
 > 2026-10-06 策略更新：线上已改为事实性问答优先检索，人物/实体及技术概念不再默认 DIRECT，纯寒暄、纯计算、翻译和输入文本改写仍可直接完成。此目录的 v1/v2 提示词、工具快照、标签及模型报告保留为历史评测资产，不代表当前策略；重新做整套准确率评测前须按新策略重新复核标签。当前策略使用实际生产提示词和 Java 工具定义的 `LiveGeminiKnowledgeFirstTest` 验收。
 
-这套资产用于测量第一次模型调用是否正确选择 `search_knowledge_base`。当前项目只有两条可观察路由，因此标签固定为：
+当前策略的 Langfuse 首轮路由联调入口为 `scripts/langfuse/run-routing-evaluation.ps1`，默认仅跑 10 条待复核候选标签。以下定义与旧脚本属于历史策略，不用于当前准确率验收。
+
+这套历史资产用于测量第一次模型调用是否正确选择 `search_knowledge_base`，历史标签为：
 
 - `SEARCH`：回答依赖用户上传文件、项目知识库、内部制度或指定文档，第一次调用应产生 `search_knowledge_base` Tool Call。
 - `DIRECT`：不依赖私有文档即可回答的常识、技术原理、写作、计算或闲聊，第一次调用不应产生 Tool Call。
@@ -158,3 +160,8 @@ v2 只根据 60 条开发集上的 7 个误触发类型优化 Tool Description �
 强制检索每条都真实执行 Embedding、KNN + BM25、RRF 和 Cross-Encoder Rerank，并应用 TEI 返回的精排顺序后返回 top 10；Agentic 组 60 条均直接回答。单并发运行，2 对预热，执行顺序严格 30/30 交替。详细口径见 `results/ttft-direct-60-report-v2-volc.md`，全部哈希与运行条件见 `results/evidence-bundle-v2-volc.json`。
 
 上述数字只代表当前模型、网络和刻意平衡测试集的一次可复现运行。简历可以写实测 P50，但面试时应主动说明路由标签仍需真人复核、每条 TTFT 只重复 1 次，以及 100% 不代表线上长期零错误。
+# 当前策略 Langfuse 路由联调
+
+运行 `./scripts/langfuse/run-routing-evaluation.ps1`，自动冻结 10 条候选样本，调用实际 Java 首轮模型、上传 `route_correct` 并回读云端校验。说明见 `docs/research/2026-10-08-langfuse-routing-evaluation.md`。
+
+默认候选标签待人工复核，不可作为正式简历指标。历史 `route_predict.py` 仍保留历史私有知识边界，不用于当前生产策略联调。当前策略快照、模型参数、样本哈希和每次真实调用均保存在独立运行目录。

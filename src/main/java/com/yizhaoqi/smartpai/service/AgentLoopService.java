@@ -6,6 +6,9 @@ import com.yizhaoqi.smartpai.config.AiProperties;
 import com.yizhaoqi.smartpai.model.chat.*;
 import com.yizhaoqi.smartpai.service.chat.ChatRequestContext;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.yizhaoqi.smartpai.observability.LangfuseTracing;
+import io.opentelemetry.api.trace.Span;
 import java.net.http.HttpTimeoutException;
 import java.text.Normalizer;
 import java.util.*;
@@ -20,10 +23,23 @@ public class AgentLoopService {
     private final AiProperties properties;
     private final ContextBudgetService budget;
     private final TokenEstimator tokens;
+    private final LangfuseTracing tracing;
+    private final String promptHash;
+    private final String toolHash;
     public AgentLoopService(DeepSeekClient model,KnowledgeBaseSearchTool search,ObjectMapper mapper,AiProperties properties,
                             ContextBudgetService budget,TokenEstimator tokens) {
+        this(model,search,mapper,properties,budget,tokens,LangfuseTracing.noop());
+    }
+    @Autowired
+    public AgentLoopService(DeepSeekClient model,KnowledgeBaseSearchTool search,ObjectMapper mapper,AiProperties properties,
+                            ContextBudgetService budget,TokenEstimator tokens,LangfuseTracing tracing) {
         properties.getAgent().validate();
         this.model=model; this.search=search; this.mapper=mapper; this.properties=properties; this.budget=budget; this.tokens=tokens;
+        this.tracing=tracing;
+        this.promptHash=LangfuseTracing.hash(properties.getPrompt().getRules());
+        try { this.toolHash=LangfuseTracing.hash(mapper.copy().configure(com.fasterxml.jackson.databind.SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS,true)
+                .writeValueAsString(KnowledgeBaseSearchTool.DEFINITIONS)); }
+        catch(java.io.IOException failure) { throw new IllegalStateException("Tool definitions unavailable",failure); }
     }
     public static void checkRunning(ChatRequestContext context) {
         try { context.generationResources().checkRunning(); }
@@ -49,14 +65,33 @@ public class AgentLoopService {
             messages=new ArrayList<>(budget.fitAgent(messages,reserve,finalize ? 0 : toolTokens));
             final int id=roundId;
             ModelRoundResult result;
-            try {
-                if(finalize) output.accept(chunk(id,"[部分完成：已达到检索预算，仅依据现有资料回答]\n\n"));
-                result=model.streamWithTools(messages,finalize ? List.of() : KnowledgeBaseSearchTool.DEFINITIONS,context,delta -> {
+            if(finalize) output.accept(chunk(id,"[部分完成：已达到检索预算，仅依据现有资料回答]\n\n"));
+            try (var observation=tracing.startModel(context,id,model.modelName(),properties.getGeneration())) {
+                LangfuseTracing.metadata(observation.span(),"prompt_hash",promptHash);
+                LangfuseTracing.metadata(observation.span(),"tool_hash",toolHash);
+                LangfuseTracing.metadata(observation.span(),"finalization_reason",!finalize ? "none" :
+                        rounds>=limits.getMaxToolRounds() ? "round_limit" : executed>=limits.getMaxToolCalls() ? "call_limit" :
+                        context.generationResources().remaining().toMillis()<=limits.getFinalizationReserveMs() ? "deadline_reserve" : "repeated_call");
+                try {
+                  result=model.streamWithTools(messages,finalize ? List.of() : KnowledgeBaseSearchTool.DEFINITIONS,context,delta -> {
                     checkRunning(context);
-                    if(delta.kind()==ModelDelta.Kind.CONTENT) output.accept(chunk(id,delta.value()));
-                });
+                    if(delta.kind()==ModelDelta.Kind.CONTENT) {
+                        observation.firstContent(delta.value());
+                        output.accept(chunk(id,delta.value()));
+                    }
+                  });
+                  checkRunning(context);
+                  if(finalize && !result.toolCalls().isEmpty()) throw new IllegalStateException("Tools returned during finalization");
+                } catch(RuntimeException failure) {
+                    LangfuseTracing.error(observation.span(),context.isTerminal() ? "REQUEST_STOPPED" : "MODEL_ERROR");
+                    throw failure;
+                }
+                var toolNames=result.toolCalls().stream().map(call -> KnowledgeBaseSearchTool.NAME.equals(call.name()) ? call.name() : "unsupported").toList();
+                observation.span().setAttribute(io.opentelemetry.api.common.AttributeKey.stringArrayKey("langfuse.observation.metadata.tool_names"),toolNames)
+                        .setAttribute("langfuse.observation.metadata.tool_count",toolNames.size());
+                if(id==1) LangfuseTracing.metadata(Span.fromContext(context.traceContext()),"route",
+                        toolNames.isEmpty() ? "DIRECT" : toolNames.contains(KnowledgeBaseSearchTool.NAME) ? "SEARCH" : "UNSUPPORTED");
                 checkRunning(context);
-                if(finalize && !result.toolCalls().isEmpty()) throw new IllegalStateException("Tools returned during finalization");
             } catch(RuntimeException failure) {
                 checkRunning(context); throw new ChatHandler.GenerationException("MODEL_ERROR","模型服务暂时不可用，请稍后重试",failure);
             }

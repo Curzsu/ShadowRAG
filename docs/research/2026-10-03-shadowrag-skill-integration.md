@@ -1,6 +1,41 @@
 # ShadowRAG Skill 配置与加载：PaiCLI 源码对照与接入建议
 
-日期：2026-10-03。状态：源码调研与方案建议，尚未实现。
+日期：2026-10-03；2026-10-06 复核当前代码。状态：源码调研与方案建议，skill 尚未实现。
+
+当前实施方案见 [Skill 渐进式加载与动态工具开放设计](E:/Curzsu/ShadowRAG/docs/superpowers/specs/2026-10-06-progressive-skill-loading-design.md)。该设计同时按需加载正文和业务工具 Schema，取代本文早期只讨论正文展开的方案；本文保留源码调研记录。
+
+## 2026-10-06 复核：现在实现的难度与 Firecrawl CLI 路径
+
+本次重新读取了本地 PaiCLI 的 SkillRegistry、SkillIndexFormatter、LoadedSkillMessages、ToolRegistry、Agent 和 LoadSkillSameTurnTest，也核对了 ShadowRAG 当前 AgentLoopService 与 ContextBudgetService。没有运行 PaiCLI 测试或修改业务代码。
+
+**skill 发现与按需读取属于低到中等复杂度；现在无需先重做聊天循环。** ShadowRAG 已有普通 Java 多轮 Agent Loop、多工具调用消息配对、当前轮预算、取消与收尾。本文下面第 3 节中“第二次请求不带工具”“只处理 tool_calls[0]”“停止只控制输出”等，是 2026-10-03 的历史状态，不应继续作为当前实施前提。通用工具分发和 skill 加载仍未实现。
+
+### PaiCLI 可直接参考的机制
+
+1. [SkillRegistry](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillRegistry.java:41) 扫描目录、解析元数据并缓存正文。按需加载指模型上下文按需展开，不代表每次调用才读取磁盘。
+2. [SkillIndexFormatter](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillIndexFormatter.java:40) 只向模型提供 name、description 和 load_skill 使用规则。少量 skill 首版不需要向量检索或额外路由模型。
+3. [load_skill 执行器](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/tool/ToolRegistry.java:816) 按精确名称查找并检查禁用状态；工具返回确认，正文由受控代码补入。
+4. [LoadedSkillMessages](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/tool/LoadedSkillMessages.java:33) 从本批成功加载的结果取得正文；[Agent](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/agent/Agent.java:551) 追加指南后继续请求模型，当前用户任务即可生效。
+5. [LoadSkillSameTurnTest](E:/Curzsu/paicli-main/paicli-main/src/test/java/com/paicli/agent/LoadSkillSameTurnTest.java:91) 记录请求序列，断言第一次无正文、加载后的第二次有正文。它验证注入链路，不证明真实模型会正确选择 skill。
+
+### 当前最小改造
+
+- SkillProperties + 目录加载器/注册表：配置管理员维护的目录，解析 name/description/body，启动时生成不可变快照；先不加管理页面和在线安装。
+- 索引与 LoadSkillTool：首次模型请求发送索引；成功加载后追加受控指南；加载记录放在请求内，每个用户轮重新按需加载。
+- 通用工具分发：替换 AgentLoopService 固定的 KnowledgeBaseSearchTool.DEFINITIONS 和 search.execute，同时泛化工具 token 预算、进度事件、错误和重复参数计算。ChatHandler 中提前计算的工具预算也要保持一致。
+- 上下文边界：不能直接照搬 PaiCLI 的额外 user 消息。当前 [fitAgent](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ContextBudgetService.java:25) 根据最后一条 user 消息确定保护范围；若最后一条是 skill 指南，原始问题和前面的工具配对就可能被当成旧历史删除。需要明确真实用户轮边界或类型化消息来源，并保护该轮问题、工具配对与已加载指南；指南不作为用户原话持久化。
+
+### skill 与 CLI 执行应分别计入实现范围
+
+读取 skill 后不会凭空获得命令执行能力。若目标是让模型按 Firecrawl skill 自己组织 CLI 调用，还需增加一个 `run_cli(program, args)` 执行器。首版 program 只接受配置允许的程序，直接按参数数组启动进程，约束可用子命令、输出大小、超时、并发及停止时的进程清理；认证由服务端提供，不放进 skill 正文或模型参数。以后增加 CLI 可复用这个执行器和程序配置，不一定每次新增专属 Java 工具。
+
+预期流程：用户问题 → name/description 索引 → load_skill("firecrawl") → 同轮补入正文 → run_cli("firecrawl", ["search", "查询", "--sources", "web", "--limit", "3", "--json"]) → CLI 结果 → 模型回答。
+
+这条路径是可行的。只做 skill 读取，主要工作在解析、分发和上下文；增加受限 CLI 执行器是另一项中等复杂度工作。若要完全兼容任意 skill 的脚本、安装、浏览器和系统命令，范围会扩大为通用执行环境，不应与“读一个 SKILL.md”混算。Firecrawl 网页引用和费用边界仍需单独处理。
+
+---
+
+以下保留 2026-10-03 的调研与建议；涉及“当前代码”的描述以以上复核及实际源码为准。
 
 用户目标：参考 `E:/Curzsu/paicli-main/paicli-main` 的实际实现，让 ShadowRAG 能配置和加载 skill。用户已选择首版入口为**后端配置文件 + SKILL.md 目录**。本文的配置、类名和接口均为建议，当前项目尚不识别这些配置。
 

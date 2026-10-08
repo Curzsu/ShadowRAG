@@ -1,0 +1,690 @@
+[
+  {
+    "sample_id": "1",
+    "variant": "full",
+    "started_at": "2026-10-08T11:18:31.123577+00:00",
+    "elapsed_seconds": 13.5826,
+    "token_counts_full": [
+      256,
+      239,
+      262,
+      290,
+      265,
+      150,
+      218,
+      263,
+      254,
+      254
+    ],
+    "candidate_count": 10,
+    "hit_at_5": 0,
+    "mrr_at_5": 0,
+    "ordered_keys": [
+      "f85f05936fc325cf34792163c880042c:76",
+      "f85f05936fc325cf34792163c880042c:41",
+      "f85f05936fc325cf34792163c880042c:32",
+      "f85f05936fc325cf34792163c880042c:46",
+      "f85f05936fc325cf34792163c880042c:73",
+      "f85f05936fc325cf34792163c880042c:54",
+      "f85f05936fc325cf34792163c880042c:47",
+      "f85f05936fc325cf34792163c880042c:21",
+      "f85f05936fc325cf34792163c880042c:52",
+      "f85f05936fc325cf34792163c880042c:60"
+    ],
+    "requests": [
+      {
+        "seconds": 13.5824,
+        "headers": {
+          "x-compute-characters": "4853",
+          "x-compute-time": "14160",
+          "x-compute-tokens": "2601",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "4489",
+          "x-queue-time": "5768",
+          "x-tokenization-time": "14",
+          "x-total-time": "14160"
+        }
+      }
+    ]
+  },
+  {
+    "sample_id": "1",
+    "variant": "128_tokens",
+    "started_at": "2026-10-08T11:18:44.716195+00:00",
+    "elapsed_seconds": 3.9645,
+    "token_counts_full": [
+      256,
+      239,
+      262,
+      290,
+      265,
+      150,
+      218,
+      263,
+      254,
+      254
+    ],
+    "candidate_count": 10,
+    "hit_at_5": 0,
+    "mrr_at_5": 0,
+    "ordered_keys": [
+      "f85f05936fc325cf34792163c880042c:76",
+      "f85f05936fc325cf34792163c880042c:41",
+      "f85f05936fc325cf34792163c880042c:47",
+      "f85f05936fc325cf34792163c880042c:54",
+      "f85f05936fc325cf34792163c880042c:52",
+      "f85f05936fc325cf34792163c880042c:46",
+      "f85f05936fc325cf34792163c880042c:32",
+      "f85f05936fc325cf34792163c880042c:60",
+      "f85f05936fc325cf34792163c880042c:73",
+      "f85f05936fc325cf34792163c880042c:21"
+    ],
+    "requests": [
+      {
+        "seconds": 3.9643,
+        "headers": {
+          "x-compute-characters": "2645",
+          "x-compute-time": "4121",
+          "x-compute-tokens": "1430",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "1502",
+          "x-queue-time": "1262",
+          "x-tokenization-time": "20",
+          "x-total-time": "4121"
+        }
+      }
+    ]
+  },
+  {
+    "sample_id": "1",
+    "variant": "full_microbatch_2",
+    "started_at": "2026-10-08T11:18:48.682513+00:00",
+    "elapsed_seconds": 7.4355,
+    "token_counts_full": [
+      256,
+      239,
+      262,
+      290,
+      265,
+      150,
+      218,
+      263,
+      254,
+      254
+    ],
+    "candidate_count": 10,
+    "hit_at_5": 0,
+    "mrr_at_5": 0,
+    "ordered_keys": [
+      "f85f05936fc325cf34792163c880042c:76",
+      "f85f05936fc325cf34792163c880042c:41",
+      "f85f05936fc325cf34792163c880042c:32",
+      "f85f05936fc325cf34792163c880042c:46",
+      "f85f05936fc325cf34792163c880042c:73",
+      "f85f05936fc325cf34792163c880042c:54",
+      "f85f05936fc325cf34792163c880042c:47",
+      "f85f05936fc325cf34792163c880042c:21",
+      "f85f05936fc325cf34792163c880042c:52",
+      "f85f05936fc325cf34792163c880042c:60"
+    ],
+    "requests": [
+      {
+        "seconds": 1.5484,
+        "headers": {
+          "x-compute-characters": "993",
+          "x-compute-time": "1595",
+          "x-compute-tokens": "525",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "797",
+          "x-queue-time": "392",
+          "x-tokenization-time": "3",
+          "x-total-time": "1595"
+        }
+      },
+      {
+        "seconds": 1.5989,
+        "headers": {
+          "x-compute-characters": "1035",
+          "x-compute-time": "1648",
+          "x-compute-tokens": "582",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "823",
+          "x-queue-time": "398",
+          "x-tokenization-time": "16",
+          "x-total-time": "1648"
+        }
+      },
+      {
+        "seconds": 1.3385,
+        "headers": {
+          "x-compute-characters": "833",
+          "x-compute-time": "1364",
+          "x-compute-tokens": "445",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "680",
+          "x-queue-time": "394",
+          "x-tokenization-time": "4",
+          "x-total-time": "1364"
+        }
+      },
+      {
+        "seconds": 1.4474,
+        "headers": {
+          "x-compute-characters": "932",
+          "x-compute-time": "1483",
+          "x-compute-tokens": "511",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "741",
+          "x-queue-time": "324",
+          "x-tokenization-time": "6",
+          "x-total-time": "1483"
+        }
+      },
+      {
+        "seconds": 1.5017,
+        "headers": {
+          "x-compute-characters": "1060",
+          "x-compute-time": "1565",
+          "x-compute-tokens": "538",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "780",
+          "x-queue-time": "383",
+          "x-tokenization-time": "11",
+          "x-total-time": "1565"
+        }
+      }
+    ]
+  },
+  {
+    "sample_id": "4",
+    "variant": "full",
+    "started_at": "2026-10-08T11:18:56.125773+00:00",
+    "elapsed_seconds": 8.5801,
+    "token_counts_full": [
+      276,
+      196,
+      201,
+      258,
+      262,
+      210,
+      256,
+      239,
+      237,
+      265
+    ],
+    "candidate_count": 10,
+    "hit_at_5": 1,
+    "mrr_at_5": 1.0,
+    "ordered_keys": [
+      "f85f05936fc325cf34792163c880042c:4",
+      "f85f05936fc325cf34792163c880042c:75",
+      "f85f05936fc325cf34792163c880042c:10",
+      "f85f05936fc325cf34792163c880042c:38",
+      "f85f05936fc325cf34792163c880042c:9",
+      "f85f05936fc325cf34792163c880042c:8",
+      "f85f05936fc325cf34792163c880042c:19",
+      "f85f05936fc325cf34792163c880042c:45",
+      "f85f05936fc325cf34792163c880042c:74",
+      "f85f05936fc325cf34792163c880042c:60"
+    ],
+    "requests": [
+      {
+        "seconds": 8.5799,
+        "headers": {
+          "x-compute-characters": "4716",
+          "x-compute-time": "8931",
+          "x-compute-tokens": "2540",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "2778",
+          "x-queue-time": "3171",
+          "x-tokenization-time": "15",
+          "x-total-time": "8931"
+        }
+      }
+    ]
+  },
+  {
+    "sample_id": "4",
+    "variant": "128_tokens",
+    "started_at": "2026-10-08T11:19:04.706883+00:00",
+    "elapsed_seconds": 3.652,
+    "token_counts_full": [
+      276,
+      196,
+      201,
+      258,
+      262,
+      210,
+      256,
+      239,
+      237,
+      265
+    ],
+    "candidate_count": 10,
+    "hit_at_5": 1,
+    "mrr_at_5": 0.5,
+    "ordered_keys": [
+      "f85f05936fc325cf34792163c880042c:75",
+      "f85f05936fc325cf34792163c880042c:4",
+      "f85f05936fc325cf34792163c880042c:38",
+      "f85f05936fc325cf34792163c880042c:10",
+      "f85f05936fc325cf34792163c880042c:8",
+      "f85f05936fc325cf34792163c880042c:74",
+      "f85f05936fc325cf34792163c880042c:19",
+      "f85f05936fc325cf34792163c880042c:9",
+      "f85f05936fc325cf34792163c880042c:45",
+      "f85f05936fc325cf34792163c880042c:60"
+    ],
+    "requests": [
+      {
+        "seconds": 3.6519,
+        "headers": {
+          "x-compute-characters": "2617",
+          "x-compute-time": "3787",
+          "x-compute-tokens": "1419",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "1285",
+          "x-queue-time": "1287",
+          "x-tokenization-time": "7",
+          "x-total-time": "3787"
+        }
+      }
+    ]
+  },
+  {
+    "sample_id": "1",
+    "variant": "full_repeat",
+    "started_at": "2026-10-08T11:19:08.360098+00:00",
+    "elapsed_seconds": 9.7279,
+    "token_counts_full": [
+      256,
+      239,
+      262,
+      290,
+      265,
+      150,
+      218,
+      263,
+      254,
+      254
+    ],
+    "candidate_count": 10,
+    "hit_at_5": 0,
+    "mrr_at_5": 0,
+    "ordered_keys": [
+      "f85f05936fc325cf34792163c880042c:76",
+      "f85f05936fc325cf34792163c880042c:41",
+      "f85f05936fc325cf34792163c880042c:32",
+      "f85f05936fc325cf34792163c880042c:46",
+      "f85f05936fc325cf34792163c880042c:73",
+      "f85f05936fc325cf34792163c880042c:54",
+      "f85f05936fc325cf34792163c880042c:47",
+      "f85f05936fc325cf34792163c880042c:21",
+      "f85f05936fc325cf34792163c880042c:52",
+      "f85f05936fc325cf34792163c880042c:60"
+    ],
+    "requests": [
+      {
+        "seconds": 9.7277,
+        "headers": {
+          "x-compute-characters": "4853",
+          "x-compute-time": "10135",
+          "x-compute-tokens": "2601",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "3652",
+          "x-queue-time": "3156",
+          "x-tokenization-time": "8",
+          "x-total-time": "10135"
+        }
+      }
+    ]
+  },
+  {
+    "sample_id": "4",
+    "variant": "full_microbatch_2",
+    "started_at": "2026-10-08T11:20:08.437138+00:00",
+    "elapsed_seconds": 7.3326,
+    "token_counts_full": [
+      276,
+      196,
+      201,
+      258,
+      262,
+      210,
+      256,
+      239,
+      237,
+      265
+    ],
+    "candidate_count": 10,
+    "hit_at_5": 1,
+    "mrr_at_5": 1.0,
+    "ordered_keys": [
+      "f85f05936fc325cf34792163c880042c:4",
+      "f85f05936fc325cf34792163c880042c:75",
+      "f85f05936fc325cf34792163c880042c:10",
+      "f85f05936fc325cf34792163c880042c:38",
+      "f85f05936fc325cf34792163c880042c:9",
+      "f85f05936fc325cf34792163c880042c:8",
+      "f85f05936fc325cf34792163c880042c:19",
+      "f85f05936fc325cf34792163c880042c:45",
+      "f85f05936fc325cf34792163c880042c:74",
+      "f85f05936fc325cf34792163c880042c:60"
+    ],
+    "requests": [
+      {
+        "seconds": 1.5531,
+        "headers": {
+          "x-compute-characters": "946",
+          "x-compute-time": "1598",
+          "x-compute-tokens": "500",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "1595",
+          "x-queue-time": "0",
+          "x-tokenization-time": "1",
+          "x-total-time": "1598"
+        }
+      },
+      {
+        "seconds": 1.5172,
+        "headers": {
+          "x-compute-characters": "860",
+          "x-compute-time": "1560",
+          "x-compute-tokens": "487",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "1557",
+          "x-queue-time": "0",
+          "x-tokenization-time": "1",
+          "x-total-time": "1560"
+        }
+      },
+      {
+        "seconds": 1.7567,
+        "headers": {
+          "x-compute-characters": "937",
+          "x-compute-time": "1829",
+          "x-compute-tokens": "500",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "913",
+          "x-queue-time": "554",
+          "x-tokenization-time": "1",
+          "x-total-time": "1829"
+        }
+      },
+      {
+        "seconds": 1.218,
+        "headers": {
+          "x-compute-characters": "1011",
+          "x-compute-time": "1248",
+          "x-compute-tokens": "523",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "622",
+          "x-queue-time": "302",
+          "x-tokenization-time": "4",
+          "x-total-time": "1248"
+        }
+      },
+      {
+        "seconds": 1.2869,
+        "headers": {
+          "x-compute-characters": "962",
+          "x-compute-time": "1336",
+          "x-compute-tokens": "530",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "667",
+          "x-queue-time": "363",
+          "x-tokenization-time": "2",
+          "x-total-time": "1336"
+        }
+      }
+    ]
+  },
+  {
+    "sample_id": "1",
+    "variant": "full_microbatch_2_repeat",
+    "started_at": "2026-10-08T11:20:15.771333+00:00",
+    "elapsed_seconds": 6.4871,
+    "token_counts_full": [
+      256,
+      239,
+      262,
+      290,
+      265,
+      150,
+      218,
+      263,
+      254,
+      254
+    ],
+    "candidate_count": 10,
+    "hit_at_5": 0,
+    "mrr_at_5": 0,
+    "ordered_keys": [
+      "f85f05936fc325cf34792163c880042c:76",
+      "f85f05936fc325cf34792163c880042c:41",
+      "f85f05936fc325cf34792163c880042c:32",
+      "f85f05936fc325cf34792163c880042c:46",
+      "f85f05936fc325cf34792163c880042c:73",
+      "f85f05936fc325cf34792163c880042c:54",
+      "f85f05936fc325cf34792163c880042c:47",
+      "f85f05936fc325cf34792163c880042c:21",
+      "f85f05936fc325cf34792163c880042c:52",
+      "f85f05936fc325cf34792163c880042c:60"
+    ],
+    "requests": [
+      {
+        "seconds": 1.2654,
+        "headers": {
+          "x-compute-characters": "993",
+          "x-compute-time": "1295",
+          "x-compute-tokens": "525",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "647",
+          "x-queue-time": "305",
+          "x-tokenization-time": "0",
+          "x-total-time": "1295"
+        }
+      },
+      {
+        "seconds": 1.3845,
+        "headers": {
+          "x-compute-characters": "1035",
+          "x-compute-time": "1426",
+          "x-compute-tokens": "582",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "711",
+          "x-queue-time": "339",
+          "x-tokenization-time": "1",
+          "x-total-time": "1426"
+        }
+      },
+      {
+        "seconds": 1.0901,
+        "headers": {
+          "x-compute-characters": "833",
+          "x-compute-time": "1117",
+          "x-compute-tokens": "445",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "558",
+          "x-queue-time": "189",
+          "x-tokenization-time": "1",
+          "x-total-time": "1117"
+        }
+      },
+      {
+        "seconds": 1.48,
+        "headers": {
+          "x-compute-characters": "932",
+          "x-compute-time": "1522",
+          "x-compute-tokens": "511",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "1516",
+          "x-queue-time": "0",
+          "x-tokenization-time": "5",
+          "x-total-time": "1522"
+        }
+      },
+      {
+        "seconds": 1.2667,
+        "headers": {
+          "x-compute-characters": "1060",
+          "x-compute-time": "1293",
+          "x-compute-tokens": "538",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "645",
+          "x-queue-time": "324",
+          "x-tokenization-time": "0",
+          "x-total-time": "1293"
+        }
+      }
+    ]
+  },
+  {
+    "sample_id": "4",
+    "variant": "full_repeat",
+    "started_at": "2026-10-08T11:20:22.266831+00:00",
+    "elapsed_seconds": 8.6566,
+    "token_counts_full": [
+      276,
+      196,
+      201,
+      258,
+      262,
+      210,
+      256,
+      239,
+      237,
+      265
+    ],
+    "candidate_count": 10,
+    "hit_at_5": 1,
+    "mrr_at_5": 1.0,
+    "ordered_keys": [
+      "f85f05936fc325cf34792163c880042c:4",
+      "f85f05936fc325cf34792163c880042c:75",
+      "f85f05936fc325cf34792163c880042c:10",
+      "f85f05936fc325cf34792163c880042c:38",
+      "f85f05936fc325cf34792163c880042c:9",
+      "f85f05936fc325cf34792163c880042c:8",
+      "f85f05936fc325cf34792163c880042c:19",
+      "f85f05936fc325cf34792163c880042c:45",
+      "f85f05936fc325cf34792163c880042c:74",
+      "f85f05936fc325cf34792163c880042c:60"
+    ],
+    "requests": [
+      {
+        "seconds": 8.6564,
+        "headers": {
+          "x-compute-characters": "4716",
+          "x-compute-time": "9018",
+          "x-compute-tokens": "2540",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "3192",
+          "x-queue-time": "2907",
+          "x-tokenization-time": "7",
+          "x-total-time": "9018"
+        }
+      }
+    ]
+  },
+  {
+    "sample_id": "4",
+    "variant": "full_microbatch_2_repeat",
+    "started_at": "2026-10-08T11:20:30.924864+00:00",
+    "elapsed_seconds": 6.5202,
+    "token_counts_full": [
+      276,
+      196,
+      201,
+      258,
+      262,
+      210,
+      256,
+      239,
+      237,
+      265
+    ],
+    "candidate_count": 10,
+    "hit_at_5": 1,
+    "mrr_at_5": 1.0,
+    "ordered_keys": [
+      "f85f05936fc325cf34792163c880042c:4",
+      "f85f05936fc325cf34792163c880042c:75",
+      "f85f05936fc325cf34792163c880042c:10",
+      "f85f05936fc325cf34792163c880042c:38",
+      "f85f05936fc325cf34792163c880042c:9",
+      "f85f05936fc325cf34792163c880042c:8",
+      "f85f05936fc325cf34792163c880042c:19",
+      "f85f05936fc325cf34792163c880042c:45",
+      "f85f05936fc325cf34792163c880042c:74",
+      "f85f05936fc325cf34792163c880042c:60"
+    ],
+    "requests": [
+      {
+        "seconds": 1.5608,
+        "headers": {
+          "x-compute-characters": "946",
+          "x-compute-time": "1605",
+          "x-compute-tokens": "500",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "1603",
+          "x-queue-time": "0",
+          "x-tokenization-time": "1",
+          "x-total-time": "1605"
+        }
+      },
+      {
+        "seconds": 1.1486,
+        "headers": {
+          "x-compute-characters": "860",
+          "x-compute-time": "1173",
+          "x-compute-tokens": "487",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "585",
+          "x-queue-time": "263",
+          "x-tokenization-time": "2",
+          "x-total-time": "1173"
+        }
+      },
+      {
+        "seconds": 1.141,
+        "headers": {
+          "x-compute-characters": "937",
+          "x-compute-time": "1170",
+          "x-compute-tokens": "500",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "583",
+          "x-queue-time": "323",
+          "x-tokenization-time": "17",
+          "x-total-time": "1170"
+        }
+      },
+      {
+        "seconds": 1.3464,
+        "headers": {
+          "x-compute-characters": "1011",
+          "x-compute-time": "1385",
+          "x-compute-tokens": "523",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "1383",
+          "x-queue-time": "0",
+          "x-tokenization-time": "0",
+          "x-total-time": "1385"
+        }
+      },
+      {
+        "seconds": 1.3229,
+        "headers": {
+          "x-compute-characters": "962",
+          "x-compute-time": "1355",
+          "x-compute-tokens": "530",
+          "x-compute-type": "gpu+optimized",
+          "x-inference-time": "674",
+          "x-queue-time": "334",
+          "x-tokenization-time": "26",
+          "x-total-time": "1355"
+        }
+      }
+    ]
+  }
+]
