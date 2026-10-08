@@ -1,0 +1,11 @@
+{
+  "run_id": "retrieval-20261008-170718-d5497044",
+  "verified": true,
+  "trace_count": 20,
+  "score_count": 40,
+  "observation_count": 20,
+  "sample_trace_ids": {
+    "bm25": "ac66d6c3231c46574c9e322056392c69",
+    "hybrid_rerank": "18960e97465b78c265083f2bb073749d"
+  }
+}

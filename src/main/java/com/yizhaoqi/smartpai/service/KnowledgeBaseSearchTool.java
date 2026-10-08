@@ -7,6 +7,10 @@ import com.yizhaoqi.smartpai.entity.SearchResult;
 import com.yizhaoqi.smartpai.model.chat.ChatCommand;
 import com.yizhaoqi.smartpai.service.chat.ChatRequestContext;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import com.yizhaoqi.smartpai.observability.LangfuseTracing;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.common.AttributeKey;
 import java.util.*;
 
 /** The only exposed tool. Ownership is always obtained from the authenticated command. */
@@ -20,8 +24,14 @@ public class KnowledgeBaseSearchTool {
     private final HybridSearchService search;
     private final ObjectMapper mapper;
     private final AiProperties properties;
+    private final LangfuseTracing tracing;
     public KnowledgeBaseSearchTool(HybridSearchService search,ObjectMapper mapper,AiProperties properties) {
+        this(search,mapper,properties,LangfuseTracing.noop());
+    }
+    @Autowired
+    public KnowledgeBaseSearchTool(HybridSearchService search,ObjectMapper mapper,AiProperties properties,LangfuseTracing tracing) {
         this.search=search; this.mapper=mapper; this.properties=properties;
+        this.tracing=tracing;
     }
     String query(ModelToolCall call) throws java.io.IOException {
         JsonNode arguments=mapper.reader().with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readTree(call.argumentsJson());
@@ -36,10 +46,32 @@ public class KnowledgeBaseSearchTool {
         String query;
         try { query=query(call); }
         catch(Exception invalid) { return new Result(error("INVALID_ARGUMENTS"),false); }
+        Span span=tracing.startSearch(context,call.id());
+        try (var ignored=span.makeCurrent()) {
+            Result result=executeQuery(command,context,query,sources,span);
+            if(result.content().startsWith("{\"ok\":false,")) {
+                try { LangfuseTracing.error(span,mapper.readTree(result.content()).path("error").asText("SEARCH_ERROR")); }
+                catch(java.io.IOException invalid) { LangfuseTracing.error(span,"RESULT_ERROR"); }
+            }
+            return result;
+        } catch(RuntimeException failure) {
+            LangfuseTracing.error(span,context.isTerminal() ? "REQUEST_STOPPED" : "SEARCH_ERROR");
+            throw failure;
+        } finally { span.end(); }
+    }
+    private Result executeQuery(ChatCommand command,ChatRequestContext context,String query,Map<String,Integer> sources,Span span) {
         List<SearchResult> results;
         try { results=search.searchWithPermission(query,command.username(),10); }
         catch(RuntimeException failure) { AgentLoopService.checkRunning(context); return new Result(error("SEARCH_ERROR"),true); }
         AgentLoopService.checkRunning(context);
+        span.setAttribute("langfuse.observation.metadata.result_count",results==null ? 0 : results.size());
+        if(results!=null) {
+            var top=results.stream().limit(5).filter(Objects::nonNull).toList();
+            var ids=top.stream().map(r -> r.getFileMd5()+":"+r.getChunkId()).toList();
+            span.setAttribute(AttributeKey.stringArrayKey("langfuse.observation.metadata.top_chunk_ids"),ids);
+            if(top.stream().allMatch(r -> r.getScore()!=null && Double.isFinite(r.getScore())))
+                span.setAttribute(AttributeKey.doubleArrayKey("langfuse.observation.metadata.top_chunk_scores"),top.stream().map(SearchResult::getScore).toList());
+        }
         if(results==null || results.isEmpty()) return new Result("未找到相关文档，可以调整查询继续搜索。",true);
         var manifest=new ArrayList<Map<String,Object>>(); var body=new StringBuilder();
         // This map records stable identities, never that a body survived either result or context truncation.

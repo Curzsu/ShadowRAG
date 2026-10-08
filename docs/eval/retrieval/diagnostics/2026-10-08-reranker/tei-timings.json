@@ -1,0 +1,184 @@
+[
+  {
+    "timestamp": "2026-10-08T11:18:44.635012Z",
+    "inference_time": "4.489972046s",
+    "queue_time": "5.768039291s",
+    "tokenization_time": "14.340681ms",
+    "total_time": "14.159005656s"
+  },
+  {
+    "timestamp": "2026-10-08T11:18:48.790334Z",
+    "inference_time": "1.502829702s",
+    "queue_time": "1.262596505s",
+    "tokenization_time": "20.713221ms",
+    "total_time": "4.121755173s"
+  },
+  {
+    "timestamp": "2026-10-08T11:18:50.410871Z",
+    "inference_time": "797.251685ms",
+    "queue_time": "392.699448ms",
+    "tokenization_time": "3.400274ms",
+    "total_time": "1.595526169s"
+  },
+  {
+    "timestamp": "2026-10-08T11:18:52.084600Z",
+    "inference_time": "823.791494ms",
+    "queue_time": "398.396714ms",
+    "tokenization_time": "16.796729ms",
+    "total_time": "1.648890087s"
+  },
+  {
+    "timestamp": "2026-10-08T11:18:53.483102Z",
+    "inference_time": "680.871135ms",
+    "queue_time": "394.189643ms",
+    "tokenization_time": "4.289662ms",
+    "total_time": "1.364415328s"
+  },
+  {
+    "timestamp": "2026-10-08T11:18:54.998375Z",
+    "inference_time": "741.225617ms",
+    "queue_time": "324.461717ms",
+    "tokenization_time": "6.503756ms",
+    "total_time": "1.483378732s"
+  },
+  {
+    "timestamp": "2026-10-08T11:18:56.567430Z",
+    "inference_time": "780.211594ms",
+    "queue_time": "383.277394ms",
+    "tokenization_time": "11.918179ms",
+    "total_time": "1.564987422s"
+  },
+  {
+    "timestamp": "2026-10-08T11:19:04.252177Z",
+    "inference_time": "2.778173119s",
+    "queue_time": "3.171259193s",
+    "tokenization_time": "15.531093ms",
+    "total_time": "8.931551518s"
+  },
+  {
+    "timestamp": "2026-10-08T11:19:08.069576Z",
+    "inference_time": "1.285479496s",
+    "queue_time": "1.287501394s",
+    "tokenization_time": "7.185948ms",
+    "total_time": "3.787117516s"
+  },
+  {
+    "timestamp": "2026-10-08T11:19:18.241079Z",
+    "inference_time": "3.652843606s",
+    "queue_time": "3.156874352s",
+    "tokenization_time": "8.320428ms",
+    "total_time": "10.135823866s"
+  },
+  {
+    "timestamp": "2026-10-08T11:20:09.881842Z",
+    "inference_time": "1.595617927s",
+    "queue_time": "744.368\u788cs",
+    "tokenization_time": "1.52294ms",
+    "total_time": "1.598026852s"
+  },
+  {
+    "timestamp": "2026-10-08T11:20:11.471541Z",
+    "inference_time": "1.557455585s",
+    "queue_time": "331.819\u788cs",
+    "tokenization_time": "1.918305ms",
+    "total_time": "1.560068515s"
+  },
+  {
+    "timestamp": "2026-10-08T11:20:13.307164Z",
+    "inference_time": "913.213566ms",
+    "queue_time": "554.580638ms",
+    "tokenization_time": "1.195055ms",
+    "total_time": "1.829038192s"
+  },
+  {
+    "timestamp": "2026-10-08T11:20:14.584214Z",
+    "inference_time": "622.73435ms",
+    "queue_time": "302.966297ms",
+    "tokenization_time": "4.677357ms",
+    "total_time": "1.248011747s"
+  },
+  {
+    "timestamp": "2026-10-08T11:20:15.928304Z",
+    "inference_time": "667.795503ms",
+    "queue_time": "363.319716ms",
+    "tokenization_time": "2.275337ms",
+    "total_time": "1.336874886s"
+  },
+  {
+    "timestamp": "2026-10-08T11:20:17.255037Z",
+    "inference_time": "647.150049ms",
+    "queue_time": "305.883131ms",
+    "tokenization_time": "498.141\u788cs",
+    "total_time": "1.295167266s"
+  },
+  {
+    "timestamp": "2026-10-08T11:20:18.702793Z",
+    "inference_time": "711.873715ms",
+    "queue_time": "339.091211ms",
+    "tokenization_time": "1.930124ms",
+    "total_time": "1.426272663s"
+  },
+  {
+    "timestamp": "2026-10-08T11:20:19.841164Z",
+    "inference_time": "558.152951ms",
+    "queue_time": "189.329173ms",
+    "tokenization_time": "1.944166ms",
+    "total_time": "1.117350428s"
+  },
+  {
+    "timestamp": "2026-10-08T11:20:21.389238Z",
+    "inference_time": "1.516823785s",
+    "queue_time": "211.217\u788cs",
+    "tokenization_time": "5.182361ms",
+    "total_time": "1.522429173s"
+  },
+  {
+    "timestamp": "2026-10-08T11:20:22.713715Z",
+    "inference_time": "645.926051ms",
+    "queue_time": "324.89283ms",
+    "tokenization_time": "820.946\u788cs",
+    "total_time": "1.293063302s"
+  },
+  {
+    "timestamp": "2026-10-08T11:20:30.450342Z",
+    "inference_time": "3.192398592s",
+    "queue_time": "2.907778835s",
+    "tokenization_time": "7.173725ms",
+    "total_time": "9.018937215s"
+  },
+  {
+    "timestamp": "2026-10-08T11:20:32.082701Z",
+    "inference_time": "1.603099799s",
+    "queue_time": "429.37\u788cs",
+    "tokenization_time": "1.065167ms",
+    "total_time": "1.605541821s"
+  },
+  {
+    "timestamp": "2026-10-08T11:20:33.280669Z",
+    "inference_time": "585.79728ms",
+    "queue_time": "263.229913ms",
+    "tokenization_time": "2.823246ms",
+    "total_time": "1.173041705s"
+  },
+  {
+    "timestamp": "2026-10-08T11:20:34.475472Z",
+    "inference_time": "583.068346ms",
+    "queue_time": "323.613239ms",
+    "tokenization_time": "17.895032ms",
+    "total_time": "1.170967628s"
+  },
+  {
+    "timestamp": "2026-10-08T11:20:35.885047Z",
+    "inference_time": "1.383429467s",
+    "queue_time": "841.228\u788cs",
+    "tokenization_time": "875.183\u788cs",
+    "total_time": "1.385499138s"
+  },
+  {
+    "timestamp": "2026-10-08T11:20:37.270311Z",
+    "inference_time": "674.021386ms",
+    "queue_time": "334.826427ms",
+    "tokenization_time": "26.259611ms",
+    "total_time": "1.355111106s"
+  }
+]

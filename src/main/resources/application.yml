@@ -1,5 +1,12 @@
 server:
   port: 8081 # 指定端口号
+langfuse:
+  enabled: ${LANGFUSE_ENABLED:false}
+  base-url: ${LANGFUSE_BASE_URL:https://jp.cloud.langfuse.com}
+  public-key: ${LANGFUSE_PUBLIC_KEY:}
+  secret-key: ${LANGFUSE_SECRET_KEY:}
+  environment: ${LANGFUSE_ENVIRONMENT:development}
+  capture-content: ${LANGFUSE_CAPTURE_CONTENT:false}
 spring:
   config:
     # 本地私有配置（API key / JWT secret / ES 密码），文件不存在则跳过

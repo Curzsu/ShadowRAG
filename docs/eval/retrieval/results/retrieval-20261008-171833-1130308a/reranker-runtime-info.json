@@ -1,0 +1,6 @@
+{
+  "model_dtype": "float32",
+  "model_id": "BAAI/bge-reranker-v2-m3",
+  "version": "1.9.3",
+  "model_sha": null
+}

@@ -195,6 +195,7 @@ declare namespace Api {
       status?: 'pending' | 'loading' | 'cancelling' | 'finished' | 'cancelled' | 'error';
       errorReason?: string;
       toolProgress?: string;
+      toolCalls?: import('../store/modules/chat/chat-rounds').ChatToolCall[];
       roundDraft?: string;
       intermediateRounds?: Array<{ roundId: number; content: string }>;
       timestamp?: string;

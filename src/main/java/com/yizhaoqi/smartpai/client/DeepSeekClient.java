@@ -41,6 +41,8 @@ public class DeepSeekClient {
         catch (IOException e) { throw new IllegalStateException("Model service unavailable", e); }
     }
 
+    public String modelName() { return model; }
+
     public ModelRoundResult streamResponse(List<Map<String,Object>> messages, ChatRequestContext context,
                                           Consumer<String> onContent) {
         var response = streamWithTools(messages, List.of(), context, delta -> {

@@ -24,7 +24,7 @@ def load_module(test_case: unittest.TestCase):
 
 
 class RequestConstructionTest(unittest.TestCase):
-    def test_build_request_matches_production_router_shape(self):
+    def test_build_request_preserves_historical_router_shape(self):
         route_predict = load_module(self)
         case = {
             "history": [
@@ -64,7 +64,7 @@ class RequestConstructionTest(unittest.TestCase):
         self.assertIn("通常、一般、为什么、如何设计", prompt)
         self.assertIn("不要调用工具", prompt)
 
-    def test_production_prompt_and_tool_description_match_v2_boundary(self):
+    def test_historical_v2_is_not_mislabeled_as_current_policy(self):
         lines = APPLICATION_YML.read_text(encoding="utf-8").splitlines()
         start = lines.index("    rules: |") + 1
         prompt_lines = []
@@ -74,11 +74,11 @@ class RequestConstructionTest(unittest.TestCase):
             prompt_lines.append(line[6:] if line.startswith("      ") else "")
         production_prompt = "\n".join(prompt_lines).strip()
         candidate_prompt = V2_PROMPT_PATH.read_text(encoding="utf-8").strip()
-        self.assertEqual(production_prompt, candidate_prompt)
+        self.assertNotEqual(production_prompt, candidate_prompt)
 
-        chat_handler = CHAT_HANDLER.read_text(encoding="utf-8")
-        self.assertIn("仅用于检索用户明确指向的已上传文件", chat_handler)
-        self.assertIn("只有可靠回答必须依赖这些私有或指定资料时才调用", chat_handler)
+        tool_source = (CHAT_HANDLER.parent / 'KnowledgeBaseSearchTool.java').read_text(encoding='utf-8')
+        self.assertIn('事实性问答的首选工具', tool_source)
+        self.assertIn('纯寒暄、纯计算、翻译或改写已提供文本可直接完成', tool_source)
 
     def test_production_uses_volc_coding_plan_endpoint_without_storing_key(self):
         config = APPLICATION_YML.read_text(encoding="utf-8")

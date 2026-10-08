@@ -7,6 +7,11 @@ import com.yizhaoqi.smartpai.entity.SearchResult;
 import com.yizhaoqi.smartpai.model.chat.*;
 import com.yizhaoqi.smartpai.service.chat.ChatRequestContext;
 import com.yizhaoqi.smartpai.support.MockModelSseServer;
+import com.yizhaoqi.smartpai.observability.LangfuseTracing;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import org.junit.jupiter.api.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -14,21 +19,25 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class AgentLoopServiceTest {
+    InMemorySpanExporter exporter; SdkTracerProvider provider; LangfuseTracing tracing;
     MockModelSseServer server; AiProperties p; HybridSearchService search;
     AgentLoopService loop; final ObjectMapper mapper=new ObjectMapper();
     final ChatCommand command=new ChatCommand("alice","conversation",UUID.randomUUID(),"比较报告A和B");
     final List<JsonNode> requests=new CopyOnWriteArrayList<>();
     final List<ChatOutput> events=new CopyOnWriteArrayList<>();
     @BeforeEach void setup() throws Exception {
+        exporter=InMemorySpanExporter.create();
+        provider=SdkTracerProvider.builder().addSpanProcessor(SimpleSpanProcessor.create(exporter)).build();
+        tracing=new LangfuseTracing(provider.get("test"),provider,"development");
         server=new MockModelSseServer(); p=new AiProperties(); p.getContext().setSafetyMarginTokens(50); p.getGeneration().setMaxTokens(200);
         search=mock(HybridSearchService.class); rebuild();
     }
     void rebuild() {
         var tokens=new TokenEstimator(mapper);
         loop=new AgentLoopService(new DeepSeekClient(server.url(),"","test",p,mapper),
-                new KnowledgeBaseSearchTool(search,mapper,p),mapper,p,new ContextBudgetService(p,tokens),tokens);
+                new KnowledgeBaseSearchTool(search,mapper,p,tracing),mapper,p,new ContextBudgetService(p,tokens),tokens,tracing);
     }
-    @AfterEach void close() { server.close(); }
+    @AfterEach void close() { server.close(); provider.close(); }
     void response(String content,String...queries) {
         server.enqueue(s -> {
             requests.add(mapper.readTree(s.requestBody()));
@@ -49,12 +58,21 @@ class AgentLoopServiceTest {
         response("直接答案"); run(new ChatRequestContext(command));
         assertEquals(Map.of("chunk","直接答案","roundId",1),events.get(0).data());
         assertEquals(Map.of("roundId",1,"kind","final"),ends().get(0).data()); verifyNoInteractions(search);
+        var span=exporter.getFinishedSpanItems().get(0);
+        assertEquals("llm.round",span.getName());
+        assertNotNull(span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.completion_start_time")));
+        assertEquals("test",span.getAttributes().get(AttributeKey.stringKey("langfuse.observation.model.name")));
     }
     @Test void twoSearchRoundsReplayCompleteMessagesAndUseAuthenticatedOwner() {
         response("先找A","A"); response("再找B","B"); response("最终比较");
         when(search.searchWithPermission("A","alice",10)).thenReturn(List.of(new SearchResult("file-a",1,"收入100",1.0,"A.pdf")));
         when(search.searchWithPermission("B","alice",10)).thenReturn(List.of(new SearchResult("file-b",2,"收入120",1.0,"B.pdf")));
         run(new ChatRequestContext(command));
+        assertEquals(List.of("llm.round","tool.knowledge_search","llm.round","tool.knowledge_search","llm.round"),
+                exporter.getFinishedSpanItems().stream().map(s -> s.getName()).toList());
+        var toolSpan=exporter.getFinishedSpanItems().get(1);
+        assertEquals(List.of("file-a:1"),toolSpan.getAttributes().get(AttributeKey.stringArrayKey("langfuse.observation.metadata.top_chunk_ids")));
+        assertFalse(toolSpan.getAttributes().toString().contains("收入100"));
         assertEquals(3,server.requests()); verify(search).searchWithPermission("A","alice",10); verify(search).searchWithPermission("B","alice",10);
         assertEquals(List.of("intermediate","intermediate","final"),ends().stream().map(e -> e.data().get("kind")).toList());
         assertEquals(List.of(1,2,3),ends().stream().map(e -> e.data().get("roundId")).toList());

@@ -1,13 +1,24 @@
 """
 ShadowRAG 检索评测脚本
-直接连 ES + Ollama，对比 BM25 / KNN / 混合(RRF) 三种策略的 Hit@5 和 MRR
-不依赖 Java 项目，独立运行
+默认保留 legacy ES + Ollama 的 BM25 / KNN / RRF 模式。
+--java-results 模式读取真实 Java 调用，比较 BM25 / hybrid_rerank 的 Hit@5 与 MRR@5。
 """
 import json
 import os
 
-import requests
-import numpy as np
+import argparse
+import base64
+import hashlib
+import math
+from pathlib import Path
+import re
+import sys
+import time
+import uuid
+from collections import Counter
+from urllib import request
+from urllib.error import HTTPError
+from urllib.parse import urlsplit
 
 # ============ 配置 ============
 ES_URL = "http://localhost:9200"
@@ -77,6 +88,7 @@ DATASET = [
 
 # ============ 1. Embedding ============
 def embed(text):
+    import requests
     """调用 Ollama 把文本编码成向量"""
     resp = requests.post(OLLAMA_URL, json={"model": EMBED_MODEL, "input": [text]}, timeout=30)
     resp.raise_for_status()
@@ -89,6 +101,7 @@ def hit_key(hit):
     return f"{src['fileMd5']}:{src['chunkId']}"
 
 def search_bm25(query, top_k):
+    import requests
     """策略 A：纯 BM25 全文检索"""
     body = {
         "size": top_k,
@@ -98,6 +111,7 @@ def search_bm25(query, top_k):
     return [hit_key(h) for h in resp.json()["hits"]["hits"]]
 
 def search_knn(query_vec, top_k):
+    import requests
     """策略 B：纯 KNN 向量检索"""
     body = {
         "size": top_k,
@@ -142,6 +156,8 @@ def compute_rr(retrieved, relevant):
 
 # ============ 4. 主流程 ============
 def run():
+    import numpy as np
+    print("LEGACY RRF: standalone ES/Ollama evaluation; no Java permission or rerank parity")
     print("=" * 65)
     print(f"ShadowRAG 检索评测 | 数据集 {len(DATASET)} 条 | Top-{TOP_K}")
     print("=" * 65)
@@ -215,5 +231,223 @@ def run():
         json.dump({"summary": summary, "details": strategies}, f, ensure_ascii=False, indent=2)
     print(f"\n详细结果已保存到 eval_results.json")
 
-if __name__ == "__main__":
-    run()
+
+
+# Java export mode uses only the standard library and never creates traces.
+STRATEGIES = ('bm25', 'hybrid_rerank')
+KEY_PATTERN = re.compile(r'[0-9a-fA-F]{32}:[0-9]+\Z')
+# ES fileMd5 is an opaque String; public benchmark fixtures also use safe file IDs.
+RETRIEVED_KEY_PATTERN = re.compile(r'[A-Za-z0-9_.-]{1,128}:[0-9]+\Z')
+
+
+def _require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+
+def _summary(rows, total):
+    valid = [r for r in rows if r['score_status'] == 'scored']
+    return {
+        'total_count': total, 'valid_count': len(valid),
+        'error_count': sum(r['score_status'] == 'retrieval_error' for r in rows),
+        'retrieval_status_counts': dict(Counter(r['retrieval_status'] for r in rows)),
+        'rerank_status_counts': dict(Counter(r['rerank_status'] for r in rows)),
+        'hit_at_5': sum(r['hit_at_5'] for r in valid) / len(valid) if valid else None,
+        'mrr_at_5': sum(r['mrr_at_5'] for r in valid) / len(valid) if valid else None,
+    }
+
+
+def evaluate_java_results(results_path, dataset_path):
+    """Validate one complete Java run, score ranks 1..5 and retain all evidence."""
+    results_path, dataset_path = Path(results_path), Path(dataset_path)
+    dataset_bytes = dataset_path.read_bytes()
+    dataset = json.loads(dataset_bytes.decode('utf-8-sig'))
+    _require(isinstance(dataset, list) and dataset, 'dataset must be a nonempty array')
+    labels = {}
+    for sample in dataset:
+        _require(isinstance(sample, dict), 'invalid dataset sample')
+        qid = sample.get('query_id')
+        _require(type(qid) in (int, str) and str(qid).strip(), 'invalid query_id')
+        sample_id = str(qid)
+        _require(sample_id not in labels, 'duplicate query_id')
+        relevant = sample.get('relevant')
+        _require(isinstance(relevant, list) and relevant and all(isinstance(k, str) and KEY_PATTERN.fullmatch(k) for k in relevant), 'relevant labels must be known chunk keys')
+        _require(len(relevant) == len(set(relevant)), 'duplicate relevant labels')
+        _require(isinstance(sample.get('query'), str) and sample['query'].strip(), 'query is required')
+        _require(sample.get('difficulty') in ('easy', 'medium', 'hard'), 'unknown difficulty label')
+        labels[sample_id] = sample
+    metadata = json.loads((results_path.parent / 'metadata.json').read_text(encoding='utf-8-sig'))
+    _require(isinstance(metadata, dict) and metadata.get('dataset_sha256') == hashlib.sha256(dataset_bytes).hexdigest(), 'dataset checksum mismatch')
+    _require(isinstance(metadata.get('config'), dict), 'metadata config is required')
+    for name, expected in (('export_status', 'complete'), ('preflight_status', 'success'), ('permission_unchanged', True), ('index_snapshot_unchanged', True)):
+        if name in metadata:
+            _require(type(metadata[name]) is type(expected) and metadata[name] == expected, 'export integrity metadata rejected')
+    for name, expected in (('top_k', 10), ('metric_top_k', 5)):
+        if name in metadata['config']:
+            _require(type(metadata['config'][name]) is int and metadata['config'][name] == expected, 'metadata top_k mismatch')
+    scored, seen, run_ids = [], set(), set()
+    for line in results_path.read_text(encoding='utf-8-sig').splitlines():
+        _require(bool(line.strip()), 'blank result row')
+        row = json.loads(line)
+        _require(isinstance(row, dict), 'invalid result row')
+        _require(all(k in row for k in ('run_id', 'sample_id', 'strategy', 'trace_id', 'retrieved', 'top_k', 'error', 'retrieval_status', 'rerank_status')), 'missing result field')
+        _require(isinstance(row['run_id'], str) and row['run_id'].strip(), 'invalid run_id')
+        run_ids.add(row['run_id'])
+        _require(isinstance(row['sample_id'], str) and row['sample_id'] in labels, 'unknown sample_id')
+        _require(row['strategy'] in STRATEGIES, 'unknown strategy')
+        identity = (row['sample_id'], row['strategy'])
+        _require(identity not in seen, 'duplicate sample strategy')
+        seen.add(identity)
+        _require(isinstance(row['trace_id'], str) and re.fullmatch(r'[0-9a-f]{32}', row['trace_id']) and int(row['trace_id'], 16) != 0, 'invalid trace_id')
+        _require(type(row['top_k']) is int and row['top_k'] == 10, 'Java top_k must be 10')
+        _require(row['retrieval_status'] in ('success', 'bm25_fallback', 'error'), 'unknown retrieval status')
+        _require(row['rerank_status'] in ('success', 'skipped', 'fallback', 'not_applicable', 'unknown'), 'unknown rerank status')
+        _require(row['error'] is None or isinstance(row['error'], str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9_]{0,63}', row['error']), 'error must be a controlled code')
+        _require((row['retrieval_status'] == 'error') == (row['error'] is not None), 'inconsistent error status')
+        retrieved = row['retrieved']
+        _require(isinstance(retrieved, list) and len(retrieved) <= 10, 'invalid retrieved array')
+        keys = []
+        for hit in retrieved:
+            _require(isinstance(hit, dict) and isinstance(hit.get('key'), str) and RETRIEVED_KEY_PATTERN.fullmatch(hit['key']), 'invalid chunk key')
+            score = hit.get('score')
+            _require(type(score) in (int, float) and math.isfinite(score), 'invalid retrieval score')
+            keys.append(hit['key'])
+        _require(len(keys) == len(set(keys)), 'duplicate retrieved key')
+        sample = labels[row['sample_id']]
+        if 'langfuse_dataset_id' in sample:
+            _require(isinstance(row.get('observation_id'), str) and re.fullmatch(r'[0-9a-f]{16}', row['observation_id']) and int(row['observation_id'], 16) != 0, 'invalid experiment root observation')
+            for field in ('dataset_id', 'dataset_item_id', 'dataset_version'):
+                _require(row.get(field) == sample.get('langfuse_' + field), 'experiment dataset identity mismatch')
+            _require(isinstance(row.get('experiment_id'), str) and bool(row['experiment_id']), 'missing experiment_id')
+            _require(row.get('experiment_name') == row['run_id'] + '-' + row['strategy'], 'experiment name mismatch')
+        valid = row['retrieval_status'] != 'error'
+        scored.append({**row, 'query_id': sample['query_id'], 'query': sample['query'], 'difficulty': sample['difficulty'], 'relevant': sample['relevant'],
+                       'score_status': 'scored' if valid else 'retrieval_error',
+                       'actual_strategy': 'bm25' if row['strategy'] == 'bm25' or row['retrieval_status'] == 'bm25_fallback' else ('hybrid_rerank' if row['rerank_status'] == 'success' else 'hybrid_without_successful_rerank'),
+                       'hit_at_5': compute_hit(keys[:5], sample['relevant']) if valid else None,
+                       'mrr_at_5': compute_rr(keys[:5], sample['relevant']) if valid else None})
+    _require(len(run_ids) == 1, 'expected one run_id')
+    if 'run_id' in metadata:
+        _require(metadata['run_id'] == next(iter(run_ids)), 'metadata run_id mismatch')
+    _require(seen == {(sid, strategy) for sid in labels for strategy in STRATEGIES}, 'missing sample strategy rows')
+    _require(len({r['trace_id'] for r in scored}) == len(scored), 'duplicate trace_id')
+    experiment_rows = [r for r in scored if 'experiment_id' in r]
+    if experiment_rows:
+        _require(len(experiment_rows) == len(scored), 'mixed experiment and legacy rows')
+        ids_by_strategy = [{r['experiment_id'] for r in scored if r['strategy'] == s} for s in STRATEGIES]
+        _require(all(len(ids) == 1 for ids in ids_by_strategy) and ids_by_strategy[0].isdisjoint(ids_by_strategy[1]), 'inconsistent experiment identity')
+    by_pair = {(r['sample_id'], r['strategy']): r for r in scored}
+    paired_ids = [sid for sid in labels if all(by_pair[(sid, strategy)]['retrieval_status'] == 'success' for strategy in STRATEGIES) and by_pair[(sid, 'hybrid_rerank')]['rerank_status'] == 'success']
+    paired = {strategy: _summary([by_pair[(sid, strategy)] for sid in paired_ids], len(labels)) for strategy in STRATEGIES}
+    report = {'run_id': next(iter(run_ids)), 'metadata': metadata, 'metric_top_k': 5, 'java_top_k': 10,
+              'strategies': {strategy: _summary([r for r in scored if r['strategy'] == strategy], len(labels)) for strategy in STRATEGIES},
+              'paired': {'total_count': len(labels), 'valid_count': len(paired_ids), 'excluded_count': len(labels) - len(paired_ids), 'sample_ids': paired_ids, 'strategies': paired,
+                         'hit_at_5_lift_percentage_points': (paired['hybrid_rerank']['hit_at_5'] - paired['bm25']['hit_at_5']) * 100 if paired_ids else None,
+                         'mrr_at_5_lift': paired['hybrid_rerank']['mrr_at_5'] - paired['bm25']['mrr_at_5'] if paired_ids else None}}
+    return scored, report
+
+
+def score_payloads(scored):
+    payloads = []
+    for row in scored:
+        if row['score_status'] != 'scored':
+            continue
+        for metric in ('hit_at_5', 'mrr_at_5'):
+            identity = json.dumps([row['run_id'], row['sample_id'], row['strategy'], metric], separators=(',', ':'), ensure_ascii=False)
+            score_id = str(uuid.UUID(hex=hashlib.sha256(identity.encode('utf-8')).hexdigest()[:32]))
+            payloads.append({'id': score_id, 'traceId': row['trace_id'], 'name': metric, 'value': float(row[metric]), 'dataType': 'NUMERIC',
+                             'comment': f"run={row['run_id']}; sample={row['sample_id']}; strategy={row['strategy']}; retrieval_status={row['retrieval_status']}; rerank_status={row['rerank_status']}"})
+    for payload in payloads:
+        source = next(r for r in scored if r['trace_id'] == payload['traceId'])
+        if 'observation_id' in source:
+            _require(isinstance(source['observation_id'], str) and re.fullmatch(r'[0-9a-f]{16}', source['observation_id']) and int(source['observation_id'], 16) != 0, 'invalid observation_id')
+            payload['observationId'] = source['observation_id']
+    return payloads
+
+
+class _NoScoreRedirect(request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        # Do not forward Basic authentication to a redirected host or protocol.
+        raise HTTPError(req.full_url, code, 'score_upload_redirect_rejected', headers, fp)
+
+
+def upload_scores(payloads):
+    """Attach deterministic scores to existing Java traces; never log credentials."""
+    base = os.environ.get('LANGFUSE_BASE_URL', '').rstrip('/')
+    public = os.environ.get('LANGFUSE_PUBLIC_KEY', '')
+    secret = os.environ.get('LANGFUSE_SECRET_KEY', '')
+    parsed = urlsplit(base)
+    if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or not public or not secret:
+        raise ValueError('score_upload_configuration_invalid')
+    auth = base64.b64encode(f'{public}:{secret}'.encode()).decode('ascii')
+    opener = request.build_opener(_NoScoreRedirect())
+    uploaded = 0
+    for payload in payloads:
+        req = request.Request(base + '/api/public/scores', data=json.dumps(payload).encode('utf-8'), headers={'Authorization': 'Basic ' + auth, 'Content-Type': 'application/json'}, method='POST')
+        for attempt in range(3):
+            try:
+                with opener.open(req, timeout=10) as response:
+                    if not 200 <= response.status < 300:
+                        raise RuntimeError('score_upload_http_error')
+                break
+            except HTTPError as error:
+                retry_after = error.headers.get('Retry-After') if error.headers else None
+                retryable = error.code == 429 and attempt < 2
+                error.close()
+                if not retryable:
+                    raise RuntimeError('score_upload_failed') from None
+                try:
+                    delay = float(retry_after)
+                    if not math.isfinite(delay) or delay < 0:
+                        delay = 30.0
+                except (TypeError, ValueError):
+                    delay = 30.0
+                time.sleep(min(delay, 60.0))
+            except Exception:
+                raise RuntimeError('score_upload_failed') from None
+        uploaded += 1
+    return uploaded
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description='Java permission-matched retrieval evaluation; no arguments runs legacy RRF')
+    parser.add_argument('--java-results', type=Path)
+    parser.add_argument('--dataset', type=Path)
+    parser.add_argument('--output-dir', type=Path)
+    parser.add_argument('--upload-scores', action='store_true')
+    args = parser.parse_args(argv)
+    if args.java_results is None:
+        if args.dataset or args.output_dir or args.upload_scores:
+            parser.error('--java-results, --dataset and --output-dir are required together')
+        run()
+        return 0
+    if args.dataset is None or args.output_dir is None:
+        parser.error('--java-results, --dataset and --output-dir are required together')
+    try:
+        scored, report = evaluate_java_results(args.java_results, args.dataset)
+    except (ValueError, OSError, TypeError, KeyError):
+        print('Java evaluation input rejected; check dataset, metadata and result contract.', file=sys.stderr)
+        return 2
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    payloads = score_payloads(scored)
+    for filename, content in (('scored_results.json', scored), ('report.json', report), ('scores.json', payloads)):
+        (args.output_dir / filename).write_text(json.dumps(content, ensure_ascii=False, indent=2, allow_nan=False) + '\n', encoding='utf-8')
+    (args.output_dir / 'java_results.jsonl').write_bytes(args.java_results.read_bytes())
+    (args.output_dir / 'dataset.json').write_bytes(args.dataset.read_bytes())
+    (args.output_dir / 'metadata.json').write_text(json.dumps(report['metadata'], ensure_ascii=False, indent=2), encoding='utf-8')
+    upload = {'status': 'disabled', 'score_count': len(payloads)}
+    exit_code = 0
+    if args.upload_scores:
+        try:
+            upload.update(status='success', uploaded_count=upload_scores(payloads))
+        except Exception:
+            upload.update(status='failed', error='score_upload_failed', retry='rerun with the same Java results; score IDs are stable')
+            print('Score upload failed; local results preserved. Retry with the same results.', file=sys.stderr)
+            exit_code = 1
+    (args.output_dir / 'upload_status.json').write_text(json.dumps(upload, indent=2), encoding='utf-8')
+    print(f"Java retrieval evaluation saved; paired valid samples: {report['paired']['valid_count']}/{report['paired']['total_count']}.")
+    return exit_code
+
+
+if __name__ == '__main__':
+    sys.exit(main())
