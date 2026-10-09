@@ -1,0 +1,96 @@
+{
+  "cpu": {
+    "info": {
+      "model_id": "BAAI/bge-reranker-v2-m3",
+      "model_sha": null,
+      "model_dtype": "float32",
+      "served_model_name": "BAAI/bge-reranker-v2-m3",
+      "model_type": {
+        "reranker": {
+          "id2label": {
+            "0": "LABEL_0"
+          },
+          "label2id": {
+            "LABEL_0": 0
+          }
+        }
+      },
+      "max_concurrent_requests": 512,
+      "max_input_length": 8192,
+      "max_batch_tokens": 16384,
+      "max_batch_requests": 4,
+      "max_client_batch_size": 32,
+      "auto_truncate": true,
+      "tokenization_workers": 5,
+      "version": "1.9.3",
+      "sha": "5bc4d889c38cf9c75e63617d62779bc0f6628b23",
+      "docker_label": "sha-5bc4d88"
+    },
+    "image_id": "sha256:492506e6a76ce6d0fd834a49f69bee4134f5b37de06052519d358a3d5387434d",
+    "image_digests": [
+      "ghcr.io/huggingface/text-embeddings-inference@sha256:492506e6a76ce6d0fd834a49f69bee4134f5b37de06052519d358a3d5387434d"
+    ],
+    "command": [
+      "--json-output"
+    ],
+    "dtype": "float32",
+    "gpu_device_requests": null
+  },
+  "gpu": {
+    "info": {
+      "model_id": "BAAI/bge-reranker-v2-m3",
+      "model_sha": null,
+      "model_dtype": "float16",
+      "served_model_name": "BAAI/bge-reranker-v2-m3",
+      "model_type": {
+        "reranker": {
+          "id2label": {
+            "0": "LABEL_0"
+          },
+          "label2id": {
+            "LABEL_0": 0
+          }
+        }
+      },
+      "max_concurrent_requests": 32,
+      "max_input_length": 8192,
+      "max_batch_tokens": 16384,
+      "max_batch_requests": null,
+      "max_client_batch_size": 32,
+      "auto_truncate": true,
+      "tokenization_workers": 5,
+      "version": "1.9.4",
+      "sha": "e80ef225ed0e6cb1717ce632a6a84b6cf211bb67",
+      "docker_label": "sha-e80ef22"
+    },
+    "image_id": "sha256:bd8e5b1954146f7fe8590b64b959bc194433c6c38c036592a84d736841ca9400",
+    "image_digests": [
+      "ghcr.io/huggingface/text-embeddings-inference@sha256:bd8e5b1954146f7fe8590b64b959bc194433c6c38c036592a84d736841ca9400"
+    ],
+    "command": [
+      "--model-id",
+      "BAAI/bge-reranker-v2-m3",
+      "--dtype",
+      "float16",
+      "--max-batch-tokens",
+      "16384",
+      "--max-concurrent-requests",
+      "32"
+    ],
+    "dtype": "float16 supplied by CLI",
+    "gpu_device_requests": [
+      {
+        "Driver": "",
+        "Count": -1,
+        "DeviceIDs": null,
+        "Capabilities": [
+          [
+            "gpu"
+          ]
+        ],
+        "Options": {}
+      }
+    ]
+  },
+  "gpu_hardware": "NVIDIA GeForce RTX 5060 Laptop GPU, 8151 MiB, 1697 MiB, 591.74"
+}

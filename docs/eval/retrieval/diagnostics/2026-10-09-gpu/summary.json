@@ -1,0 +1,12 @@
+{
+  "sample_count": 2,
+  "paired_runs": 6,
+  "cpu_median_seconds": 10.21626174999983,
+  "gpu_median_seconds": 2.2960487000091234,
+  "median_speedup": 4.449496977115179,
+  "exact_order_equal_count": 6,
+  "top5_order_equal_count": 6,
+  "hit_mrr_equal_count": 6,
+  "cpu_over_java_10s_budget": 4,
+  "gpu_over_java_10s_budget": 0
+}

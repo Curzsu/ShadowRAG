@@ -1,0 +1,8 @@
+{
+  "dataset_id": "cmuzcjuyy0006ad0j76a7jmb0",
+  "dataset_name": "retrieval-eval-50",
+  "version": "2026-10-08T10:02:48.721704Z",
+  "sample_count": 10,
+  "selection": "ascending numeric sample_id",
+  "fetched_active_count": 50
+}

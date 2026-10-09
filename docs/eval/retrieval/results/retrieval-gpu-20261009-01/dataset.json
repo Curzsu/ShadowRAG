@@ -1,0 +1,119 @@
+[
+  {
+    "query_id": "1",
+    "query": "滴滴实习面试问了哪些RAG相关的问题",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:12",
+      "f85f05936fc325cf34792163c880042c:13"
+    ],
+    "difficulty": "easy",
+    "langfuse_dataset_id": "cmuzcjuyy0006ad0j76a7jmb0",
+    "langfuse_dataset_item_id": "381109ac-df63-418d-8db5-f3e189424658",
+    "langfuse_dataset_version": "2026-10-08T10:02:48.721704Z"
+  },
+  {
+    "query_id": "2",
+    "query": "面试官问vector怎么设计的，向量维度选多少",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:12"
+    ],
+    "difficulty": "medium",
+    "langfuse_dataset_id": "cmuzcjuyy0006ad0j76a7jmb0",
+    "langfuse_dataset_item_id": "afc9db14-d69d-4f8c-9c47-7e07730feae6",
+    "langfuse_dataset_version": "2026-10-08T10:02:48.721704Z"
+  },
+  {
+    "query_id": "3",
+    "query": "面试中被问到MCP和Skill的区别",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:2",
+      "f85f05936fc325cf34792163c880042c:15"
+    ],
+    "difficulty": "medium",
+    "langfuse_dataset_id": "cmuzcjuyy0006ad0j76a7jmb0",
+    "langfuse_dataset_item_id": "731cf4ca-b967-40eb-99ef-c341993b49d0",
+    "langfuse_dataset_version": "2026-10-08T10:02:48.721704Z"
+  },
+  {
+    "query_id": "4",
+    "query": "哪些公司的面试涉及到了LangGraph",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:4",
+      "f85f05936fc325cf34792163c880042c:7",
+      "f85f05936fc325cf34792163c880042c:8"
+    ],
+    "difficulty": "hard",
+    "langfuse_dataset_id": "cmuzcjuyy0006ad0j76a7jmb0",
+    "langfuse_dataset_item_id": "a0a9f1b5-cdad-4c86-a195-56240634db43",
+    "langfuse_dataset_version": "2026-10-08T10:02:48.721704Z"
+  },
+  {
+    "query_id": "5",
+    "query": "面试中被追问Function Calling怎么匹配工具参数",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:2"
+    ],
+    "difficulty": "easy",
+    "langfuse_dataset_id": "cmuzcjuyy0006ad0j76a7jmb0",
+    "langfuse_dataset_item_id": "872ae29a-fa27-4bbc-af31-eaf6fd256401",
+    "langfuse_dataset_version": "2026-10-08T10:02:48.721704Z"
+  },
+  {
+    "query_id": "6",
+    "query": "怎么评判预训练模型效果，LoRA的数学原理",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:7"
+    ],
+    "difficulty": "medium",
+    "langfuse_dataset_id": "cmuzcjuyy0006ad0j76a7jmb0",
+    "langfuse_dataset_item_id": "99010da9-f299-42a2-8c0f-f1a0b67527f4",
+    "langfuse_dataset_version": "2026-10-08T10:02:48.721704Z"
+  },
+  {
+    "query_id": "7",
+    "query": "蔚来AI应用开发的面试题",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:7",
+      "f85f05936fc325cf34792163c880042c:8"
+    ],
+    "difficulty": "easy",
+    "langfuse_dataset_id": "cmuzcjuyy0006ad0j76a7jmb0",
+    "langfuse_dataset_item_id": "a2e6c5d2-d437-4dbc-936a-8ada5a9faa1c",
+    "langfuse_dataset_version": "2026-10-08T10:02:48.721704Z"
+  },
+  {
+    "query_id": "8",
+    "query": "面试官问Attention机制的核心作用和处理长文本的优化策略",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:8",
+      "f85f05936fc325cf34792163c880042c:9"
+    ],
+    "difficulty": "medium",
+    "langfuse_dataset_id": "cmuzcjuyy0006ad0j76a7jmb0",
+    "langfuse_dataset_item_id": "3476fdad-235a-43b5-9744-c290560a2288",
+    "langfuse_dataset_version": "2026-10-08T10:02:48.721704Z"
+  },
+  {
+    "query_id": "9",
+    "query": "怎么评估RAG系统的检索质量和生成质量",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:9",
+      "f85f05936fc325cf34792163c880042c:10"
+    ],
+    "difficulty": "medium",
+    "langfuse_dataset_id": "cmuzcjuyy0006ad0j76a7jmb0",
+    "langfuse_dataset_item_id": "a86115d8-3840-45d6-84bd-1bad775e3ffd",
+    "langfuse_dataset_version": "2026-10-08T10:02:48.721704Z"
+  },
+  {
+    "query_id": "10",
+    "query": "美团实习面试关于AI Coding和Vibe Coding的问题",
+    "relevant": [
+      "f85f05936fc325cf34792163c880042c:6"
+    ],
+    "difficulty": "easy",
+    "langfuse_dataset_id": "cmuzcjuyy0006ad0j76a7jmb0",
+    "langfuse_dataset_item_id": "36900867-190b-4424-b886-2f7a5afa3b37",
+    "langfuse_dataset_version": "2026-10-08T10:02:48.721704Z"
+  }
+]
