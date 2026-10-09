@@ -1,5 +1,7 @@
 # ShadowRAG Skill 接入层开发文档：优先开发效率
 
+> 引用说明：源码行号保留调研时的位置；本仓库链接已改为相对路径，外部参考仓库的本机路径仅作为文字定位记录，不代表可共享入口。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. 只有用户明确要求并行代理时，才使用 superpowers:subagent-driven-development。
 
 **Goal:** 用户通过自然语言或 `/skill:name 参数` 使用管理员部署的任务指南；模型按需获得完整指南，继续使用现有知识库工具完成任务。
@@ -62,7 +64,7 @@ Skill 是任务方法，知识库是事实依据，工具负责执行。首版�
 
 本次审查去掉了以下首版用不到的机制：正文 SHA-256 与版本记录、单独累计指南 token、额外 fitAgent 重载、技能数量和目录 token 的双重上限、加载轮次豁免规则、显式命令的模拟 tool_progress。五个生产文件保留清晰职责，不再加框架类。候选激活只是本地变量与一次预算校验，不做事务、锁或通用状态机。
 
-本文件是本轮的实施范围。已有的 [渐进式加载与动态工具开放设计](/E:/Curzsu/ShadowRAG/docs/superpowers/specs/2026-10-06-progressive-skill-loading-design.md) 和 [四阶段计划](/E:/Curzsu/ShadowRAG/docs/superpowers/plans/2026-10-07-skill-loading-phased-plan.md) 保留作为后续扩展参考。不要把其中的动态工具组、search_skills、参考读取或 CLI 要求同时加入本轮。
+本文件是本轮的实施范围。已有的 [渐进式加载与动态工具开放设计](../specs/2026-10-06-progressive-skill-loading-design.md) 和 [四阶段计划](2026-10-07-skill-loading-phased-plan.md) 保留作为后续扩展参考。不要把其中的动态工具组、search_skills、参考读取或 CLI 要求同时加入本轮。
 
 这里的 ROI 是范围与依赖分析，不是已测得的工时或性能结论。开发后记录实际改动量、加载次数和延迟。
 
@@ -139,7 +141,7 @@ skills:
 
 ### 3.2 两份默认指南
 
-创建 [document-compare/SKILL.md](/E:/Curzsu/ShadowRAG/skills/document-compare/SKILL.md)：
+创建 document-compare/SKILL.md（计划路径：`skills/document-compare/SKILL.md`）：
 
 ```markdown
 ---
@@ -157,7 +159,7 @@ description: 用户要求比较两份或多份知识库资料、找出异同或�
 6. 最后列出尚无法确认的部分，不编造事实、来源或完整阅读声明。
 ```
 
-创建 [evidence-summary/SKILL.md](/E:/Curzsu/ShadowRAG/skills/evidence-summary/SKILL.md)：
+创建 evidence-summary/SKILL.md（计划路径：`skills/evidence-summary/SKILL.md`）：
 
 ```markdown
 ---
@@ -183,11 +185,11 @@ description: 用户要求总结知识库文档、内部项目或报告，需要�
 
 | 新文件 | 职责与接口 |
 | --- | --- |
-| [SkillProperties.java](/E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/config/SkillProperties.java) | 配置、默认值、启动验证 |
-| [SkillDocument.java](/E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/skill/SkillDocument.java) | 不可变 record：name、description、body；不发送服务端真实路径 |
-| [SkillDocumentParser.java](/E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/skill/SkillDocumentParser.java) | `SkillDocument parse(Path skillFile)`；超限 / 解析 / 字段错误转换成受控诊断 |
-| [SkillCatalog.java](/E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/skill/SkillCatalog.java) | 启动扫描、完整简介格式化和只读查询：`Optional<SkillDocument> find(String name)`、`List<SkillDocument> available()`、`boolean isDisabled(String name)`、`boolean isReady()`、`String prompt()` |
-| [SkillRuntime.java](/E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/skill/SkillRuntime.java) | 简介、命令、候选激活、加载 Schema；内部嵌套 record / state，避免为每个 DTO 新建文件 |
+| SkillProperties.java（计划路径：`src/main/java/com/yizhaoqi/smartpai/config/SkillProperties.java`） | 配置、默认值、启动验证 |
+| SkillDocument.java（计划路径：`src/main/java/com/yizhaoqi/smartpai/skill/SkillDocument.java`） | 不可变 record：name、description、body；不发送服务端真实路径 |
+| SkillDocumentParser.java（计划路径：`src/main/java/com/yizhaoqi/smartpai/skill/SkillDocumentParser.java`） | `SkillDocument parse(Path skillFile)`；超限 / 解析 / 字段错误转换成受控诊断 |
+| SkillCatalog.java（计划路径：`src/main/java/com/yizhaoqi/smartpai/skill/SkillCatalog.java`） | 启动扫描、完整简介格式化和只读查询：`Optional<SkillDocument> find(String name)`、`List<SkillDocument> available()`、`boolean isDisabled(String name)`、`boolean isReady()`、`String prompt()` |
+| SkillRuntime.java（计划路径：`src/main/java/com/yizhaoqi/smartpai/skill/SkillRuntime.java`） | 简介、命令、候选激活、加载 Schema；内部嵌套 record / state，避免为每个 DTO 新建文件 |
 
 `SkillRuntime` 的接口：
 
@@ -243,7 +245,7 @@ void commitActivation(TurnState state, Activation activation);
 
 不发送 location：模型按名称加载，服务器文件路径对它没有用途。元数据做 XML 转义；计入目录预算的是整个提示块，包括说明和标签。空目录不发空标签。
 
-调整 [application.yml](/E:/Curzsu/ShadowRAG/src/main/resources/application.yml) 中的路由文案：“事实问题必须先检索”明确为“给出外部事实结论前必须检索，可先加载匹配的技能方法”；“纯改写不调用工具”明确为无需 search_knowledge_base，可加载有明确用途的技能。保持资料不可信、来源引用和权限规则。
+调整 [application.yml](../../../src/main/resources/application.yml) 中的路由文案：“事实问题必须先检索”明确为“给出外部事实结论前必须检索，可先加载匹配的技能方法”；“纯改写不调用工具”明确为无需 search_knowledge_base，可加载有明确用途的技能。保持资料不可信、来源引用和权限规则。
 
 ### 5.2 完整指南
 
@@ -271,7 +273,7 @@ void commitActivation(TurnState state, Activation activation);
 
 ### 6.1 初始准备
 
-[ChatHandler](/E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java) 继续构建 system / 历史 / 当前原始 user。移除 buildMessagesForAgenticRAG 中按固定知识库 Schema 提前 fit 的调用，将最终预算集中到 AgentLoopService；保留摘要数量和非可信记忆边界。
+[ChatHandler](../../../src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java) 继续构建 system / 历史 / 当前原始 user。移除 buildMessagesForAgenticRAG 中按固定知识库 Schema 提前 fit 的调用，将最终预算集中到 AgentLoopService；保留摘要数量和非可信记忆边界。
 
 为减少参数传递和改动，简介追加及显式展开统一在 AgentLoopService 首次模型请求前完成。generate 的现有对外签名保留。每次运行新建 TurnState。原始 ChatCommand 始终不变，KnowledgeBaseSearchTool 继续使用 command.username()。
 
@@ -281,7 +283,7 @@ void commitActivation(TurnState state, Activation activation);
 
 ### 6.2 当前任务保护
 
-直接调用 [ContextBudgetService](/E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ContextBudgetService.java) 已有的公共方法：
+直接调用 [ContextBudgetService](../../../src/main/java/com/yizhaoqi/smartpai/service/ContextBudgetService.java) 已有的公共方法：
 
 ```java
 List<Map<String, Object>> fit(
@@ -380,17 +382,17 @@ persistCompletedTurn 始终使用原 ChatCommand.message() 和最终回答。技
 
 | 现有文件 | 本轮改动 |
 | --- | --- |
-| [ChatHandler.java](/E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java) | 消息准备保留原文，移除固定 tools 的提前 fit，保留历史与持久化行为 |
-| [AgentLoopService.java](/E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/AgentLoopService.java) | 请求内状态、简介、显式预加载、精确工具分发、候选提交、一次额外加载轮 |
-| [ContextBudgetService.java](/E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ContextBudgetService.java) | 复用现有 fit，无需修改生产实现；新增调用侧保护测试 |
-| [ChatStreamService.java](/E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/chat/ChatStreamService.java) | 仅补全新终态 code 的安全文案，不重写仲裁或持久化 |
-| [application.yml](/E:/Curzsu/ShadowRAG/src/main/resources/application.yml) | 默认关闭配置，针对 Skill 的提示词规则 |
-| [pom.xml](/E:/Curzsu/ShadowRAG/pom.xml) | 仅在需要时显式声明已有版本管理下的 SnakeYAML |
-| [chat-stream.ts](/E:/Curzsu/ShadowRAG/frontend/src/service/api/chat-stream.ts) | 新工具名、加载进度可选字段、终态 code 的协议校验 |
-| [chat-rounds.ts](/E:/Curzsu/ShadowRAG/frontend/src/store/modules/chat/chat-rounds.ts) | ChatToolCall 保留 skillName / ok；finished 更新不能丢字段 |
-| [chat-message.vue](/E:/Curzsu/ShadowRAG/frontend/src/views/chat/modules/chat-message.vue) | 按工具名和 ok 显示技能进度；“检索过程”改为覆盖两种工具的“处理过程” |
-| [chat-stream.mjs](/E:/Curzsu/ShadowRAG/src/main/resources/static/chat-stream.mjs) | 用现有脚本从 TS 生成，禁止手改生成协议 |
-| [test.html](/E:/Curzsu/ShadowRAG/src/main/resources/static/test.html) | 静态调试页按工具名区分加载 / 检索，正确显示失败 |
+| [ChatHandler.java](../../../src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java) | 消息准备保留原文，移除固定 tools 的提前 fit，保留历史与持久化行为 |
+| [AgentLoopService.java](../../../src/main/java/com/yizhaoqi/smartpai/service/AgentLoopService.java) | 请求内状态、简介、显式预加载、精确工具分发、候选提交、一次额外加载轮 |
+| [ContextBudgetService.java](../../../src/main/java/com/yizhaoqi/smartpai/service/ContextBudgetService.java) | 复用现有 fit，无需修改生产实现；新增调用侧保护测试 |
+| [ChatStreamService.java](../../../src/main/java/com/yizhaoqi/smartpai/service/chat/ChatStreamService.java) | 仅补全新终态 code 的安全文案，不重写仲裁或持久化 |
+| [application.yml](../../../src/main/resources/application.yml) | 默认关闭配置，针对 Skill 的提示词规则 |
+| [pom.xml](../../../pom.xml) | 仅在需要时显式声明已有版本管理下的 SnakeYAML |
+| [chat-stream.ts](../../../frontend/src/service/api/chat-stream.ts) | 新工具名、加载进度可选字段、终态 code 的协议校验 |
+| [chat-rounds.ts](../../../frontend/src/store/modules/chat/chat-rounds.ts) | ChatToolCall 保留 skillName / ok；finished 更新不能丢字段 |
+| [chat-message.vue](../../../frontend/src/views/chat/modules/chat-message.vue) | 按工具名和 ok 显示技能进度；“检索过程”改为覆盖两种工具的“处理过程” |
+| [chat-stream.mjs](../../../src/main/resources/static/chat-stream.mjs) | 用现有脚本从 TS 生成，禁止手改生成协议 |
+| [test.html](../../../src/main/resources/static/test.html) | 静态调试页按工具名区分加载 / 检索，正确显示失败 |
 
 不改 ChatCommand 和 HTTP 请求 DTO；输入框继续发送原始 message。DeepSeekClient 已接受 tools 列表，无需改供应商请求或引入新的 LLM 框架。
 
@@ -404,8 +406,8 @@ persistCompletedTurn 始终使用原 ChatCommand.message() 和最终回答。技
 
 **Files:** 创建第 4 节五个文件中的 SkillProperties、SkillDocument、SkillDocumentParser、SkillCatalog，以及两份默认 SKILL.md；修改 application.yml。创建以下测试：
 
-- [SkillDocumentParserTest.java](/E:/Curzsu/ShadowRAG/src/test/java/com/yizhaoqi/smartpai/skill/SkillDocumentParserTest.java)
-- [SkillCatalogTest.java](/E:/Curzsu/ShadowRAG/src/test/java/com/yizhaoqi/smartpai/skill/SkillCatalogTest.java)
+- SkillDocumentParserTest.java（计划路径：`src/test/java/com/yizhaoqi/smartpai/skill/SkillDocumentParserTest.java`）
+- SkillCatalogTest.java（计划路径：`src/test/java/com/yizhaoqi/smartpai/skill/SkillCatalogTest.java`）
 
 **Interfaces:** 产出第 4 节 parse、find、available、isDisabled、isReady、prompt 和不可变 SkillDocument，供 Task 2 使用。
 
@@ -424,7 +426,7 @@ mvn '-Dtest=SkillDocumentParserTest,SkillCatalogTest' test
 
 ### Task 2：命令、候选激活与任务保护
 
-**Files:** 创建 SkillRuntime。创建 [SkillRuntimeTest.java](/E:/Curzsu/ShadowRAG/src/test/java/com/yizhaoqi/smartpai/skill/SkillRuntimeTest.java)，扩展 [ContextBudgetAgentTest.java](/E:/Curzsu/ShadowRAG/src/test/java/com/yizhaoqi/smartpai/service/ContextBudgetAgentTest.java)；无需修改 ContextBudgetService 生产实现。
+**Files:** 创建 SkillRuntime。创建 SkillRuntimeTest.java（计划路径：`src/test/java/com/yizhaoqi/smartpai/skill/SkillRuntimeTest.java`），扩展 [ContextBudgetAgentTest.java](../../../src/test/java/com/yizhaoqi/smartpai/service/ContextBudgetAgentTest.java)；无需修改 ContextBudgetService 生产实现。
 
 **Interfaces:** 消费 Task 1 的目录及现有 ContextBudgetService.fit；产出第 4 节 Runtime 全部签名及 TurnState，供 Task 3 使用。
 
@@ -443,11 +445,11 @@ mvn '-Dtest=SkillRuntimeTest,SkillCatalogTest,ContextBudgetAgentTest,ContextBudg
 
 ### Task 3：自动加载与显式命令接入现有循环
 
-**Files:** 修改 AgentLoopService、ChatHandler、application.yml。创建 [SkillAgentLoopTest.java](/E:/Curzsu/ShadowRAG/src/test/java/com/yizhaoqi/smartpai/service/SkillAgentLoopTest.java)，扩展现有 AgentLoopServiceTest、ChatHandlerHistoryTest、ChatHandlerStreamingTest。
+**Files:** 修改 AgentLoopService、ChatHandler、application.yml。创建 SkillAgentLoopTest.java（计划路径：`src/test/java/com/yizhaoqi/smartpai/service/SkillAgentLoopTest.java`），扩展现有 AgentLoopServiceTest、ChatHandlerHistoryTest、ChatHandlerStreamingTest。
 
 **Interfaces:** 消费 Task 2 的 Runtime 与既有四参数 fit；保持 generate(ChatCommand, ChatRequestContext, List<Map<String,Object>>, Consumer<ChatOutput>)、persistCompletedTurn 的对外契约。产出 load_skill 进度以及第 7 节定义的终态代码，Task 4 配套页面。
 
-- [ ] 使用现有 [MockModelSseServer](/E:/Curzsu/ShadowRAG/src/test/java/com/yizhaoqi/smartpai/support/MockModelSseServer.java) 捕获真实请求，不只 mock “加载成功”返回值。
+- [ ] 使用现有 [MockModelSseServer](../../../src/test/java/com/yizhaoqi/smartpai/support/MockModelSseServer.java) 捕获真实请求，不只 mock “加载成功”返回值。
 - [ ] 写 `firstRequestHasCatalogAndBothToolsButNoBody`、`automaticLoadInjectsBodyExactlyOnceInNextRequest`：断言初始 tools 为知识库和 load_skill，后续只含知识库；正文一次出现，角色序列为 system、真实 user、assistant、tool、指南 user。
 - [ ] 写 `explicitCommandExpandsBeforeFirstModelRequest`：首次含完整正文与参数，不含 load_skill；原 command 不变，不发送模拟 tool_progress，不伪造模型工具配对。
 - [ ] 写 `sameBatchPairsAllResultsBeforeGuidance`：模型同批返回 load_skill、search_knowledge_base、第二个 load_skill，断言每个 callId 都有 tool，只有一个正文，指南在全部 tool 后，第二次加载返回限额错误；检索身份仍是 alice。
@@ -465,7 +467,7 @@ mvn '-Dtest=SkillAgentLoopTest,AgentLoopServiceTest,KnowledgeBaseSearchToolTest,
 
 ### Task 4：SSE、页面提示和完整验收
 
-**Files:** 按第 8 节修改 ChatStreamService 和前端 / 静态页；扩展 [ChatStreamServiceTest.java](/E:/Curzsu/ShadowRAG/src/test/java/com/yizhaoqi/smartpai/service/chat/ChatStreamServiceTest.java)、[chat-stream.test.ts](/E:/Curzsu/ShadowRAG/frontend/src/service/api/chat-stream.test.ts)、[chat-rounds.test.ts](/E:/Curzsu/ShadowRAG/frontend/src/store/modules/chat/chat-rounds.test.ts)。生成的静态协议由同步脚本更新。
+**Files:** 按第 8 节修改 ChatStreamService 和前端 / 静态页；扩展 [ChatStreamServiceTest.java](../../../src/test/java/com/yizhaoqi/smartpai/service/chat/ChatStreamServiceTest.java)、[chat-stream.test.ts](../../../frontend/src/service/api/chat-stream.test.ts)、[chat-rounds.test.ts](../../../frontend/src/store/modules/chat/chat-rounds.test.ts)。生成的静态协议由同步脚本更新。
 
 **Interfaces:** 消费 Task 3 的事件和错误码；产出第 10 节的页面体验，不新增 HTTP DTO、事件类型或上传入口。
 
@@ -514,7 +516,7 @@ pnpm typecheck
 
 ## 11. 交付、上线与后续边界
 
-开发结果必须包含实现、两份 Skill、通过的测试记录、12 条真实模型验收记录、管理员启用说明。验收记录建议新增到 [2026-10-07-skill-integration-roi-acceptance.md](/E:/Curzsu/ShadowRAG/docs/research/2026-10-07-skill-integration-roi-acceptance.md)，由实施者在实际运行后填写；不要事先勾选或虚构通过结果。
+开发结果必须包含实现、两份 Skill、通过的测试记录、12 条真实模型验收记录、管理员启用说明。验收记录建议新增到 2026-10-07-skill-integration-roi-acceptance.md（计划路径：`docs/research/2026-10-07-skill-integration-roi-acceptance.md`），由实施者在实际运行后填写；不要事先勾选或虚构通过结果。
 
 管理员启用说明：随部署分发或挂载 skills 目录 → 配置服务端绝对 directory → enabled=true → 重启 → 查看目录诊断 → 在页面完成显式比较和普通问答冒烟。容器中配置的是容器路径，不是开发机的 E 盘路径。
 
@@ -526,7 +528,7 @@ pnpm typecheck
 
 - [Agent Skills 文件规范](https://agentskills.io/specification)：SKILL.md、YAML 元数据和目录格式。
 - [官方接入指南](https://agentskills.io/client-implementation/adding-skills-support)：渐进披露、专用加载工具及显式入口。文件格式兼容不代表任意技能依赖的运行能力均受支持。
-- [pi skills.ts](/E:/pi/packages/coding-agent/src/core/skills.ts:358)：简介广播；启动读取文件不等于把正文发送给模型。
-- [pi agent-session.ts](/E:/pi/packages/coding-agent/src/core/agent-session.ts:2146)：显式命令读取正文、去除 frontmatter 并附带用户参数。
+- pi skills.ts（原机器定位：`/E:/pi/packages/coding-agent/src/core/skills.ts:358`）：简介广播；启动读取文件不等于把正文发送给模型。
+- pi agent-session.ts（原机器定位：`/E:/pi/packages/coding-agent/src/core/agent-session.ts:2146`）：显式命令读取正文、去除 frontmatter 并附带用户参数。
 
 pi 源码只用于理解机制。执行本计划不依赖开发机存在 E:/pi，也不需要复制 pi 的文件工具、目录扫描兼容层或完整 agent 架构。

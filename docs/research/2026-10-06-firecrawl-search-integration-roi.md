@@ -1,5 +1,7 @@
 # Firecrawl 联网搜索调研与 ShadowRAG 接入 ROI
 
+> 引用说明：源码行号保留调研时的位置；本仓库链接已改为相对路径，外部参考仓库的本机路径仅作为文字定位记录，不代表可共享入口。
+
 日期：2026-10-06。范围：官方文档、官方 MCP 仓库、ShadowRAG 当前源码，以及公开端点的免密钥探测。本文给出工程建议，没有实现联网功能，也没有测得成功搜索的质量、P50/P95 延迟或付费账户吞吐。
 
 ## 推荐结论
@@ -28,15 +30,15 @@ CLI 适合开发者试用、调试和批量导入脚本；不建议作为 Java �
 
 | 当前事实 | 已核对位置 | 对接入的影响 |
 | --- | --- | --- |
-| 多轮模型/工具循环已有，模型客户端能接收工具定义列表 | [AgentLoopService](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/AgentLoopService.java:54) | 无需为了 Firecrawl 更换 LLM 框架 |
-| 工具定义与执行仍固定为知识库工具 | [AgentLoopService](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/AgentLoopService.java:81) | REST、MCP 都需要改成按工具名分发；MCP 不能省掉这部分 |
-| 重复调用归一化使用知识库 query 解析器，进度事件也固定知识库工具名 | [AgentLoopService](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/AgentLoopService.java:91) | 必须同步泛化，不能只添加一个 HTTP 客户端 |
-| 默认 3 轮工具、6 次调用，结果上限 16384 字符，收尾预留 10 秒 | [配置](E:/Curzsu/ShadowRAG/src/main/resources/application.yml:177) | 可以复用，但联网需要额外的搜索次数、费用和时间边界 |
-| 请求资源支持挂接 HTTP future 和响应流，停止时取消并关闭 | [ChatGenerationResources](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/chat/ChatGenerationResources.java:38) | 新 HTTP 工具应接入相同生命周期；本地取消不承诺撤销供应商执行或费用 |
-| 预算器只对 `[来源索引]` 首行做特殊保留 | [ContextBudgetService](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ContextBudgetService.java:100) | 网页来源 URL 要放入受保护的来源清单，正文裁剪与来源状态一起处理 |
-| 提示词要求事实问题先查知识库，并使用文件引用 | [application.yml](E:/Curzsu/ShadowRAG/src/main/resources/application.yml:149) | 需新增公开资料与最新信息的联网规则 |
-| 前端将 `(来源#编号: 名称)` 解释为内部文件 | [chat-message.vue](E:/Curzsu/ShadowRAG/frontend/src/views/chat/modules/chat-message.vue:23) | 网页应使用独立的 Markdown 链接，不能把网页标题伪装成文件引用 |
-| MCP 仅有待实施设计，未发现客户端源码或 Maven 依赖 | [MCP 设计](E:/Curzsu/ShadowRAG/docs/superpowers/specs/2026-10-03-mcp-client-integration-design.md:5) | 选择 MCP 需要计入协议客户端、发现、生命周期和适配成本 |
+| 多轮模型/工具循环已有，模型客户端能接收工具定义列表 | [AgentLoopService](../../src/main/java/com/yizhaoqi/smartpai/service/AgentLoopService.java#L54) | 无需为了 Firecrawl 更换 LLM 框架 |
+| 工具定义与执行仍固定为知识库工具 | [AgentLoopService](../../src/main/java/com/yizhaoqi/smartpai/service/AgentLoopService.java#L81) | REST、MCP 都需要改成按工具名分发；MCP 不能省掉这部分 |
+| 重复调用归一化使用知识库 query 解析器，进度事件也固定知识库工具名 | [AgentLoopService](../../src/main/java/com/yizhaoqi/smartpai/service/AgentLoopService.java#L91) | 必须同步泛化，不能只添加一个 HTTP 客户端 |
+| 默认 3 轮工具、6 次调用，结果上限 16384 字符，收尾预留 10 秒 | [配置](../../src/main/resources/application.yml#L177) | 可以复用，但联网需要额外的搜索次数、费用和时间边界 |
+| 请求资源支持挂接 HTTP future 和响应流，停止时取消并关闭 | [ChatGenerationResources](../../src/main/java/com/yizhaoqi/smartpai/service/chat/ChatGenerationResources.java#L38) | 新 HTTP 工具应接入相同生命周期；本地取消不承诺撤销供应商执行或费用 |
+| 预算器只对 `[来源索引]` 首行做特殊保留 | [ContextBudgetService](../../src/main/java/com/yizhaoqi/smartpai/service/ContextBudgetService.java#L100) | 网页来源 URL 要放入受保护的来源清单，正文裁剪与来源状态一起处理 |
+| 提示词要求事实问题先查知识库，并使用文件引用 | [application.yml](../../src/main/resources/application.yml#L149) | 需新增公开资料与最新信息的联网规则 |
+| 前端将 `(来源#编号: 名称)` 解释为内部文件 | [chat-message.vue](../../frontend/src/views/chat/modules/chat-message.vue#L23) | 网页应使用独立的 Markdown 链接，不能把网页标题伪装成文件引用 |
+| MCP 仅有待实施设计，未发现客户端源码或 Maven 依赖 | [MCP 设计](../superpowers/specs/2026-10-03-mcp-client-integration-design.md#L5) | 选择 MCP 需要计入协议客户端、发现、生命周期和适配成本 |
 
 已有前端未提交改动，本次仅阅读，没有修改这些文件。
 

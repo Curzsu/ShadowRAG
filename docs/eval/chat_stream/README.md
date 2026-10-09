@@ -1,5 +1,7 @@
 # 聊天 POST SSE 验收记录
 
+> 阶段验收档案：以下状态、分支、测试数量和运行环境是当时记录，不表示当前部署状态。当前接口与配置见[聊天指南](../../chat.md)，自动检查范围见 [CI 说明](../../ci.md)。原结果及限制保留。
+
 更新：2026-10-05。基线 `6cb1e866a503af568bb58d8913c73dfb8154243a`，分支 `codex/backend-chat-sse`，当前为未提交工作区。任务1–7已完成，A01–A36有下表实际证据，真实Nginx、生产/开发/两HTML、真实Gemini/Markdown/历史、安全复扫与临时环境清理完成。全量九个既有错误与真实DB/Redis/ES未验证边界保留，不能称全量或完整生产基础设施绿色。
 
 历史阶段记录保留原测试数量和当时的限制：[后端任务 1–3](backend-tasks-1-3.md)、[前端任务 4–5](frontend-tasks-4-5.md)。本轮见 [任务6–7](tasks-6-7.md)、[机器可读结果](tasks-6-7-test-results.json)、[浏览器](browser-acceptance.md)、[真实Gemini](live-gemini.md)、[复现步骤](reproduce.md)。设计及必验条件见 [A01–A36 原定义](../../superpowers/specs/2026-10-03-websocket-to-sse-refactor-design.md#10-验收标准)。

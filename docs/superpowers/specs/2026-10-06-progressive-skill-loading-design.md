@@ -1,5 +1,7 @@
 # ShadowRAG Skill 渐进式加载与动态工具开放设计
 
+> 引用说明：源码行号保留调研时的位置；本仓库链接已改为相对路径，外部参考仓库的本机路径仅作为文字定位记录，不代表可共享入口。
+
 日期：2026-10-06。状态：可供实施的设计，功能尚未实现。
 
 2026-10-07 更新：实施顺序见 [Skill 加载层分阶段计划](../plans/2026-10-07-skill-loading-phased-plan.md)。按最新范围，本轮只分四个阶段完成 Skill 加载层，用现有知识库检索验收，先不考虑 MCP。本文中的联网和 CLI 扩展作为历史备选保留，不属于本轮实施范围；Skill 格式、请求内状态、原子激活和上下文保护要求继续适用。
@@ -68,13 +70,13 @@ Skill 为应用管理员维护的实例级能力；它不是某个操作系统�
 
 | 当前实现 | 本次需要改的部分 |
 | --- | --- |
-| [AgentLoopService](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/AgentLoopService.java:54) 已能多轮调用模型和工具 | 替换固定 KnowledgeBaseSearchTool.DEFINITIONS 和 search.execute；复用循环与消息配对 |
-| [DeepSeekClient](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/client/DeepSeekClient.java:37) 接受每次请求的工具定义列表 | 每轮传入动态集合，无需为 skill 改写供应商 HTTP 协议 |
-| [ChatHandler](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java:146) 提前按知识库工具做一次预算 | 将工具相关预算集中到 AgentLoopService，避免初始请求仍预留隐藏业务工具 |
-| [ContextBudgetService.fitAgent](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ContextBudgetService.java:25) 用最后一条 user 消息确定保护范围 | 改为显式当前任务保护范围，避免 skill 指南被误认成新的用户任务 |
-| [KnowledgeBaseSearchTool](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/KnowledgeBaseSearchTool.java:40) 使用 command.username() 做权限检索 | 保留底层实现，适配为通用执行器，身份不由 skill 或模型指定 |
-| [ChatGenerationResources](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/chat/ChatGenerationResources.java:38) 管理 HTTP 请求与响应流 | CLI 需新增独立进程资源管理，不能只借用 HTTP future 当作取消保证 |
-| [AgentLoopService](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/AgentLoopService.java:91) 的重复检测和进度名称固定知识库 | 泛化到不同工具的参数和名称 |
+| [AgentLoopService](../../../src/main/java/com/yizhaoqi/smartpai/service/AgentLoopService.java#L54) 已能多轮调用模型和工具 | 替换固定 KnowledgeBaseSearchTool.DEFINITIONS 和 search.execute；复用循环与消息配对 |
+| [DeepSeekClient](../../../src/main/java/com/yizhaoqi/smartpai/client/DeepSeekClient.java#L37) 接受每次请求的工具定义列表 | 每轮传入动态集合，无需为 skill 改写供应商 HTTP 协议 |
+| [ChatHandler](../../../src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java#L146) 提前按知识库工具做一次预算 | 将工具相关预算集中到 AgentLoopService，避免初始请求仍预留隐藏业务工具 |
+| [ContextBudgetService.fitAgent](../../../src/main/java/com/yizhaoqi/smartpai/service/ContextBudgetService.java#L25) 用最后一条 user 消息确定保护范围 | 改为显式当前任务保护范围，避免 skill 指南被误认成新的用户任务 |
+| [KnowledgeBaseSearchTool](../../../src/main/java/com/yizhaoqi/smartpai/service/KnowledgeBaseSearchTool.java#L40) 使用 command.username() 做权限检索 | 保留底层实现，适配为通用执行器，身份不由 skill 或模型指定 |
+| [ChatGenerationResources](../../../src/main/java/com/yizhaoqi/smartpai/service/chat/ChatGenerationResources.java#L38) 管理 HTTP 请求与响应流 | CLI 需新增独立进程资源管理，不能只借用 HTTP future 当作取消保证 |
+| [AgentLoopService](../../../src/main/java/com/yizhaoqi/smartpai/service/AgentLoopService.java#L91) 的重复检测和进度名称固定知识库 | 泛化到不同工具的参数和名称 |
 
 2026-10-03 的 skill 调研有参考价值，但其中“只支持一个 tool_calls”“第二次模型请求不带工具”等历史前提已变化。实施以本设计和当前源码为准。
 
@@ -82,12 +84,12 @@ Skill 为应用管理员维护的实例级能力；它不是某个操作系统�
 
 已读取本地 PaiCLI 的以下实现：
 
-- [SkillRegistry](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillRegistry.java:41)：目录扫描、覆盖、缓存元数据与正文。
-- [SkillIndexFormatter](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillIndexFormatter.java:40)：先发 name/description，引导按需 load_skill。
-- [ToolRegistry](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/tool/ToolRegistry.java:816)：load_skill 名称查找与加载确认。
-- [LoadedSkillMessages](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/tool/LoadedSkillMessages.java:33)：成功加载后生成正文指南。
-- [Agent](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/agent/Agent.java:551)：本次用户任务内补入指南并继续模型请求。
-- [LoadSkillSameTurnTest](E:/Curzsu/paicli-main/paicli-main/src/test/java/com/paicli/agent/LoadSkillSameTurnTest.java:91)：断言第一次请求无正文、第二次包含加载正文。
+- SkillRegistry（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillRegistry.java:41`）：目录扫描、覆盖、缓存元数据与正文。
+- SkillIndexFormatter（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillIndexFormatter.java:40`）：先发 name/description，引导按需 load_skill。
+- ToolRegistry（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/tool/ToolRegistry.java:816`）：load_skill 名称查找与加载确认。
+- LoadedSkillMessages（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/tool/LoadedSkillMessages.java:33`）：成功加载后生成正文指南。
+- Agent（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/agent/Agent.java:551`）：本次用户任务内补入指南并继续模型请求。
+- LoadSkillSameTurnTest（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/test/java/com/paicli/agent/LoadSkillSameTurnTest.java:91`）：断言第一次请求无正文、第二次包含加载正文。
 
 保留发现、索引、按需注入和同轮继续的机制。本设计额外加入业务工具按需开放、明确任务边界、实例级配置和请求内状态。不要复制 CLI 的全局用户目录、交互命令、字母序硬截断索引或固定字符截断正文。
 
@@ -501,7 +503,7 @@ scrape 拒绝带 userinfo 的 URL、localhost、私有/回环/链路本地 IP �
 - 非零退出码、CLI JSON 报错、认证失败、429、空结果、页面错误分别规范化；不会仅以 exitCode=0 判定联网成功。
 - 固定版本 stdout 契约通过测试样本解析。输出不符合预期时返回 CLI_OUTPUT_INVALID；不要猜测结构或把完整原始输出直接塞进上下文。
 
-每答调用次数和搜索条数限制不等于 credits 的绝对上限，例如 PDF 解析可能按页计费。首版不开放额外提取格式，优先普通网页；使用账户额度、用量记录和真实样本复核费用。此前本机免密钥 REST 与 MCP 搜索都被拒绝，因此联网验收使用管理员配置的 Key，不能以成功握手代替搜索可用性。[前期探测记录](E:/Curzsu/ShadowRAG/docs/research/2026-10-06-firecrawl-search-integration-roi.md)
+每答调用次数和搜索条数限制不等于 credits 的绝对上限，例如 PDF 解析可能按页计费。首版不开放额外提取格式，优先普通网页；使用账户额度、用量记录和真实样本复核费用。此前本机免密钥 REST 与 MCP 搜索都被拒绝，因此联网验收使用管理员配置的 Key，不能以成功握手代替搜索可用性。[前期探测记录](../../research/2026-10-06-firecrawl-search-integration-roi.md)
 
 run_cli 复用进程执行，不代表所有 CLI 共享输出含义。不同程序可以提供自己的参数策略和输出规范化器；新增纯只读 CLI 通常不必改 AgentLoopService。
 
@@ -573,7 +575,7 @@ run_cli 复用进程执行，不代表所有 CLI 共享输出含义。不同程�
 
 ### 必须断言真实模型请求的测试
 
-复用现有 [AgentLoopServiceTest](E:/Curzsu/ShadowRAG/src/test/java/com/yizhaoqi/smartpai/service/AgentLoopServiceTest.java:19) 和 MockModelSseServer，记录每次实际请求的 messages/tools，而不是只断言 formatter 输出。
+复用现有 [AgentLoopServiceTest](../../../src/test/java/com/yizhaoqi/smartpai/service/AgentLoopServiceTest.java#L19) 和 MockModelSseServer，记录每次实际请求的 messages/tools，而不是只断言 formatter 输出。
 
 | 场景 | 通过标准 |
 | --- | --- |
