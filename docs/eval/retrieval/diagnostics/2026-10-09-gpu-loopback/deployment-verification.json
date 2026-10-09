@@ -1,0 +1,25 @@
+{
+  "verified_at": "2026-10-09T03:03:06.375858+00:00",
+  "container": "tei-reranker",
+  "port": 8082,
+  "image_id": "sha256:bd8e5b1954146f7fe8590b64b959bc194433c6c38c036592a84d736841ca9400",
+  "dtype": "float16",
+  "cuda_backend_verified": true,
+  "health_status": 200,
+  "measurements": [
+    {
+      "sample_id": "1",
+      "seconds": 0.3576776999980211,
+      "candidate_count": 10,
+      "full_order_matches_cpu": true
+    },
+    {
+      "sample_id": "4",
+      "seconds": 0.14451440001721494,
+      "candidate_count": 10,
+      "full_order_matches_cpu": true
+    }
+  ],
+  "tei_version": "1.9.4",
+  "verified": true
+}

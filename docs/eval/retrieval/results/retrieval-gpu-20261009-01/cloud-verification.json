@@ -1,0 +1,19 @@
+{
+  "run_id": "retrieval-gpu-20261009-01",
+  "verified": true,
+  "experiments": [
+    {
+      "id": "02241d97-2403-3131-bec5-3e7958429920",
+      "name": "retrieval-gpu-20261009-01-bm25",
+      "item_count": 10,
+      "sample_trace_id": "e109b94d6c251feb8ab1fc27776ac995"
+    },
+    {
+      "id": "09b59b17-d43d-3c3d-bb8a-9705008004c1",
+      "name": "retrieval-gpu-20261009-01-hybrid_rerank",
+      "item_count": 10,
+      "sample_trace_id": "22cfbbc6fdd89d5f6e5a7eac58272a6d"
+    }
+  ],
+  "score_count": 40
+}

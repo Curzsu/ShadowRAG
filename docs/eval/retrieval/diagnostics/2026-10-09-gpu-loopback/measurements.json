@@ -1,0 +1,315 @@
+{
+  "created_at": "2026-10-09T02:52:03.406886+00:00",
+  "input_sha256": "c92f3006cdc558bd71093fa13c585b0d1a69a08d02167ec32ee1d50a4299fb76",
+  "cpu_url": "http://127.0.0.1:8082",
+  "gpu_url": "http://127.0.0.1:8083",
+  "repeats": 3,
+  "sample_count": 2,
+  "candidate_counts": [
+    10,
+    10
+  ],
+  "measurements": [
+    {
+      "sample_id": "1",
+      "repeat": 1,
+      "execution_order": [
+        "cpu",
+        "gpu"
+      ],
+      "seconds": {
+        "cpu": 11.383786600024905,
+        "gpu": 0.3240275999996811
+      },
+      "input_sha256": "1a6e7f7e77ea601b988661bed701dd86f37ec57bcb72859951b3d2c736abb9f1",
+      "comparison": {
+        "cpu": {
+          "ordered_keys": [
+            "f85f05936fc325cf34792163c880042c:76",
+            "f85f05936fc325cf34792163c880042c:41",
+            "f85f05936fc325cf34792163c880042c:32",
+            "f85f05936fc325cf34792163c880042c:46",
+            "f85f05936fc325cf34792163c880042c:73",
+            "f85f05936fc325cf34792163c880042c:54",
+            "f85f05936fc325cf34792163c880042c:47",
+            "f85f05936fc325cf34792163c880042c:21",
+            "f85f05936fc325cf34792163c880042c:52",
+            "f85f05936fc325cf34792163c880042c:60"
+          ],
+          "hit_at_5": 0,
+          "mrr_at_5": 0
+        },
+        "gpu": {
+          "ordered_keys": [
+            "f85f05936fc325cf34792163c880042c:76",
+            "f85f05936fc325cf34792163c880042c:41",
+            "f85f05936fc325cf34792163c880042c:32",
+            "f85f05936fc325cf34792163c880042c:46",
+            "f85f05936fc325cf34792163c880042c:73",
+            "f85f05936fc325cf34792163c880042c:54",
+            "f85f05936fc325cf34792163c880042c:47",
+            "f85f05936fc325cf34792163c880042c:21",
+            "f85f05936fc325cf34792163c880042c:52",
+            "f85f05936fc325cf34792163c880042c:60"
+          ],
+          "hit_at_5": 0,
+          "mrr_at_5": 0
+        },
+        "exact_order_equal": true,
+        "top5_order_equal": true,
+        "max_absolute_score_difference": 0.0008825000000000083
+      }
+    },
+    {
+      "sample_id": "1",
+      "repeat": 2,
+      "execution_order": [
+        "gpu",
+        "cpu"
+      ],
+      "seconds": {
+        "gpu": 0.16194430002360605,
+        "cpu": 13.696974499995122
+      },
+      "input_sha256": "1a6e7f7e77ea601b988661bed701dd86f37ec57bcb72859951b3d2c736abb9f1",
+      "comparison": {
+        "cpu": {
+          "ordered_keys": [
+            "f85f05936fc325cf34792163c880042c:76",
+            "f85f05936fc325cf34792163c880042c:41",
+            "f85f05936fc325cf34792163c880042c:32",
+            "f85f05936fc325cf34792163c880042c:46",
+            "f85f05936fc325cf34792163c880042c:73",
+            "f85f05936fc325cf34792163c880042c:54",
+            "f85f05936fc325cf34792163c880042c:47",
+            "f85f05936fc325cf34792163c880042c:21",
+            "f85f05936fc325cf34792163c880042c:52",
+            "f85f05936fc325cf34792163c880042c:60"
+          ],
+          "hit_at_5": 0,
+          "mrr_at_5": 0
+        },
+        "gpu": {
+          "ordered_keys": [
+            "f85f05936fc325cf34792163c880042c:76",
+            "f85f05936fc325cf34792163c880042c:41",
+            "f85f05936fc325cf34792163c880042c:32",
+            "f85f05936fc325cf34792163c880042c:46",
+            "f85f05936fc325cf34792163c880042c:73",
+            "f85f05936fc325cf34792163c880042c:54",
+            "f85f05936fc325cf34792163c880042c:47",
+            "f85f05936fc325cf34792163c880042c:21",
+            "f85f05936fc325cf34792163c880042c:52",
+            "f85f05936fc325cf34792163c880042c:60"
+          ],
+          "hit_at_5": 0,
+          "mrr_at_5": 0
+        },
+        "exact_order_equal": true,
+        "top5_order_equal": true,
+        "max_absolute_score_difference": 0.0009199599999999974
+      }
+    },
+    {
+      "sample_id": "1",
+      "repeat": 3,
+      "execution_order": [
+        "cpu",
+        "gpu"
+      ],
+      "seconds": {
+        "cpu": 10.954512900003465,
+        "gpu": 0.4522562000202015
+      },
+      "input_sha256": "1a6e7f7e77ea601b988661bed701dd86f37ec57bcb72859951b3d2c736abb9f1",
+      "comparison": {
+        "cpu": {
+          "ordered_keys": [
+            "f85f05936fc325cf34792163c880042c:76",
+            "f85f05936fc325cf34792163c880042c:41",
+            "f85f05936fc325cf34792163c880042c:32",
+            "f85f05936fc325cf34792163c880042c:46",
+            "f85f05936fc325cf34792163c880042c:73",
+            "f85f05936fc325cf34792163c880042c:54",
+            "f85f05936fc325cf34792163c880042c:47",
+            "f85f05936fc325cf34792163c880042c:21",
+            "f85f05936fc325cf34792163c880042c:52",
+            "f85f05936fc325cf34792163c880042c:60"
+          ],
+          "hit_at_5": 0,
+          "mrr_at_5": 0
+        },
+        "gpu": {
+          "ordered_keys": [
+            "f85f05936fc325cf34792163c880042c:76",
+            "f85f05936fc325cf34792163c880042c:41",
+            "f85f05936fc325cf34792163c880042c:32",
+            "f85f05936fc325cf34792163c880042c:46",
+            "f85f05936fc325cf34792163c880042c:73",
+            "f85f05936fc325cf34792163c880042c:54",
+            "f85f05936fc325cf34792163c880042c:47",
+            "f85f05936fc325cf34792163c880042c:21",
+            "f85f05936fc325cf34792163c880042c:52",
+            "f85f05936fc325cf34792163c880042c:60"
+          ],
+          "hit_at_5": 0,
+          "mrr_at_5": 0
+        },
+        "exact_order_equal": true,
+        "top5_order_equal": true,
+        "max_absolute_score_difference": 0.0009201100000000295
+      }
+    },
+    {
+      "sample_id": "4",
+      "repeat": 1,
+      "execution_order": [
+        "gpu",
+        "cpu"
+      ],
+      "seconds": {
+        "gpu": 0.1993443999963347,
+        "cpu": 10.584739199985052
+      },
+      "input_sha256": "f20786c2ea22412ab565a0469da3fd2d83f1e706b467228d89f9ec0a4251a7e3",
+      "comparison": {
+        "cpu": {
+          "ordered_keys": [
+            "f85f05936fc325cf34792163c880042c:4",
+            "f85f05936fc325cf34792163c880042c:75",
+            "f85f05936fc325cf34792163c880042c:10",
+            "f85f05936fc325cf34792163c880042c:38",
+            "f85f05936fc325cf34792163c880042c:9",
+            "f85f05936fc325cf34792163c880042c:8",
+            "f85f05936fc325cf34792163c880042c:19",
+            "f85f05936fc325cf34792163c880042c:45",
+            "f85f05936fc325cf34792163c880042c:74",
+            "f85f05936fc325cf34792163c880042c:60"
+          ],
+          "hit_at_5": 1,
+          "mrr_at_5": 1.0
+        },
+        "gpu": {
+          "ordered_keys": [
+            "f85f05936fc325cf34792163c880042c:4",
+            "f85f05936fc325cf34792163c880042c:75",
+            "f85f05936fc325cf34792163c880042c:10",
+            "f85f05936fc325cf34792163c880042c:38",
+            "f85f05936fc325cf34792163c880042c:9",
+            "f85f05936fc325cf34792163c880042c:8",
+            "f85f05936fc325cf34792163c880042c:19",
+            "f85f05936fc325cf34792163c880042c:45",
+            "f85f05936fc325cf34792163c880042c:74",
+            "f85f05936fc325cf34792163c880042c:60"
+          ],
+          "hit_at_5": 1,
+          "mrr_at_5": 1.0
+        },
+        "exact_order_equal": true,
+        "top5_order_equal": true,
+        "max_absolute_score_difference": 0.0005855999999999639
+      }
+    },
+    {
+      "sample_id": "4",
+      "repeat": 2,
+      "execution_order": [
+        "cpu",
+        "gpu"
+      ],
+      "seconds": {
+        "cpu": 12.366784700017888,
+        "gpu": 0.33780720000504516
+      },
+      "input_sha256": "f20786c2ea22412ab565a0469da3fd2d83f1e706b467228d89f9ec0a4251a7e3",
+      "comparison": {
+        "cpu": {
+          "ordered_keys": [
+            "f85f05936fc325cf34792163c880042c:4",
+            "f85f05936fc325cf34792163c880042c:75",
+            "f85f05936fc325cf34792163c880042c:10",
+            "f85f05936fc325cf34792163c880042c:38",
+            "f85f05936fc325cf34792163c880042c:9",
+            "f85f05936fc325cf34792163c880042c:8",
+            "f85f05936fc325cf34792163c880042c:19",
+            "f85f05936fc325cf34792163c880042c:45",
+            "f85f05936fc325cf34792163c880042c:74",
+            "f85f05936fc325cf34792163c880042c:60"
+          ],
+          "hit_at_5": 1,
+          "mrr_at_5": 1.0
+        },
+        "gpu": {
+          "ordered_keys": [
+            "f85f05936fc325cf34792163c880042c:4",
+            "f85f05936fc325cf34792163c880042c:75",
+            "f85f05936fc325cf34792163c880042c:10",
+            "f85f05936fc325cf34792163c880042c:38",
+            "f85f05936fc325cf34792163c880042c:9",
+            "f85f05936fc325cf34792163c880042c:8",
+            "f85f05936fc325cf34792163c880042c:19",
+            "f85f05936fc325cf34792163c880042c:45",
+            "f85f05936fc325cf34792163c880042c:74",
+            "f85f05936fc325cf34792163c880042c:60"
+          ],
+          "hit_at_5": 1,
+          "mrr_at_5": 1.0
+        },
+        "exact_order_equal": true,
+        "top5_order_equal": true,
+        "max_absolute_score_difference": 0.0008924099999999824
+      }
+    },
+    {
+      "sample_id": "4",
+      "repeat": 3,
+      "execution_order": [
+        "gpu",
+        "cpu"
+      ],
+      "seconds": {
+        "gpu": 0.16919519999646582,
+        "cpu": 11.009191599994665
+      },
+      "input_sha256": "f20786c2ea22412ab565a0469da3fd2d83f1e706b467228d89f9ec0a4251a7e3",
+      "comparison": {
+        "cpu": {
+          "ordered_keys": [
+            "f85f05936fc325cf34792163c880042c:4",
+            "f85f05936fc325cf34792163c880042c:75",
+            "f85f05936fc325cf34792163c880042c:10",
+            "f85f05936fc325cf34792163c880042c:38",
+            "f85f05936fc325cf34792163c880042c:9",
+            "f85f05936fc325cf34792163c880042c:8",
+            "f85f05936fc325cf34792163c880042c:19",
+            "f85f05936fc325cf34792163c880042c:45",
+            "f85f05936fc325cf34792163c880042c:74",
+            "f85f05936fc325cf34792163c880042c:60"
+          ],
+          "hit_at_5": 1,
+          "mrr_at_5": 1.0
+        },
+        "gpu": {
+          "ordered_keys": [
+            "f85f05936fc325cf34792163c880042c:4",
+            "f85f05936fc325cf34792163c880042c:75",
+            "f85f05936fc325cf34792163c880042c:10",
+            "f85f05936fc325cf34792163c880042c:38",
+            "f85f05936fc325cf34792163c880042c:9",
+            "f85f05936fc325cf34792163c880042c:8",
+            "f85f05936fc325cf34792163c880042c:19",
+            "f85f05936fc325cf34792163c880042c:45",
+            "f85f05936fc325cf34792163c880042c:74",
+            "f85f05936fc325cf34792163c880042c:60"
+          ],
+          "hit_at_5": 1,
+          "mrr_at_5": 1.0
+        },
+        "exact_order_equal": true,
+        "top5_order_equal": true,
+        "max_absolute_score_difference": 0.0008924099999999824
+      }
+    }
+  ],
+  "scope": "fixed candidate reranking only, warmed serial paired calls; CPU float32 vs GPU float16 serving configurations"
+}

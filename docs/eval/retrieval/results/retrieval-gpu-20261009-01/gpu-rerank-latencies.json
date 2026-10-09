@@ -1,0 +1,62 @@
+[
+  {
+    "sample_id": "1",
+    "trace_id": "22cfbbc6fdd89d5f6e5a7eac58272a6d",
+    "rerank_seconds": 0.16,
+    "level": "DEFAULT"
+  },
+  {
+    "sample_id": "2",
+    "trace_id": "719440dcf26a439a678250b6167e557c",
+    "rerank_seconds": 0.166,
+    "level": "DEFAULT"
+  },
+  {
+    "sample_id": "3",
+    "trace_id": "4b92e2d883969a469c008b157986a0da",
+    "rerank_seconds": 0.16,
+    "level": "DEFAULT"
+  },
+  {
+    "sample_id": "4",
+    "trace_id": "d8990956f5fdb99a787501ded1bb5cc1",
+    "rerank_seconds": 0.146,
+    "level": "DEFAULT"
+  },
+  {
+    "sample_id": "5",
+    "trace_id": "fa774a14a6e9acbf47e00bf04f86c8de",
+    "rerank_seconds": 0.164,
+    "level": "DEFAULT"
+  },
+  {
+    "sample_id": "6",
+    "trace_id": "5b5f7128ac6b47ce8124b778d040d3e3",
+    "rerank_seconds": 0.145,
+    "level": "DEFAULT"
+  },
+  {
+    "sample_id": "7",
+    "trace_id": "de69e5bfabf2051b08ed46c56aac1b78",
+    "rerank_seconds": 0.148,
+    "level": "DEFAULT"
+  },
+  {
+    "sample_id": "8",
+    "trace_id": "070357f2695063e5a494514475d2938c",
+    "rerank_seconds": 0.181,
+    "level": "DEFAULT"
+  },
+  {
+    "sample_id": "9",
+    "trace_id": "8d49a72f2d9894029f2a5736621a4918",
+    "rerank_seconds": 0.133,
+    "level": "DEFAULT"
+  },
+  {
+    "sample_id": "10",
+    "trace_id": "5f90d75d980abab9198fe6d48c648bba",
+    "rerank_seconds": 0.163,
+    "level": "DEFAULT"
+  }
+]

@@ -1,0 +1,16 @@
+# Optional RTX 50 series override. Start only tei-reranker; existing port stays 8082.
+# docker compose -f docs/docker-compose.yaml -f docs/docker-compose.gpu.yaml up -d --no-deps tei-reranker
+# Roll back: docker compose -f docs/docker-compose.yaml up -d --no-deps tei-reranker
+services:
+  tei-reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:120-1.9@sha256:bd8e5b1954146f7fe8590b64b959bc194433c6c38c036592a84d736841ca9400
+    environment:
+      DTYPE: float16
+    command: ["--max-batch-tokens", "16384", "--max-concurrent-requests", "32"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
