@@ -1,5 +1,7 @@
 # ShadowRAG 提示词注入防护调研与高 ROI 落地建议
 
+> 引用说明：源码行号保留调研时的位置；本仓库链接已改为相对路径，外部参考仓库的本机路径仅作为文字定位记录，不代表可共享入口。
+
 日期：2026-10-03。状态：调研与方案建议；未修改生产代码，未执行模型攻击实验。以下优先级和工期属于结合当前代码的工程判断，不是厂商性能结论。
 
 ## 推荐结论
@@ -14,15 +16,15 @@
 
 | 已核实的行为 | 代码位置与含义 |
 | --- | --- |
-| 当前唯一内置工具是 `search_knowledge_base` | [ChatHandler.java:52](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java:52)。尚未实现 MCP 客户端；2026-10-03 的 MCP 文档是待实现设计。 |
-| 检索使用服务端传入的用户身份，KNN 和 BM25 共用权限过滤 | [ChatHandler.java:240](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java:240)、[HybridSearchService.java:93](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/HybridSearchService.java:93)。模型只生成 query，不决定身份和授权。 |
-| 搜索后的第二次模型请求不携带 tools | [ChatHandler.java:253](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java:253)。限制同轮恶意文档驱动后续工具动作，但不能阻止回答污染和历史污染。 |
-| 检索正文及文件名直接拼成文本，再放入 tool 消息 | [ChatHandler.java:391](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java:391)、[ChatHandler.java:303](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java:303)。已有消息角色区分，仍需明确资料的信任属性。 |
-| 历史摘要虽然标注“非可信”，正文实际仍拼进 system | [ChatHandler.java:202](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java:202)。标签不能抵消角色提升。 |
-| 更直接的入口：正文以 `[历史摘要]` 开头就先被认作摘要，之后才检查普通历史角色 | [ChatHandler.java:178](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java:178)。普通用户历史正文可能因此进入 system；这是一条代码层面明确的信任边界错误，并不等于已经证明模型会执行其中攻击。 |
-| 压缩服务也按正文前缀识别摘要 | [ConversationCompressionService.java:323](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ConversationCompressionService.java:323)。需与聊天回放一并修正来源判断。 |
-| 预算器会直接 substring 截断整个 tool.content | [ContextBudgetService.java:104](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ContextBudgetService.java:104)。若改为 JSON 或分隔符，必须同时调整裁剪方式。 |
-| 助手消息交给 Markdown 渲染器，来源文件名被插入 HTML | [chat-message.vue:39](E:/Curzsu/ShadowRAG/frontend/src/views/chat/modules/chat-message.vue:39)、[chat-message.vue:154](E:/Curzsu/ShadowRAG/frontend/src/views/chat/modules/chat-message.vue:154)。本机安装的 vue-markdown-shiki 默认 `html: true`；这是源码风险判断，未执行浏览器攻击验证。 |
+| 当前唯一内置工具是 `search_knowledge_base` | [ChatHandler.java:52](../../src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java#L52)。尚未实现 MCP 客户端；2026-10-03 的 MCP 文档是待实现设计。 |
+| 检索使用服务端传入的用户身份，KNN 和 BM25 共用权限过滤 | [ChatHandler.java:240](../../src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java#L240)、[HybridSearchService.java:93](../../src/main/java/com/yizhaoqi/smartpai/service/HybridSearchService.java#L93)。模型只生成 query，不决定身份和授权。 |
+| 搜索后的第二次模型请求不携带 tools | [ChatHandler.java:253](../../src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java#L253)。限制同轮恶意文档驱动后续工具动作，但不能阻止回答污染和历史污染。 |
+| 检索正文及文件名直接拼成文本，再放入 tool 消息 | [ChatHandler.java:391](../../src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java#L391)、[ChatHandler.java:303](../../src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java#L303)。已有消息角色区分，仍需明确资料的信任属性。 |
+| 历史摘要虽然标注“非可信”，正文实际仍拼进 system | [ChatHandler.java:202](../../src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java#L202)。标签不能抵消角色提升。 |
+| 更直接的入口：正文以 `[历史摘要]` 开头就先被认作摘要，之后才检查普通历史角色 | [ChatHandler.java:178](../../src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java#L178)。普通用户历史正文可能因此进入 system；这是一条代码层面明确的信任边界错误，并不等于已经证明模型会执行其中攻击。 |
+| 压缩服务也按正文前缀识别摘要 | [ConversationCompressionService.java:323](../../src/main/java/com/yizhaoqi/smartpai/service/ConversationCompressionService.java#L323)。需与聊天回放一并修正来源判断。 |
+| 预算器会直接 substring 截断整个 tool.content | [ContextBudgetService.java:104](../../src/main/java/com/yizhaoqi/smartpai/service/ContextBudgetService.java#L104)。若改为 JSON 或分隔符，必须同时调整裁剪方式。 |
+| 助手消息交给 Markdown 渲染器，来源文件名被插入 HTML | [chat-message.vue:39](../../frontend/src/views/chat/modules/chat-message.vue#L39)、[chat-message.vue:154](../../frontend/src/views/chat/modules/chat-message.vue#L154)。本机安装的 vue-markdown-shiki 默认 `html: true`；这是源码风险判断，未执行浏览器攻击验证。 |
 
 ## 主流方法与取舍
 
@@ -121,7 +123,7 @@ OpenAI 的工程指南明确提醒不要把不可信变量插入高优先级 dev
 
 1. **有害内容审核不等于提示词注入识别。** Qwen3Guard 官方说明其定位为 prompt/response 安全审核，包含 Jailbreak 等类别；gpt-oss-safeguard 面向用户提供的政策进行分类。它们能否识别本项目中的业务劫持，需要专项测试。例如，诱导模型无视知识库事实、改答一个无害词语，也可能构成任务劫持，输出本身却不属于传统有害内容。[Qwen3Guard 官方资料](https://github.com/QwenLM/Qwen3Guard)、[gpt-oss-safeguard 官方报告](https://openai.com/index/gpt-oss-safeguard-technical-report/)
 2. **应用消息隔离不等于复现训练方案。** StruQ 包含格式化前端和专门训练的模型；SecAlign 使用偏好优化；IH-Challenge 是指令层级训练数据。仅增加 XML/JSON 标签，不能在简历中写成实现了这些模型防御。[StruQ](https://arxiv.org/abs/2402.06363)、[SecAlign](https://arxiv.org/abs/2410.05451)、[IH-Challenge](https://arxiv.org/abs/2603.10521)
-3. **L4 检查必须赶在实际影响发生前。** 当前 [ChatHandler.java:260](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java:260) 会立即转发生成片段，最终生成结束才审核无法撤回已经显示的内容或已经发出的图片请求。工具参数在执行前校验，HTML/图片策略在渲染前生效；若以后要拦截文本中的敏感信息，需要额外缓冲并处理跨片段匹配，首版不顺带承诺完整 DLP。
+3. **L4 检查必须赶在实际影响发生前。** 当前 [ChatHandler.java:260](../../src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java#L260) 会立即转发生成片段，最终生成结束才审核无法撤回已经显示的内容或已经发出的图片请求。工具参数在执行前校验，HTML/图片策略在渲染前生效；若以后要拦截文本中的敏感信息，需要额外缓冲并处理跨片段匹配，首版不顺带承诺完整 DLP。
 
 建议的实施顺序为：**L2 信任边界修复 → L4 明确行为约束 → L1 检测副本 + L3 规则及审计 → 对抗评测。** 首版只覆盖实际存在的消息、摘要和检索链路；之后接入 MCP，再补工具描述来源、工具名单和外联范围。熟悉代码时首版整体粗估 3–5 个开发日，包含基本回归，模型效果评测与样本复核另计；这是尚未实现的工程估算。
 

@@ -1,8 +1,10 @@
 # ShadowRAG Skill 配置与加载：PaiCLI 源码对照与接入建议
 
+> 引用说明：源码行号保留调研时的位置；本仓库链接已改为相对路径，外部参考仓库的本机路径仅作为文字定位记录，不代表可共享入口。
+
 日期：2026-10-03；2026-10-06 复核当前代码。状态：源码调研与方案建议，skill 尚未实现。
 
-当前实施方案见 [Skill 渐进式加载与动态工具开放设计](E:/Curzsu/ShadowRAG/docs/superpowers/specs/2026-10-06-progressive-skill-loading-design.md)。该设计同时按需加载正文和业务工具 Schema，取代本文早期只讨论正文展开的方案；本文保留源码调研记录。
+当前实施方案见 [Skill 渐进式加载与动态工具开放设计](../superpowers/specs/2026-10-06-progressive-skill-loading-design.md)。该设计同时按需加载正文和业务工具 Schema，取代本文早期只讨论正文展开的方案；本文保留源码调研记录。本文后续外部仓库源码链接是原调研机器路径，尚未整理成可共享引用。
 
 ## 2026-10-06 复核：现在实现的难度与 Firecrawl CLI 路径
 
@@ -12,18 +14,18 @@
 
 ### PaiCLI 可直接参考的机制
 
-1. [SkillRegistry](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillRegistry.java:41) 扫描目录、解析元数据并缓存正文。按需加载指模型上下文按需展开，不代表每次调用才读取磁盘。
-2. [SkillIndexFormatter](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillIndexFormatter.java:40) 只向模型提供 name、description 和 load_skill 使用规则。少量 skill 首版不需要向量检索或额外路由模型。
-3. [load_skill 执行器](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/tool/ToolRegistry.java:816) 按精确名称查找并检查禁用状态；工具返回确认，正文由受控代码补入。
-4. [LoadedSkillMessages](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/tool/LoadedSkillMessages.java:33) 从本批成功加载的结果取得正文；[Agent](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/agent/Agent.java:551) 追加指南后继续请求模型，当前用户任务即可生效。
-5. [LoadSkillSameTurnTest](E:/Curzsu/paicli-main/paicli-main/src/test/java/com/paicli/agent/LoadSkillSameTurnTest.java:91) 记录请求序列，断言第一次无正文、加载后的第二次有正文。它验证注入链路，不证明真实模型会正确选择 skill。
+1. SkillRegistry（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillRegistry.java:41`） 扫描目录、解析元数据并缓存正文。按需加载指模型上下文按需展开，不代表每次调用才读取磁盘。
+2. SkillIndexFormatter（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillIndexFormatter.java:40`） 只向模型提供 name、description 和 load_skill 使用规则。少量 skill 首版不需要向量检索或额外路由模型。
+3. load_skill 执行器（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/tool/ToolRegistry.java:816`） 按精确名称查找并检查禁用状态；工具返回确认，正文由受控代码补入。
+4. LoadedSkillMessages（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/tool/LoadedSkillMessages.java:33`） 从本批成功加载的结果取得正文；Agent（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/agent/Agent.java:551`） 追加指南后继续请求模型，当前用户任务即可生效。
+5. LoadSkillSameTurnTest（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/test/java/com/paicli/agent/LoadSkillSameTurnTest.java:91`） 记录请求序列，断言第一次无正文、加载后的第二次有正文。它验证注入链路，不证明真实模型会正确选择 skill。
 
 ### 当前最小改造
 
 - SkillProperties + 目录加载器/注册表：配置管理员维护的目录，解析 name/description/body，启动时生成不可变快照；先不加管理页面和在线安装。
 - 索引与 LoadSkillTool：首次模型请求发送索引；成功加载后追加受控指南；加载记录放在请求内，每个用户轮重新按需加载。
 - 通用工具分发：替换 AgentLoopService 固定的 KnowledgeBaseSearchTool.DEFINITIONS 和 search.execute，同时泛化工具 token 预算、进度事件、错误和重复参数计算。ChatHandler 中提前计算的工具预算也要保持一致。
-- 上下文边界：不能直接照搬 PaiCLI 的额外 user 消息。当前 [fitAgent](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ContextBudgetService.java:25) 根据最后一条 user 消息确定保护范围；若最后一条是 skill 指南，原始问题和前面的工具配对就可能被当成旧历史删除。需要明确真实用户轮边界或类型化消息来源，并保护该轮问题、工具配对与已加载指南；指南不作为用户原话持久化。
+- 上下文边界：不能直接照搬 PaiCLI 的额外 user 消息。当前 [fitAgent](../../src/main/java/com/yizhaoqi/smartpai/service/ContextBudgetService.java#L25) 根据最后一条 user 消息确定保护范围；若最后一条是 skill 指南，原始问题和前面的工具配对就可能被当成旧历史删除。需要明确真实用户轮边界或类型化消息来源，并保护该轮问题、工具配对与已加载指南；指南不作为用户原话持久化。
 
 ### skill 与 CLI 执行应分别计入实现范围
 
@@ -45,7 +47,7 @@
 
 Skill 提供任务方法、输出格式和操作指引；知识库提供事实证据；Java 或 MCP 工具执行实际操作。Skill 的加载不能自动新增浏览器、命令执行或外部服务能力。
 
-ShadowRAG 先建立通用工具注册与有界 Agent Loop，再把知识库搜索、skill 加载、参考文件读取放进去。仓库已有的 [MCP 客户端设计](E:/Curzsu/ShadowRAG/docs/superpowers/specs/2026-10-03-mcp-client-integration-design.md:88) 也需要这套基础设施，但**目前仍是设计文档，相关运行时代码尚不存在**。实现 skill 不必等待 MCP 客户端上线，也不要各做一套循环。
+ShadowRAG 先建立通用工具注册与有界 Agent Loop，再把知识库搜索、skill 加载、参考文件读取放进去。仓库已有的 [MCP 客户端设计](../superpowers/specs/2026-10-03-mcp-client-integration-design.md#L88) 也需要这套基础设施，但**目前仍是设计文档，相关运行时代码尚不存在**。实现 skill 不必等待 MCP 客户端上线，也不要各做一套循环。
 
 | 选择 | 取舍 |
 | --- | --- |
@@ -59,17 +61,17 @@ ShadowRAG 先建立通用工具注册与有界 Agent Loop，再把知识库搜�
 
 | 环节 | 实际行为 | 源码 |
 | --- | --- | --- |
-| 初始化 | 解压内置资源、创建状态存储和注册表、执行 reload、注入工具与 Agent | [Main.java:322](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/cli/Main.java:322) |
-| Skill 模型 | 保存 name、description、version、author、tags、source、body 和参考目录 | [Skill.java:14](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/Skill.java:14) |
-| 三层发现 | 内置缓存 < 操作系统用户目录 < 项目目录，后者整体覆盖同名 skill | [SkillRegistry.java:41](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillRegistry.java:41) |
-| Frontmatter | 自写 YAML 子集解析；支持单行、`|` 块字符串、行内数组；缺 name 回退目录名 | [SkillFrontmatterParser.java:31](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillFrontmatterParser.java:31) |
-| 启停 | 默认全部启用；`~/.paicli/skills.json` 只持久化 disabled 名称 | [SkillStateStore.java:33](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillStateStore.java:33) |
-| 模型索引 | name + description，最多 20 个；说明最多 500 code point；总段按 Java 字符长度裁剪 | [SkillIndexFormatter.java:17](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillIndexFormatter.java:17) |
-| 加载工具 | `load_skill(name)` 检查是否存在及是否禁用，只返回加载确认 | [ToolRegistry.java:816](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/tool/ToolRegistry.java:816) |
-| 正文注入 | 从本批成功加载结果生成独立 user 消息，追加在 tool 结果后；每份正文最多 5120 个 Java 字符 | [LoadedSkillMessages.java:33](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/tool/LoadedSkillMessages.java:33) |
-| 注入时机 | 本次用户任务内，下一次模型请求前完成注入；ReAct、Plan、Team 均接入 | [Agent.java:283](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/agent/Agent.java:283) |
-| 内置参考文件 | 通过明确文件清单从 jar 解压到版本缓存 | [SkillBuiltinExtractor.java:23](E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillBuiltinExtractor.java:23) |
-| 同轮测试 | 验证首个请求无正文，加载后的第二个请求包含正文，且正文紧跟 tool 结果 | [LoadSkillSameTurnTest.java:91](E:/Curzsu/paicli-main/paicli-main/src/test/java/com/paicli/agent/LoadSkillSameTurnTest.java:91) |
+| 初始化 | 解压内置资源、创建状态存储和注册表、执行 reload、注入工具与 Agent | Main.java:322（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/cli/Main.java:322`） |
+| Skill 模型 | 保存 name、description、version、author、tags、source、body 和参考目录 | Skill.java:14（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/Skill.java:14`） |
+| 三层发现 | 内置缓存 < 操作系统用户目录 < 项目目录，后者整体覆盖同名 skill | SkillRegistry.java:41（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillRegistry.java:41`） |
+| Frontmatter | 自写 YAML 子集解析；支持单行、`|` 块字符串、行内数组；缺 name 回退目录名 | SkillFrontmatterParser.java:31（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillFrontmatterParser.java:31`） |
+| 启停 | 默认全部启用；`~/.paicli/skills.json` 只持久化 disabled 名称 | SkillStateStore.java:33（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillStateStore.java:33`） |
+| 模型索引 | name + description，最多 20 个；说明最多 500 code point；总段按 Java 字符长度裁剪 | SkillIndexFormatter.java:17（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillIndexFormatter.java:17`） |
+| 加载工具 | `load_skill(name)` 检查是否存在及是否禁用，只返回加载确认 | ToolRegistry.java:816（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/tool/ToolRegistry.java:816`） |
+| 正文注入 | 从本批成功加载结果生成独立 user 消息，追加在 tool 结果后；每份正文最多 5120 个 Java 字符 | LoadedSkillMessages.java:33（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/tool/LoadedSkillMessages.java:33`） |
+| 注入时机 | 本次用户任务内，下一次模型请求前完成注入；ReAct、Plan、Team 均接入 | Agent.java:283（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/agent/Agent.java:283`） |
+| 内置参考文件 | 通过明确文件清单从 jar 解压到版本缓存 | SkillBuiltinExtractor.java:23（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/skill/SkillBuiltinExtractor.java:23`） |
+| 同轮测试 | 验证首个请求无正文，加载后的第二个请求包含正文，且正文紧跟 tool 结果 | LoadSkillSameTurnTest.java:91（原机器定位：`E:/Curzsu/paicli-main/paicli-main/src/test/java/com/paicli/agent/LoadSkillSameTurnTest.java:91`） |
 
 两个值得保留的实现细节：
 
@@ -85,15 +87,15 @@ ShadowRAG 先建立通用工具注册与有界 Agent Loop，再把知识库搜�
 
 | 当前代码 | 对 skill 的影响 | 建议改动 |
 | --- | --- | --- |
-| [ChatHandler.java:52](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java:52) 只有固定 SEARCH_TOOL | 模型看不到 load_skill | 从 ToolRegistry 获取本轮工具定义 |
-| [DeepSeekClient.java:240](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/client/DeepSeekClient.java:240) 只处理 tool_calls[0]，不传 name/index | 无法区分搜索、skill、参考文件；多个调用会串参数 | 返回包含 index、id、name、arguments 分片的流事件，按 index 累积 |
-| [ChatHandler.java:221](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java:221) 将工具调用固定解释为搜索 | load_skill 参数会误入知识库检索 | 按精确工具名分发；非法参数和未知工具返回配对错误 |
-| [ChatHandler.java:255](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java:255) 第二次请求不带工具 | load_skill 后无法继续读取参考文件或搜索知识库 | 改为有上限的多轮 Agent Loop |
-| [ChatHandler.java:168](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java:168) 构建消息与固定工具预算 | 缺少 skill 索引和动态定义预算 | 基于同一运行时快照生成索引与 tools |
-| [ContextBudgetService.java:44](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ContextBudgetService.java:44) 按固定尾部消息数保护，仅裁剪最后一个 tool | 多轮时可能删掉当前问题、skill 正文或拆散调用配对 | 保护完整当前用户轮；优先删除旧历史单元，结构化裁剪工具数据 |
-| [ChatHandler.java:379](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java:379) 只持久化用户与最终助手文本 | 不能承诺一次加载后永久存在于整个会话 | 首版每个用户轮独立加载，不把指南伪装成用户原话写入聊天历史 |
-| [application.yml:142](E:/Curzsu/ShadowRAG/src/main/resources/application.yml:142) 通用问题被要求“不调用工具” | 写作、总结等 skill 可能被错误禁止 | 限制只针对 search_knowledge_base；skill 是否使用由说明与当前任务决定 |
-| [ChatHandler.java:459](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java:459) 停止只控制输出标志 | 用户停止后仍可能继续加载、搜索及请求模型 | 返回可取消的响应流；停止和断开时取消当前订阅 |
+| [ChatHandler.java:52](../../src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java#L52) 只有固定 SEARCH_TOOL | 模型看不到 load_skill | 从 ToolRegistry 获取本轮工具定义 |
+| [DeepSeekClient.java:240](../../src/main/java/com/yizhaoqi/smartpai/client/DeepSeekClient.java#L240) 只处理 tool_calls[0]，不传 name/index | 无法区分搜索、skill、参考文件；多个调用会串参数 | 返回包含 index、id、name、arguments 分片的流事件，按 index 累积 |
+| [ChatHandler.java:221](../../src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java#L221) 将工具调用固定解释为搜索 | load_skill 参数会误入知识库检索 | 按精确工具名分发；非法参数和未知工具返回配对错误 |
+| [ChatHandler.java:255](../../src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java#L255) 第二次请求不带工具 | load_skill 后无法继续读取参考文件或搜索知识库 | 改为有上限的多轮 Agent Loop |
+| [ChatHandler.java:168](../../src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java#L168) 构建消息与固定工具预算 | 缺少 skill 索引和动态定义预算 | 基于同一运行时快照生成索引与 tools |
+| [ContextBudgetService.java:44](../../src/main/java/com/yizhaoqi/smartpai/service/ContextBudgetService.java#L44) 按固定尾部消息数保护，仅裁剪最后一个 tool | 多轮时可能删掉当前问题、skill 正文或拆散调用配对 | 保护完整当前用户轮；优先删除旧历史单元，结构化裁剪工具数据 |
+| [ChatHandler.java:379](../../src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java#L379) 只持久化用户与最终助手文本 | 不能承诺一次加载后永久存在于整个会话 | 首版每个用户轮独立加载，不把指南伪装成用户原话写入聊天历史 |
+| [application.yml:142](../../src/main/resources/application.yml#L142) 通用问题被要求“不调用工具” | 写作、总结等 skill 可能被错误禁止 | 限制只针对 search_knowledge_base；skill 是否使用由说明与当前任务决定 |
+| [ChatHandler.java:459](../../src/main/java/com/yizhaoqi/smartpai/service/ChatHandler.java#L459) 停止只控制输出标志 | 用户停止后仍可能继续加载、搜索及请求模型 | 返回可取消的响应流；停止和断开时取消当前订阅 |
 
 ## 4. 首版建议配置与 Skill 格式
 
@@ -216,7 +218,7 @@ sequenceDiagram
 
 ## 6. 上下文、权限与错误处理
 
-- 使用现有 [TokenEstimator](E:/Curzsu/ShadowRAG/src/main/java/com/yizhaoqi/smartpai/service/TokenEstimator.java:24) 估算索引、正文、参考文本、动态工具定义及输出预留，并沿用安全余量。这仍是近似预算。
+- 使用现有 [TokenEstimator](../../src/main/java/com/yizhaoqi/smartpai/service/TokenEstimator.java#L24) 估算索引、正文、参考文本、动态工具定义及输出预留，并沿用安全余量。这仍是近似预算。
 - 索引放入现有 system 的受控索引区；仅包含元数据，不预先塞入所有正文。必须保留索引中的加载规则，超出索引预算的整条 skill 记录省略并提供诊断。
 - 正文超过 max-body-tokens 时明确返回 skill_body_too_large，要求管理员拆分到参考文件；首版不静默裁掉关键指令。参考文本也用该上限和文件读取大小上限检查。
 - 保护完整当前用户轮及调用配对；优先裁剪旧历史和工具数据。仍不满足上下文预算时明确终止，不能丢掉指南后继续宣称已按指南执行。

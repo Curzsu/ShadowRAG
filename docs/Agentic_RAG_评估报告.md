@@ -1,5 +1,7 @@
 # ShadowRAG Agentic RAG 完善度评估报告
 
+> 历史评估：下文结论对应 2026-08-06 的 WebSocket／两阶段实现，保留当时发现与证据，不代表当前代码。当前聊天协议与保存边界见[聊天指南](chat.md)，其他现行说明见[文档索引](index.md)。
+
 > 评估时间：2026-08-06
 > 评估范围：`ChatHandler` / `ChatWebSocketHandler` / `DeepSeekClient` / `HybridSearchService` / `ConversationCompressionService` 及相关配置
 > 结论：**当前是一个"两阶段" Agentic RAG，基础可用，但存在若干明确 bug，且 Agentic 能力较浅，有较大扩展空间。**

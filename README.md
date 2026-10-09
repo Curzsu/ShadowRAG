@@ -1,214 +1,67 @@
 # ShadowRAG
 
-ShadowRAG 是一个面向企业级场景的高性能 **Agentic RAG（检索增强生成）知识库问答系统**。系统基于 ReAct 智能体范式，具备多格式文档深度解析、多路混合检索与精排重塑、长对话记忆工程以及端到端可观测性评测能力。
+ShadowRAG 是一个组织知识库问答项目，基于 Spring Boot 和 Vue，支持文档上传、异步解析、混合检索、可选精排、多轮工具调用和 POST SSE 流式聊天。
 
----
+**使用说明从 [文档索引](docs/index.md) 进入。** 当前指南与所在分支代码同步；设计计划、研究和验收记录保留各自的历史范围。
 
-## 核心特性
+## 主要能力
 
-- **文档智能解析流水线**：支持 PDF、Word、Markdown、TXT 等格式；前端支持切片断点续传与拖拽上传；采用 MinerU（GPU 深度解析，支持复杂排版与表格）与 Apache Tika 自动容灾兜底；基于 Kafka 实现异步削峰与重试。
-- **多路混合检索与精排 (Hybrid Search & Reranking)**：Elasticsearch KNN 向量检索 (1024 维 BGE-M3) + BM25 全文检索 (IK 分词) → 原生 RRF 倒数排名融合 → Cross-Encoder 精排模型 (bge-reranker-v2-m3)。
-- **自主智能体决策 (Agentic RAG / ReAct)**：LLM 基于 Function Calling 自主规划检索时机、重写查询与多步检索；内建最大轮次控制与超时兜底，通用对话可零检索直接应答。
-- **双层长记忆与上下文治理**：MySQL 作为只追加事实源日志，Redis 维护当前压缩工作集；Lua 脚本与版本 CAS 防止并发冲突；基于 Token 软硬双阈值自动触发异步增量摘要与窗口截断。
-- **轻量稳定流式传输 (POST SSE)**：基于 Spring MVC `SseEmitter` 构建轻量流式链路；支持前端主动 HTTP 取消、心跳保活及检索推理过程实时展示。
-- **端到端可观测性与评测**：原生打通 OpenTelemetry 与 Langfuse，全链路追踪 Token、耗时与 Tool 执行；内建检索召回率（Hit@K / MRR@K）与意图路由离线评测工具。
-- **多租户与权限隔离**：基于组织标签（OrganizationTag）进行数据物理与逻辑隔离，支持文档级公开/私有访问控制。
+- 文档流水线：分片上传到 MinIO，经 Kafka 异步处理，使用 MinerU／Tika 解析、切片与建索引。
+- 混合检索：Elasticsearch KNN + BM25，在应用侧进行 RRF 融合；可用 TEI Cross-Encoder 精排，失败时降级。
+- Agentic RAG：模型通过 `search_knowledge_base` 决定检索和继续推理，受工具轮次、调用次数和超时预算约束。
+- 对话与记忆：MySQL 保存完整轮次，Redis 维护工作集；结合上下文预算与增量摘要处理长对话。
+- 流式聊天：Spring MVC `SseEmitter`，支持事件序号、心跳、取消和终态处理，详见[聊天指南](docs/chat.md)。
+- 可选追踪与评测：手动 OpenTelemetry 埋点导出到 Langfuse，包含模型与检索阶段耗时、状态，以及检索和首轮路由评测入口。实际 Token／费用核算尚未完整接入，详见[可观测指南](docs/observability.md)。
+- 权限：JWT 与组织标签访问控制，检索按可见范围过滤；当前不应表述为租户数据库或索引的物理隔离。
 
----
+## 技术与结构
 
-## 技术栈
+后端使用 Java 17 语言级别、Spring Boot 3.4.2；CI 使用 Java 21。依赖 MySQL、Redis、MinIO、Kafka、Elasticsearch；向量默认使用 Ollama `bge-m3`（1024 维），精排使用 TEI。前端为 Vue 3、TypeScript、Vite、Naive UI 和 Pinia。版本与实际依赖以 [pom.xml](pom.xml)、[前端清单](frontend/package.json)及锁文件为准。
 
-| 模块 | 核心技术选型 |
-|------|--------------|
-| **后端框架** | Java 17+ / Spring Boot 3.4.2 / Spring Data JPA |
-| **存储 & 缓存** | MySQL 8.0 / Redis 7.0 / MinIO |
-| **检索 & 向量** | Elasticsearch 8.10 (IK 分词) / Ollama (bge-m3 1024维) |
-| **重排 & 解析** | HuggingFace TEI (bge-reranker-v2-m3) / MinerU (GPU) / Apache Tika |
-| **消息队列** | Apache Kafka 3.2 |
-| **大模型支持** | OpenAI 兼容接口（火山引擎 GLM-5、DeepSeek-V3/R1、本地 Ollama 等） |
-| **可观测性** | OpenTelemetry 1.66 / Langfuse |
-| **前端工程** | Vue 3.5 / TypeScript 5.8 / Vite 6 / Naive UI / Pinia / UnoCSS |
+| 路径 | 用途 |
+| --- | --- |
+| `src/` | 后端源码与测试 |
+| `frontend/` | 前端源码、流式客户端与测试 |
+| `docs/` | 当前指南、部署配置和历史资料，见[索引](docs/index.md) |
+| `scripts/` | 评测与维护工具 |
+| `local/`、`logs/` | 本地笔记、临时文件与日志，Git 忽略，分类见[文档索引](docs/index.md) |
 
----
+## 本地快速开始
 
-## 核心架构流程
+以下命令从项目根目录执行；需准备 Java、Maven、Docker，以及前端 Node 24／pnpm 10.28.0。已有依赖服务可直接复用。
 
-### Agentic RAG 对话时序
+1. 启动基础依赖：
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor U as 用户
-    participant FE as Vue 前端
-    participant SSE as ChatStreamService
-    participant AG as AgentLoopService
-    participant LLM as LLM (OpenAI-compatible)
-    participant HS as HybridSearchService (KNN+BM25+RRF+Rerank)
-    participant DB as MySQL & Redis
+   ```sh
+   docker compose -f docs/docker-compose.yaml up -d mysql redis es kafka minio
+   ```
 
-    U->>FE: 提问
-    FE->>SSE: POST /api/v1/chat/stream
-    SSE->>AG: 调度生成
-    AG->>DB: 读取并校验会话工作集
-    loop ReAct 循环（最多 3 轮，带超时与预算保护）
-        AG->>LLM: 发起请求（携带 search_knowledge_base 工具）
-        alt 直接回答
-            LLM-->>SSE: 流式输出正文
-            SSE-->>FE: SSE chunk 推送
-        else 触发知识库检索
-            LLM-->>AG: tool_calls (query)
-            AG->>HS: 向量 + BM25 检索 → RRF 融合 → Cross-Encoder 精排
-            HS-->>AG: 召回相关切片与溯源信息
-            AG->>AG: 回填工具结果，进入下一轮推理
-        end
-    end
-    SSE->>DB: 事务提交事实源日志，更新 Redis 工作集
-    SSE-->>FE: completion finished
-```
+2. 准备向量、精排和解析服务。基础 Compose 的 Ollama、MinerU 申请 NVIDIA GPU，TEI 默认 CPU；无 GPU 时按[部署指南](docs/deployment.md)准备 CPU 向量服务并关闭 MinerU、使用 Tika，不直接启动全套。
+3. 复制 [application-local.yml.example](application-local.yml.example) 为根目录 `application-local.yml`，填写模型、JWT、ES 及实际依赖凭据。模型地址与名称也须匹配供应商；私有文件不提交。
+4. 启动后端：
 
----
+   ```sh
+   mvn spring-boot:run
+   ```
 
-## 项目结构
+5. 另开终端启动前端：
 
-```text
-ShadowRAG/
-├── src/main/java/com/yizhaoqi/smartpai/   # 后端工程核心源码
-│   ├── client/                             # 模型与服务适配器 (LLM / Embedding / Reranker / MinerU)
-│   ├── config/                             # 基础设施与安全配置 (Security / ES / Kafka / Redis / SSE)
-│   ├── consumer/                           # 异步消息驱动 (文档解析流水线 / 死信容灾)
-│   ├── controller/                         # HTTP API 与 POST SSE 流式通信端点
-│   ├── observability/                      # 链路可观测性 (OpenTelemetry / Langfuse Tracing)
-│   ├── service/                            # 业务编排核心 (ReAct 循环 / 混合检索 / 长记忆治理)
-│   └── utils/                              # 基础工具库 (Token 估算 / JWT / 密码散列)
-├── frontend/                               # 前端工程 (Vue 3 + Vite)
-│   ├── src/views/                          # 核心页面视图 (AI 对话工作台 / 知识库管理)
-│   ├── src/service/                        # 接口请求封装与 SSE 流式驱动引擎
-│   └── src/store/                          # 响应式状态管理 (会话上下文 / 上传状态)
-├── docs/                                   # 运维与交付资产
-│   ├── docker-compose.yaml                 # 基础设施容器编排 (MySQL / ES / Redis / Kafka 等)
-│   ├── init-db.sql                         # 数据库初始化建表脚本
-│   └── nginx.conf                          # 生产 Nginx 反向代理与流式传输配置参考
-├── scripts/                                # 评测与自动化运维工具
-│   ├── langfuse/                           # 自动化评测套件 (检索召回评测 / 意图路由评测)
-│   └── benchmarks/                         # 离线性能与 Token 预算分析
-└── pom.xml                                 # 后端 Maven 依赖定义
-```
+   ```sh
+   cd frontend
+   pnpm install --frozen-lockfile --ignore-scripts
+   pnpm dev
+   ```
 
----
+前端默认 `http://localhost:9527`，后端默认 `http://localhost:8081`。管理员账号默认 `admin`，密码以配置为准，上线前修改开发凭据。
 
-## 快速开始
+## 后续操作
 
-### 1. 启动基础设施
+- [部署指南](docs/deployment.md)：配置加载、端口、CPU/GPU 精排、前端构建与可选 Nginx。当前 Compose 只编排依赖，不自动启动后端、前端或 Nginx。
+- [可观测指南](docs/observability.md)：Langfuse 开关、数据边界、TTFT 口径、检索与路由评测命令。路由脚本支持 `Dataset`、`RunId`，没有 `Limit` 参数；真实评测会访问外部服务并可能产生费用。
+- [CI 说明](docs/ci.md)：本地检查、自动任务和真实依赖验收边界。
+- [变更记录](CHANGELOG.md)与[文档维护约定](AGENTS.md)：功能变化与文档同步要求。
 
-```bash
-cd docs
-docker-compose up -d
-```
-启动服务：MySQL (`33060`)、Redis (`6379`)、Elasticsearch (`9200`)、Kafka (`9092`)、MinIO (`19000`)、MinerU (`8000`)、Ollama (`11434`)、TEI Reranker (`8082`)。
-
-### 2. 配置本地凭据
-
-复制项目根目录下的配置模板：
-```bash
-# Windows PowerShell
-Copy-Item application-local.yml.example application-local.yml
-
-# Linux / macOS
-cp application-local.yml.example application-local.yml
-```
-在 `application-local.yml` 中填入你的本地凭据（该文件已被 `.gitignore` 排除，不会被提交）：
-```yaml
-deepseek:
-  api:
-    # 替换为实际的大模型 API Key（支持火山引擎 Ark / DeepSeek / 智谱等）
-    key: "${YOUR_LLM_API_KEY}"
-
-jwt:
-  # JWT 签名密钥（Base64 编码，解码后长度不低于 32 字节）
-  secret-key: "${YOUR_JWT_SECRET_KEY}"
-
-elasticsearch:
-  # 与 docs/docker-compose.yaml 中配置的 ELASTIC_PASSWORD 保持一致
-  password: "${YOUR_ELASTIC_PASSWORD}"
-```
-
-### 3. 启动后端
-
-```bash
-mvn spring-boot:run
-```
-*(可选) 结合 Langfuse 监控启动：*
-```powershell
-.\scripts\langfuse\run-with-langfuse.ps1
-```
-后端服务运行于 `http://localhost:8081`。
-
-### 4. 启动前端
-
-```bash
-cd frontend
-pnpm install
-pnpm dev
-```
-前端服务运行于 `http://localhost:9527`。
-
-### 5. 登录系统
-
-- **默认账号**：`admin`
-- **默认密码**：`123456`（可在 `application.yml` 中修改）
-
----
-
-## 关键配置说明
-
-配置文件位于 `src/main/resources/application.yml`：
-
-| 配置项 | 环境变量 | 默认值 / 示例 | 说明 |
-|--------|----------|---------------|------|
-| `deepseek.api.url` | - | `https://ark.cn-beijing.volces.com/api/coding/v3` | OpenAI 兼容模型端点 |
-| `deepseek.api.model` | - | `glm-5-3-flash` | 对话与推理主模型 |
-| `deepseek.api.key` | `DEEPSEEK_API_KEY` | - | 模型 API Key |
-| `embedding.api.url` | - | `http://localhost:11434/v1` | Ollama 向量模型服务地址 |
-| `embedding.api.model` | - | `bge-m3` | 1024 维多语言向量模型 |
-| `reranker.api.url` | - | `http://localhost:8082` | HuggingFace TEI 精排服务 |
-| `mineru.api.url` | - | `http://localhost:8000` | MinerU 深度解析服务 |
-| `ai.agent.max-tool-rounds` | `AI_AGENT_MAX_TOOL_ROUNDS` | `3` | 最大 ReAct 检索轮次 |
-| `langfuse.enabled` | `LANGFUSE_ENABLED` | `false` | 是否启用 Langfuse 链路追踪 |
-
----
-
-## 可观测性与评测
-
-- **链路追踪**：启动 Langfuse 后，可在控制台实时观察 Chat 请求、LLM 首字延迟 (TTFT)、Tool 检索耗时及 ES 检索分步性能。
-- **检索召回评测**：运行自动化评估脚本测试测试集上的 `Hit@K` 与 `MRR@K`：
-  ```powershell
-  .\scripts\langfuse\run-retrieval-experiment.ps1 -Username admin -Limit 20
-  ```
-- **意图路由评测**：测试模型对事实型检索 vs 直接回答的路由准确率：
-  ```powershell
-  .\scripts\langfuse\run-routing-evaluation.ps1 -Limit 50
-  ```
-
----
-
-## 生产部署建议
-
-若使用 Nginx 作为前端静态托管与反向代理，需注意为 SSE 流式端点**关闭响应缓冲**：
-
-```nginx
-location = /api/v1/chat/stream {
-    proxy_pass http://127.0.0.1:8081;
-    proxy_http_version 1.1;
-    proxy_set_header Connection "";
-    proxy_buffering off;
-    proxy_cache off;
-    gzip off;
-    proxy_read_timeout 90s;
-}
-```
-完整 Nginx 示例参见 [docs/nginx.conf](docs/nginx.conf)。自动化测试规范参见 [docs/ci.md](docs/ci.md)。
-
----
+当前没有独立网关、ELK 或完整指标告警平台。请求去重和会话生成锁是单实例保证，生产可用性及多副本协调需要按实际部署验证。
 
 ## 开源协议
 

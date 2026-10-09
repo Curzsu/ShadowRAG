@@ -1,5 +1,7 @@
 # ShadowRAG 知识库 ReAct 接续设计
 
+> 引用说明：源码行号保留调研时的位置；本仓库链接已改为相对路径，外部参考仓库的本机路径仅作为文字定位记录，不代表可共享入口。
+
 日期：2026-10-06  
 状态：R1～R3 验收通过，改动保留在专用分支，见 [ReAct验收](../../eval/chat_stream/knowledge-base-react-acceptance.md)
 前置：[聊天去除Flux计划](../plans/2026-10-06-remove-flux-chat.md) 的阶段3验收通过
@@ -143,7 +145,7 @@ R3完成后即可交付：普通Java编排的知识库ReAct、现有SSE流式输
 
 ### 7.1 核心流程
 
-[Agent.java](/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/agent/Agent.java:215) 的主流程是：
+Agent.java（原机器定位：`/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/agent/Agent.java:215`） 的主流程是：
 
 ```text
 while true:
@@ -164,18 +166,18 @@ ShadowRAG采用这个控制流程，把当前“第一次判断搜索、第二�
 
 | PaiCLI实现 | 已确认的行为 | ShadowRAG适配位置 |
 | --- | --- | --- |
-| [LlmClient.java](/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/llm/LlmClient.java:11) | chat普通返回ChatResponse；StreamListener逐段收到正文或推理；结果含完整工具列表 | R1：BlockingModelHttpClient增量回调与ModelRoundResult |
-| [AbstractOpenAiCompatibleClient.java](/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/llm/AbstractOpenAiCompatibleClient.java:558) | 按index累积多个调用，再组装id/name/arguments | R1：扩展现有只处理第一个调用的解码器；工具参数完整后才执行 |
-| [Agent.java](/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/agent/Agent.java:257) | 先追加包含全部调用的assistant，再回填全部tool结果，然后continue | R2：请求内AgentLoopService与单一KnowledgeBaseSearchTool |
-| [Agent.java收尾](/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/agent/Agent.java:341) | 预算触发后只进行一次tools为空的模型调用，并标记部分完成 | R2：最多一次无工具收尾，受原总截止时间约束 |
-| [AgentBudget.java](/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/agent/AgentBudget.java:45)、[RunawayGuard.java](/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/agent/RunawayGuard.java:31) | 执行预算与重复动作提醒分开；重复动作参数进行JSON归一化 | R2：首版只保留轮数、调用次数、重复参数和时间限制，不引入整套CLI预算与提醒系统 |
-| [ToolResultBoundary.java](/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/tool/ToolResultBoundary.java:26) | 工具正文带不可信资料边界，处理伪造的边界标签 | R2：检索结果明确标为资料；若采用标签，转义文档中同名标签。权限仍由搜索服务验证 |
-| [AgentBudgetFinalizationTest.java](/E:/Curzsu/paicli-main/paicli-main/src/test/java/com/paicli/agent/AgentBudgetFinalizationTest.java:23) | 模拟固定响应，记录每次请求的messages/tools，断言收尾没有工具 | R3：复用测试方法，断言搜索A→搜索B→final及预算收尾的实际请求序列 |
+| LlmClient.java（原机器定位：`/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/llm/LlmClient.java:11`） | chat普通返回ChatResponse；StreamListener逐段收到正文或推理；结果含完整工具列表 | R1：BlockingModelHttpClient增量回调与ModelRoundResult |
+| AbstractOpenAiCompatibleClient.java（原机器定位：`/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/llm/AbstractOpenAiCompatibleClient.java:558`） | 按index累积多个调用，再组装id/name/arguments | R1：扩展现有只处理第一个调用的解码器；工具参数完整后才执行 |
+| Agent.java（原机器定位：`/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/agent/Agent.java:257`） | 先追加包含全部调用的assistant，再回填全部tool结果，然后continue | R2：请求内AgentLoopService与单一KnowledgeBaseSearchTool |
+| Agent.java收尾（原机器定位：`/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/agent/Agent.java:341`） | 预算触发后只进行一次tools为空的模型调用，并标记部分完成 | R2：最多一次无工具收尾，受原总截止时间约束 |
+| AgentBudget.java（原机器定位：`/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/agent/AgentBudget.java:45`）、RunawayGuard.java（原机器定位：`/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/agent/RunawayGuard.java:31`） | 执行预算与重复动作提醒分开；重复动作参数进行JSON归一化 | R2：首版只保留轮数、调用次数、重复参数和时间限制，不引入整套CLI预算与提醒系统 |
+| ToolResultBoundary.java（原机器定位：`/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/tool/ToolResultBoundary.java:26`） | 工具正文带不可信资料边界，处理伪造的边界标签 | R2：检索结果明确标为资料；若采用标签，转义文档中同名标签。权限仍由搜索服务验证 |
+| AgentBudgetFinalizationTest.java（原机器定位：`/E:/Curzsu/paicli-main/paicli-main/src/test/java/com/paicli/agent/AgentBudgetFinalizationTest.java:23`） | 模拟固定响应，记录每次请求的messages/tools，断言收尾没有工具 | R3：复用测试方法，断言搜索A→搜索B→final及预算收尾的实际请求序列 |
 
 ### 7.3 不直接照搬的行为
 
 1. **默认预算。** PaiCLI默认不限制硬轮数和token总量，RunawayGuard连续3次提醒，AgentBudget默认连续5批相同工具调用触发停滞收尾。这与ShadowRAG首版3轮工具、6次实际调用、第3次相同动作拦截的规则不同。服务端采用第5.1节的有界规则，降低等待时间和单请求占用。
-2. **取消上下文。** [CancellationContext.java](/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/runtime/CancellationContext.java:6) 使用静态CURRENT和InheritableThreadLocal。ShadowRAG有多个用户并发请求和复用线程池，应延续现有ChatRequestContext，避免一个请求取消影响另一个请求。
+2. **取消上下文。** CancellationContext.java（原机器定位：`/E:/Curzsu/paicli-main/paicli-main/src/main/java/com/paicli/runtime/CancellationContext.java:6`） 使用静态CURRENT和InheritableThreadLocal。ShadowRAG有多个用户并发请求和复用线程池，应延续现有ChatRequestContext，避免一个请求取消影响另一个请求。
 3. **流完成与调用ID。** PaiCLI允许finish_reason作为完成标志，并在缺失ID时补本地call_index。ShadowRAG继续要求供应商DONE和有效调用ID，不降低已有截断检测标准。名称累积也不能直接复制append：需要覆盖本项目模拟流重复完整名称的情况。
 4. **工具与输出。** PaiCLI还有通用ToolRegistry、读工具并行、审批交互、CLI渲染器等能力。ShadowRAG首版串行执行一个搜索工具，使用现有SseEmitter；CLI“每轮清空渲染缓冲”对应Web端显式roundId/round_end及最终回答保存，不能把每轮正文全部拼成最终答案。
 5. **日志与推理。** PaiCLI有推理追踪日志和会话账本。ShadowRAG仅在供应商协议要求时于请求内保留推理字段，不新增原始推理日志或数据库保存。

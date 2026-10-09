@@ -110,8 +110,8 @@ application-local.yml
 /.qoder/
 
 # Accidental scratch and temporary output files
-/2}
-/docs/interview/2}
+/2[}]
+/docs/interview/2[}]
 /mvn_out.txt
 /test_out.txt
 /tmp_batch_test.ps1
@@ -124,6 +124,9 @@ application-local.yml
 /test_minimal.pdf
 /TODO.md
 /pdf解析策略方案设计.md
+
+# Local notes, archived review material and temporary files; never publish automatically
+/local/
 
 # Accidental duplicate files
 /CurzsuShadowRAGdocscompose-mineru.yaml

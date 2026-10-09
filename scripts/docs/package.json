@@ -1,0 +1,12 @@
+{
+  "name": "shadowrag-docs-check",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node check-links.mjs",
+    "report": "node check-links.mjs --report",
+    "test": "node --test check-links.test.mjs"
+  },
+  "engines": { "node": ">=24" },
+  "dependencies": { "markdown-it": "15.0.2" }
+}
